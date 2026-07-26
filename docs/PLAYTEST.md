@@ -35,8 +35,10 @@ rather than the game that exists.
 
 > "Tap to let the water go. Hold and drag to lean it."
 
-That is the whole control scheme and withholding it tests onboarding (**L-018**, known missing), not
-the loop. Say it once, flatly, and then stop talking.
+That is the whole control scheme and withholding it tests onboarding (**L-018**), not the loop. Say
+it once, flatly, and then stop talking. The game now offers both verbs itself over the first five
+runs, so if you find yourself needing to say this at all, **write that down** — it means the
+in-game onboarding failed, which is itself the L-018 result.
 
 If they ask a question, the answer is: *"Whatever you think."* Write the question down — questions
 are data about what the game fails to communicate.
@@ -119,7 +121,7 @@ All of these are already open loops. If the tester complains about one, that is 
 |---|---|---|
 | "I can't tell how fast I'm going" | True; 24 m/s looks like 9 m/s | L-014 |
 | "The mountain looks empty / the trees are cones" | True; props are placeholder solids | L-016 |
-| "I don't know what I'm supposed to do" | True; nothing explains the first 30 seconds | L-018 |
+| "I don't know what I'm supposed to do" | Partly addressed — the first five runs now name the two verbs. If they are still lost, that is a real finding | L-018 |
 | "I can't see where my old rivers went" | True; a dry channel is invisible | L-015 |
 | "The buttons look rough" | True; UI is legacy `Text` in hand-placed rects | L-017 |
 | Nothing dramatic ever happens with lakes | Expected; a basin needs ~50 runs to fill and spill | L-029 |

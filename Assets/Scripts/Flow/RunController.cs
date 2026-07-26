@@ -141,6 +141,14 @@ namespace Rill.Flow
                 if (!string.IsNullOrEmpty(project)) idleLine = project;
             }
 
+            // The first runs teach the two verbs and then get out of the way. Nothing here explains
+            // that the mountain remembers — that is the discovery the whole game is built on, and
+            // saying it out loud replaces it with a chore. It only names what the thumb does,
+            // because a player who never finds out they can steer concludes the game is boring for
+            // a reason that has nothing to do with the game.
+            if (!InDaily && Active.RunNumber < 3) idleLine = "Tap to let the water go";
+            else if (!InDaily && Active.RunNumber < 6) idleLine = "Hold and drag while it runs to lean the water";
+
             Hud.SetHint(InDaily
                 ? (_daily.RunsLeft > 0 ? "Daily Rill — " + _daily.RunsLeft + " runs left. Tap to release." : "Daily complete. Share your glyph.")
                 : idleLine);
@@ -209,6 +217,12 @@ namespace Rill.Flow
 
         void UpdateFlowing()
         {
+            // First run only: if two seconds pass with no touch, say the one thing that unblocks
+            // them. Steering is invisible otherwise — there is no button and nothing moves on its
+            // own to suggest it.
+            if (!InDaily && Active.RunNumber <= 1 && !Thumb.Held && _sim.Elapsed > 2f && _sim.Elapsed < 6f)
+                Hud.SetHint("Hold and drag to lean the water");
+
             // The whole control scheme: a lateral pull toward the thumb, and the cost of using it.
             Vector2 target = _sim.Head.Pos;
             bool steering = Thumb.Held && Thumb.WorldTargetOnPlane(Cam.Cam, _sim.Head.Height, out target);

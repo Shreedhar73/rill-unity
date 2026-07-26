@@ -200,6 +200,22 @@ difference well inside noise. Runs on ice cut less *where the ice is* but travel
 so they carve more everywhere else and it nets out. The drag effect is proven; the armour effect is
 not, and a per-cell measurement would be needed to claim it.
 
+### L-018 · Onboarding — the first 30 seconds explain nothing
+**Why** — There is no button and nothing moves on its own to suggest steering exists, so a player
+can complete several runs without discovering the only verb that matters. This is the single largest
+false-negative risk for the L-012 playtest: a tester who never finds steering concludes the game is
+boring for a reason that has nothing to do with the game.
+**Done when** — A first-time player discovers both verbs (tap to release, hold-drag to lean) inside
+their first two runs without being told by a person.
+**Evidence needed** — Watch someone start cold. Their questions are the measurement.
+**Implemented 2026-07-26, unobserved.** Runs 1–2 idle line reads "Tap to let the water go", runs 3–5
+"Hold and drag while it runs to lean the water", and during the very first run a hint appears if two
+seconds pass untouched. Deliberately says **nothing** about the mountain remembering, basins, or
+goals — that discovery is the game, and naming it replaces it with a chore. It names only what the
+thumb does.
+**Risk to watch** — this now overrides the projects/idle line for the first five runs, so a player
+never sees a project prompt early. That is probably right, but it is a real trade and not measured.
+
 ### L-012 · Hand playtest against the kill criterion
 **Why** — The design document sets an explicit M3 kill criterion: if playtesting does not produce
 unprompted "one more run" behaviour, redesign *before* art exists. Nothing in this repo speaks to
@@ -240,7 +256,6 @@ between runs — which is most of the time they spend looking at the mountain.
 |---|---|---|
 | L-016 | Prop silhouettes worth looking at | Cones and discs. Cosmetic until the loop is proven fun. |
 | L-017 | UI pass — legacy `Text`, hand-placed rects | Placeholder is survivable; the loop is not. |
-| L-018 | Onboarding — first 30 seconds explain nothing | Needs the loop settled first, or it teaches the wrong thing. |
 | L-019 | Cascade / dam-break spectacle | Now fires — `North basin broke its banks` appears in 150-run logs. Unblocked; still nobody has seen it. |
 | L-020 | Daily glyph legibility — currently near-empty | Viral spine, but pointless before retention exists. |
 | L-022 | Device performance pass | Never run on a phone. No profiling of any kind, ever. |
