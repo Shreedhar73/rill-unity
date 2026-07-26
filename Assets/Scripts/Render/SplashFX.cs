@@ -17,6 +17,11 @@ namespace Rill.Render
             go.transform.SetParent(transform, false);
             _ps = go.AddComponent<ParticleSystem>();
 
+            // A freshly added ParticleSystem is already playing (playOnAwake), and Unity refuses
+            // to set duration on a playing system — it threw on every boot, silently, in a log
+            // nobody was reading. Stop it before configuring it. Found by the play probe.
+            _ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
             var main = _ps.main;
             main.duration = 1f;
             main.loop = false;
