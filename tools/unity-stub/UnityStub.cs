@@ -252,6 +252,13 @@ namespace UnityEngine
         public void Render() { }
     }
 
+    public struct CombineInstance
+    {
+        public Mesh mesh;
+        public Matrix4x4 transform;
+        public int subMeshIndex;
+    }
+
     public struct Rect
     {
         public float x, y, width, height;
@@ -334,6 +341,7 @@ namespace UnityEngine
         public void SetUVs(int ch, List<Vector2> uv) { }
         public void RecalculateNormals() { }
         public void RecalculateBounds() { }
+        public void CombineMeshes(CombineInstance[] combine, bool mergeSubMeshes, bool useMatrices) { }
     }
 
     public class Renderer : Component

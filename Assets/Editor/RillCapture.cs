@@ -5,6 +5,7 @@ using Rill.App;
 using Rill.Core;
 using Rill.Flow;
 using Rill.Render;
+using Rill.World;
 
 namespace Rill.EditorTools
 {
@@ -57,13 +58,23 @@ namespace Rill.EditorTools
 
             var config = new GameConfig();
             var world = RillWorld.Create(config, config.Seed, config.Biome);
-            Play(world, config, runs);
 
             var root = new GameObject("RillCapture");
             try
             {
                 var terrainMat = Load("Shaders/Strata");
                 var waterMat = Load("Shaders/PooledWater");
+                var propMat = Load("Shaders/Prop");
+
+                // The ecosystem has to be driven alongside the runs, not bolted on afterwards:
+                // life grows from moisture that only exists because water went past, one run at a
+                // time. Created before Play so AdvanceAfterRun can be called each run.
+                var ecoGo = new GameObject("Life");
+                ecoGo.transform.SetParent(root.transform, false);
+                var eco = ecoGo.AddComponent<EcosystemSystem>();
+                eco.Initialise(world, propMat);
+
+                Play(world, config, runs, eco);
 
                 var terrainGo = new GameObject("Terrain");
                 terrainGo.transform.SetParent(root.transform, false);
@@ -77,6 +88,11 @@ namespace Rill.EditorTools
                 var lakes = waterGo.AddComponent<PooledWaterMesh>();
                 lakes.Initialise(world.Field, waterMat);
                 lakes.BuildNow();
+
+                // Props are normally drawn with Graphics.DrawMesh from Update, which never runs
+                // here, so without this the pictures show bare rock and say nothing about whether
+                // the mountain looks alive.
+                eco.BakeStaticRenderers(ecoGo.transform);
 
                 BuildSea(root.transform, world, waterMat);
                 BuildSun(root.transform);
@@ -107,9 +123,10 @@ namespace Rill.EditorTools
             }
         }
 
-        static void Play(RillWorld world, GameConfig config, int runs)
+        static void Play(RillWorld world, GameConfig config, int runs, EcosystemSystem eco)
         {
             var sim = new FlowSimulation(world);
+            var arrivals = new System.Collections.Generic.List<string>();
             for (int run = 1; run <= runs; run++)
             {
                 world.BeginRun();
@@ -128,10 +145,13 @@ namespace Rill.EditorTools
 
                 world.Basins.Rebuild();
                 world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+                if (eco != null) eco.AdvanceAfterRun(arrivals);
                 world.ApplyBetweenRunDrift();
             }
-            Debug.Log(string.Format("[RILL] capture: played {0} runs, {1:n0} m³ moved, terrain {2:0.00} m to {3:0.00} m vs virgin",
-                runs, world.LifetimeSediment, MinDelta(world), MaxDelta(world)));
+            Debug.Log(string.Format("[RILL] capture: played {0} runs, {1:n0} m³ moved, terrain {2:0.00} m to {3:0.00} m vs virgin, life {4} on {5:n0} cells",
+                runs, world.LifetimeSediment, MinDelta(world), MaxDelta(world),
+                eco != null ? EcosystemSystem.Describe(eco.HighestTier) : "n/a",
+                eco != null ? eco.LivingCells : 0));
         }
 
         static Vector3 DeepestCutWorld(RillWorld w)

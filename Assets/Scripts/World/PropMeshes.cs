@@ -24,6 +24,8 @@ namespace Rill.World
                 tris.Add(1 + (i + 1) % segments);
                 tris.Add(1 + i);
             }
+            // Flat, so no vertical gradient is possible; a flat disc of moss is fine as one
+            // tone because it is read as ground cover rather than as an object.
             return Build("Disc", verts, tris);
         }
 
@@ -34,7 +36,8 @@ namespace Rill.World
             var tris = new List<int>();
             AddQuad(verts, tris, new Vector3(-width, 0f, 0f), new Vector3(width, 0f, 0f), height);
             AddQuad(verts, tris, new Vector3(0f, 0f, -width), new Vector3(0f, 0f, width), height);
-            return Build("Blade", verts, tris);
+            // A blade is dark where it leaves the mud and pale at the tip.
+            return Build("Blade", verts, tris, 0.45f, 1.10f);
         }
 
         public static Mesh Cone(float radius, float height, int segments = 6)
@@ -52,7 +55,7 @@ namespace Rill.World
                 tris.Add(1 + i);
                 tris.Add(1 + (i + 1) % segments);
             }
-            return Build("Cone", verts, tris);
+            return Build("Cone", verts, tris, 0.50f, 1.05f);
         }
 
         /// <summary>
@@ -111,7 +114,9 @@ namespace Rill.World
                     tris.Add(ring + (i + 1) % segments);
                 }
             }
-            return Build("Conifer", verts, tris);
+            // Deep shade under the skirts, full colour at the crown: that contrast is the
+            // whole reason a conifer reads as a tree rather than a green triangle.
+            return Build("Conifer", verts, tris, 0.42f, 1.06f);
         }
 
         /// <summary>
@@ -146,7 +151,7 @@ namespace Rill.World
                 tris.Add(lower + n); tris.Add(upper + i); tris.Add(upper + n);
                 tris.Add(upper + i); tris.Add(top); tris.Add(upper + n);                     // cap
             }
-            return Build("Canopy", verts, tris);
+            return Build("Canopy", verts, tris, 0.50f, 1.08f);
         }
 
         public static Mesh Box(Vector3 size)
@@ -167,11 +172,7 @@ namespace Rill.World
                 2,3,7, 2,7,6,
                 3,0,4, 3,4,7
             };
-            m.vertices = v;
-            m.triangles = t;
-            m.RecalculateNormals();
-            m.RecalculateBounds();
-            return m;
+            return Build("Box", new List<Vector3>(v), new List<int>(t), 0.62f, 1.04f);
         }
 
         static void AddQuad(List<Vector3> verts, List<int> tris, Vector3 a, Vector3 b, float height)
@@ -187,11 +188,53 @@ namespace Rill.World
             tris.Add(i); tris.Add(i + 2); tris.Add(i + 3);
         }
 
+        /// <summary>
+        /// No baked shading. Note the equal pair: passing (0, 1) here looked like the obvious
+        /// default and was wrong for anything FLAT — a moss disc has no height span, so every
+        /// vertex lands at t = 0 and the whole prop came out black. It rendered exactly like that.
+        /// </summary>
         static Mesh Build(string name, List<Vector3> verts, List<int> tris)
+        {
+            return Build(name, verts, tris, 1f, 1f);
+        }
+
+        /// <summary>
+        /// Builds the mesh and bakes a vertical shading gradient into vertex colour: dark at the
+        /// base, full colour toward the tip.
+        ///
+        /// Every prop shares one material — that is what keeps them instanced and cheap — so
+        /// without this each one is a single flat tone with no internal form, and a stand of
+        /// conifers reads as stamped paper cutouts however much its transforms are varied. It was
+        /// rendering exactly like that. Colour is the only per-vertex channel available and the
+        /// prop shader spends nothing else on it.
+        /// </summary>
+        static Mesh Build(string name, List<Vector3> verts, List<int> tris, float shadeBase, float shadeTip)
         {
             var m = new Mesh { name = name };
             m.SetVertices(verts);
             m.SetTriangles(tris, 0);
+
+            // Always written, even when flat. A mesh with no colour array leaves the shader's
+            // COLOR semantic undefined, and the prop shader now multiplies by it.
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int i = 0; i < verts.Count; i++)
+            {
+                if (verts[i].y < lo) lo = verts[i].y;
+                if (verts[i].y > hi) hi = verts[i].y;
+            }
+            float span = hi - lo;
+            bool graded = shadeTip > shadeBase && span > 1e-3f;
+
+            var cols = new Color[verts.Count];
+            for (int i = 0; i < verts.Count; i++)
+            {
+                // Squared so the darkening hugs the base rather than greying the whole prop.
+                float t = graded ? (verts[i].y - lo) / span : 1f;
+                float k = graded ? Mathf.Lerp(shadeBase, shadeTip, t * t) : 1f;
+                cols[i] = new Color(k, k, k, 1f);
+            }
+            m.colors = cols;
+
             m.RecalculateNormals();
             m.RecalculateBounds();
             return m;

@@ -243,6 +243,50 @@ namespace Rill.World
             if (highest > _highestSeen) _highestSeen = highest;
         }
 
+        /// <summary>
+        /// Bakes the current instance lists into real MeshRenderers under <paramref name="parent"/>.
+        ///
+        /// Life is normally issued with Graphics.DrawMesh from Update, which never runs outside
+        /// play mode — so the offscreen capture tool could render the terrain and the lakes and
+        /// never the life on them, and "no trees in the picture" meant nothing at all. This is the
+        /// seam that makes the whole look checkable from a terminal instead of only the rock.
+        ///
+        /// One combined mesh per type rather than thousands of GameObjects: the props are a handful
+        /// of triangles each, so 2,000 of them still fits comfortably in a 32-bit index buffer.
+        /// </summary>
+        public void BakeStaticRenderers(Transform parent)
+        {
+            Bake(parent, "Moss", _mossMesh, _mossMat, _moss);
+            Bake(parent, "Reeds", _reedMesh, _reedMat, _reeds);
+            Bake(parent, "Bushes", _bushMesh, _bushMat, _bushes);
+            Bake(parent, "Huts", _hutMesh, _hutMat, _huts);
+        }
+
+        static void Bake(Transform parent, string name, Mesh mesh, Material mat, List<Matrix4x4> xforms)
+        {
+            if (mesh == null || xforms.Count == 0) return;
+
+            var combines = new CombineInstance[xforms.Count];
+            for (int i = 0; i < xforms.Count; i++)
+            {
+                combines[i].mesh = mesh;
+                combines[i].transform = xforms[i];
+            }
+
+            var combined = new Mesh { name = name };
+            combined.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            combined.CombineMeshes(combines, true, true);
+
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.AddComponent<MeshFilter>().sharedMesh = combined;
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = mat;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            mr.receiveShadows = false;
+            Debug.Log(string.Format("[RILL] baked {0} x{1}", name, xforms.Count));
+        }
+
         void Update()
         {
             if (_mossMesh == null) return;

@@ -32,6 +32,7 @@ Shader "Rill/Prop"
             {
                 float4 vertex : POSITION;
                 float3 normal : NORMAL;
+                fixed4 color  : COLOR;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -39,6 +40,7 @@ Shader "Rill/Prop"
             {
                 float4 pos    : SV_POSITION;
                 float3 normal : TEXCOORD0;
+                fixed4 shade  : COLOR;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -56,6 +58,10 @@ Shader "Rill/Prop"
                 UNITY_TRANSFER_INSTANCE_ID(v, o);
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.normal = UnityObjectToWorldNormal(v.normal);
+                // Baked vertical shading from PropMeshes. One material per prop type keeps these
+                // instanced, so vertex colour is the only channel that can give a prop internal
+                // form — without it a conifer is one flat tone and reads as a paper cutout.
+                o.shade = v.color;
                 return o;
             }
 
@@ -63,6 +69,7 @@ Shader "Rill/Prop"
             {
                 UNITY_SETUP_INSTANCE_ID(i);
                 fixed4 c = _Color;
+                c.rgb *= i.shade.rgb;
                 clip(c.a - _Cutoff * 0.01);
 
                 float3 n = normalize(i.normal);
