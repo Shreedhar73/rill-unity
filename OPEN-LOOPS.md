@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **11** · Closed this cycle: **8**
+Last updated: **2026-07-26** · Open loops: **19** · Closed this cycle: **10**
 
 ---
 
@@ -44,16 +44,19 @@ Every loop has:
 
 ## Now
 
-### L-009 · Confirm the basin retune
-**Why** — Basin strength has swung twice: once too weak (`water held 0 m³`, no retention loop at
-all), once too greedy (`24/24 pooled`, nothing reached the sea, run distance halved). The current
-values — 5 tarns, through-flow at 50% fill — have never been measured. Every downstream tuning
-decision depends on this number being known.
-**Done when** — A smoke test shows a *mixture* of endings, several basins at different fill levels,
-and water reaching the sea at least sometimes.
-**Evidence needed** — Smoke test output pasted into the close entry.
-**Blocked by** — Nothing now. Requires the Unity editor to be **closed** (it holds the project lock;
-a batch run against an open project exits silently after ~28 log lines).
+### L-027 · Only two basins in five ever receive water
+**Why** — Closing L-009 measured it: across 150 runs, water reached basins #1 and #2 and no others.
+#0, #3 and #4 sat at exactly 0% forever. A player who *aims* at a specific basin reaches it 28% of
+the time and misses by an average of 109 m. The basin lattice is one of the four progression tracks
+in the design document, and three fifths of it is currently unreachable scenery. This is the loop
+L-009 kept being mistaken for: it is not basin *strength*, it is basin *reachability*.
+**Done when** — A 150-run smoke test has at least 4 of 5 basins above 0%, and the aimed-at-a-basin
+hit rate is over 50%.
+**Evidence needed** — `aimed at a basin N runs, reached it M` and the basin lattice line.
+**Approach** — Unknown which of three it is, so measure before changing: (a) steering is too weak to
+leave the incised channel once one exists, (b) the unreached basins are not on any drainage the
+summit spring can feed, (c) `SteerSpeedCost` makes a committed turn so slow the run times out first
+— `TimedOut 12` at 150 runs is suspicious.
 
 ### L-010 · Make secrets findable
 **Why** — `secrets revealed 0 of 60` after 24 runs. Revelation is one of the four progression tracks
@@ -77,6 +80,27 @@ channel from the idle camera.
 ---
 
 ## Next
+
+### L-028 · The convergence point drills itself into a pit
+**Why** — After 150 runs the terrain is **23.7 m below virgin** at its lowest point, and the sink
+basin's capacity *grew* from 2,873 m³ to 3,338 m³ while it was filling. Runs converge on one line,
+that line carves, the carve attracts the next run. Rule 2 working as designed — but unbounded, it
+produces exactly the "boring local minimum by week 6" the design document names as a top-three risk
+(line 219). `HealingPerRun` at 0.006 m/run is three orders of magnitude too small to counter 23.7 m.
+**Done when** — A 150-run test keeps the deepest point above roughly −12 m without flattening the
+carve loop, i.e. sediment moved per run stays near 74 m³.
+**Evidence needed** — `terrain delta min` and `sediment moved` from a 150-run test.
+
+### L-029 · Basin crossing is built but has never mattered
+**Why** — A run whose remaining volume exceeds a lake's headroom now fills that lake to its spill and
+continues from the outlet. It replaced a version that provably never worked (a 0.35g nudge toward
+the spill cell, which loses to terrain gravity on the rim it has to climb — 1,187 sub-steps across
+24 runs, zero runs carried out). The replacement is *physically* right and fires 17 times in 150
+runs, which is too rare to have been observed doing anything. It is Built, not Done.
+**Done when** — Someone has watched a run cross a full lake and leave by the outlet, or a test
+attributes a measurable share of sea arrivals to crossings.
+**Evidence needed** — `steps in water … of which through-flow` alongside a per-crossing outcome, or
+a screenshot.
 
 ### L-012 · Hand playtest against the kill criterion
 **Why** — The design document sets an explicit M3 kill criterion: if playtesting does not produce
@@ -111,7 +135,7 @@ between runs — which is most of the time they spend looking at the mountain.
 | L-016 | Prop silhouettes worth looking at | Cones and discs. Cosmetic until the loop is proven fun. |
 | L-017 | UI pass — legacy `Text`, hand-placed rects | Placeholder is survivable; the loop is not. |
 | L-018 | Onboarding — first 30 seconds explain nothing | Needs the loop settled first, or it teaches the wrong thing. |
-| L-019 | Cascade / dam-break spectacle | Code path exists, has never fired in a measured run. Depends on L-009. |
+| L-019 | Cascade / dam-break spectacle | Now fires — `North basin broke its banks` appears in 150-run logs. Unblocked; still nobody has seen it. |
 | L-020 | Daily glyph legibility — currently near-empty | Viral spine, but pointless before retention exists. |
 | L-021 | Biome balance — Glacier / Volcanic / Granite | Implemented, never run. Sandstone must be right first. |
 | L-022 | Device performance pass | Never run on a phone. No profiling of any kind, ever. |
@@ -122,6 +146,36 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-026 · Sea-floor depressions were being labelled as basins — closed 2026-07-26
+`BasinSystem.LabelBasins` seeded the priority flood from the map border and then labelled every
+depression it found, including ones under the sea. On the default seed **9 of the 14 "basins" had
+floors 7–158 m below sea level**, 230–330 m from the summit, and the two largest by capacity
+(4,967 m³ and 3,523 m³) were both submarine. They could not be filled by any amount of steering,
+so they sat at 0% forever, they made the basin lattice display nine dead entries, and they poisoned
+every routing measurement that picked a target basin at random. Two lines now skip cells at or below
+`SeaLevel`. This loop did not exist while the work was done — it was found inside L-009 and is
+written up here so the reason it mattered is on the record.
+**Evidence** — `basins found 14, capacity 16,712 m³` → **`basins found 5, capacity 5,591 m³`**, and
+the lattice went from nine permanent `0%` entries to five real tarns at 11 m, 28 m, 69 m, 42 m and
+3 m elevation.
+
+### L-009 · Confirm the basin retune — closed 2026-07-26
+The numbers are now measured rather than guessed. Getting there needed three separate fixes, because
+the original `24/24 Pooled` had three independent causes and each one hid the next: sea-floor
+basins (L-026), a through-flow branch that never worked (L-029), and a smoke-test bot that steered
+randomly and so could not route water anywhere at all.
+**Evidence** — 24 runs, neutral bot: `Pooled 20 · TimedOut 2 · ReachedSea 2`, `delivered to sea
+91 m³`, basin lattice `0% · 13% · 62% · 0% · 0%`. 150 runs: `Pooled 107 · TimedOut 12 ·
+ReachedSea 29 · SoakedAway 2`, `delivered to sea 1,465 m³`, lattice `0% · 63% · 100% · 0% · 0%`.
+**Closed on weaker evidence than asked for.** *Done when* wanted "several basins at different fill
+levels". Only two of five ever receive water; the other three are at exactly 0% after 150 runs. The
+mixture-of-endings and reaches-the-sea clauses are met outright. The unmet clause is now **L-027**.
+**Caveat on attribution** — an intermediate measurement showed sea arrivals *falling* (13→5 per 150
+runs). That was an artefact of a smoke-test bot that aimed two runs in three at a basin, i.e.
+deliberately away from the sea. With a bot neutral between the two endings the loop is judged on,
+the same code gives 29 per 150 runs against a 13 baseline. No conclusion should be drawn from the
+intermediate figure.
 
 ### L-008 · Documentation set — closed 2026-07-26
 Wrote `docs/` (STATUS, FEATURES, ARCHITECTURE, TUNING, VERIFICATION), vendored the Unity stub into

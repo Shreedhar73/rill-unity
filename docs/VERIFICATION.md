@@ -53,6 +53,10 @@ sed -n '/=== RILL headless/,/daily glyph/p' /tmp/rill.log
 
 Or, with the editor open: **RILL → Run Headless Smoke Test**, output in the Console.
 
+**RILL → Run Headless Smoke Test (long)** plays 150 runs instead of 24. Use it for anything about
+basins: 24 runs move ~1.6k m³ of rock against 5.6k m³ of basin capacity, so a 24-run result cannot
+tell "basins never spill" from "basins have not filled yet" — and those need opposite fixes.
+
 It generates a mountain, plays 24 unattended runs with occasional random steering, and reports
 endings, sediment, distance, top speed, basin lattice with fill percentages, secrets revealed,
 terrain delta versus virgin, a save/load round-trip check, and the Daily glyph.
@@ -73,9 +77,20 @@ Every genuine bug found so far was found by it, and none were visible by reading
 | basin count and capacity *identical* across a change | `CarveBasins` was silently placing zero basins on every seed; rejection sampling on slope can never pass on terraced ground |
 | basins carved but capacity unchanged | Tarns had an open downhill lip, so they drained continuously and could never fill |
 | lakes emptying between runs | `GatherExistingWater` deleted water in cells that were no longer inside a labelled basin |
+| 9 of 14 basins pinned at exactly `0%` forever | `LabelBasins` labelled depressions *below sea level* as basins. They cannot be routed to, and they inflated reported capacity from the real 5,591 m³ to 16,712 m³ |
+| a through-flow branch with a healthy step count and no effect | Steering the head toward the spill cell at 0.35g loses to terrain gravity on the rim it must climb. 1,187 sub-steps, zero runs carried out — the counter proved it *ran*, not that it *worked* |
 
 The pattern worth internalising: **a system that silently does nothing looks exactly like a system
 that works.** Print counts of things you believe you created.
+
+Two corollaries, both learned the expensive way on 2026-07-26:
+
+- **A counter proves execution, not effect.** `ThroughFlowSteps` was non-zero the whole time the
+  branch was useless. Count the *outcome* (runs carried out), not the *visit*.
+- **Check the harness before tuning the game.** Two of the three causes of `24/24 Pooled` were not
+  in the simulation at all: one was in basin labelling, one was in the smoke-test bot, which
+  re-rolled a random steer target every second and therefore could not route water anywhere. A bot
+  that cannot express intent cannot test a mechanic that exists to reward it.
 
 ---
 

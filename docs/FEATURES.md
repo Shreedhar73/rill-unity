@@ -29,7 +29,8 @@ Every feature named in `RILL-game-design.md`, with its real state.
 | Feature | State | Notes |
 |---|---|---|
 | Depth track (channels deepen) | **Done** | Measured run over run. |
-| Volume track (basins fill, overflow) | **Partial** | Basins fill and report percentages (`South basin 1% → 14%`). Overflow → cascade code path exists but has never fired in a measured run. |
+| Volume track (basins fill, overflow) | **Partial** | Basins fill and report percentages; overflow now fires in measured runs (`North basin broke its banks`). But only **2 of 5 basins ever receive water** across 150 runs — the other three sit at 0%. See L-027. |
+| Basin crossing (full lake acts as river) | **Built** | A run whose volume exceeds a lake's headroom fills it to the spill and continues from the outlet. Fires 17 times per 150 runs — too rare to have been observed doing anything. See L-029. |
 | Life track (moss → village) | **Built** | Tier logic and instanced props exist. Never observed past the first tier. |
 | Revelation track (buried secrets) | **Partial** | Works mechanically; **0 of 60 found in 24 runs**, so the track is invisible in practice. |
 | No XP / levels / currencies | **Done** | None exist anywhere in the codebase. |

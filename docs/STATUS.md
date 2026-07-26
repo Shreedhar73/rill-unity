@@ -79,11 +79,17 @@ The design document sets an explicit M3 kill criterion: if a 20-person playtest 
 unprompted "one more run" behaviour, redesign before art exists. Nothing in this repo speaks to
 that. Every number below is a proxy.
 
-### 2. The last balance change is unverified
-Basins swung from too weak (held 0 m³, nothing ever pooled) to too greedy (24/24 runs pooled,
-nothing reached the sea). The correction — 5 smaller tarns, through-flow at 50% fill instead of
-75% — is **written but never measured**, because the editor held the project lock when the batch
-run was attempted. First thing to do: run the smoke test.
+### 2. Three basins in five are unreachable
+The basin balance is now measured (L-009). 24 runs give `Pooled 20 · TimedOut 2 · ReachedSea 2` and
+91 m³ delivered to sea; 150 runs give 29 sea arrivals and 1,465 m³. What is *not* solved is
+reachability: across 150 runs water reached two basins and never touched the other three, and a run
+that deliberately aims at a chosen basin arrives 28% of the time, missing by 109 m on average. Three
+fifths of the volume progression track is currently scenery. See L-027.
+
+Also measured getting here: `basins found 14, capacity 16,712 m³` was false — nine of those were
+depressions *below sea level*, including the two largest. The real mountain has 5 basins totalling
+5,591 m³. Any tuning judgement made before 2026-07-26 was made against a capacity number three times
+too large.
 
 ### 3. Secrets are effectively unfindable
 `secrets revealed 0 of 60` after 24 runs. A channel polishes ~1.6% of the field, so the chance any
@@ -111,8 +117,8 @@ look like something at a glance.
 ## Remaining work
 
 ### Immediate — decides whether this is a game
-1. **Run the smoke test** and confirm the basin retune. Target: a mix of endings, several basins at
-   different fill levels, and water reaching the sea more often as channels deepen.
+1. **Make the other three basins reachable** (L-027). The retune itself is confirmed; what is not is
+   that a player who wants to fill a particular basin can.
 2. **Fix secret discovery rate** so the revelation track is felt within a session.
 3. **Playtest by hand.** 20 runs, watching for whether the carve → speed → reach loop compels.
    Everything else is secondary to this.
