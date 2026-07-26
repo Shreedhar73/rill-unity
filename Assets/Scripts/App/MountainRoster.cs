@@ -91,6 +91,25 @@ namespace Rill.App
         }
 
         /// <summary>
+        /// Keeps a mountain that already exists in memory, writing it into an empty slot. This is
+        /// how an Expedition is promoted into one of the three.
+        ///
+        /// Refuses an occupied slot for the same reason Create does, and by the same rule: there is
+        /// no overwrite anywhere in this class. A player adopting a mountain they like must never
+        /// be one mis-tap from replacing one they already love.
+        /// </summary>
+        public bool Adopt(int slot, RillWorld world, float[] lifeField)
+        {
+            slot = Clamp(slot);
+            if (world == null) return false;
+            if (_summaries[slot].Occupied) return false;
+
+            SaveSystem.Save(world, lifeField ?? new float[world.Field.Count], slot);
+            Refresh();
+            return _summaries[slot].Occupied;
+        }
+
+        /// <summary>
         /// Destroys a mountain. <paramref name="confirmSeed"/> must match the seed of the mountain
         /// actually in that slot, which a caller can only obtain by reading its summary first.
         ///

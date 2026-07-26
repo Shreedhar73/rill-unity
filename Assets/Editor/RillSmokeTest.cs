@@ -204,6 +204,22 @@ namespace Rill.EditorTools
             check(roster.FirstEmpty() >= 0 || roster.OccupiedCount == MountainRoster.Slots,
                   "FirstEmpty is a slot index or -1 when all three are taken");
 
+            // Adopt is how an Expedition becomes one of the three. It must obey the same rule as
+            // Create: no overwrite, anywhere, ever.
+            {
+                var visited = RillWorld.Create(cfg, 777u, Biome.Granite);
+                visited.RunNumber = 7;
+                var r2 = new MountainRoster();
+                bool refusedAll = true;
+                for (int i = 0; i < MountainRoster.Slots; i++)
+                {
+                    if (!r2.Occupied(i)) continue;
+                    if (r2.Adopt(i, visited, null)) refusedAll = false;
+                }
+                check(refusedAll, "Adopt refuses every occupied slot — an expedition cannot replace a mountain");
+                check(!r2.Adopt(0, null, null), "Adopt refuses a null world rather than writing a corrupt slot");
+            }
+
             SaveSystem.DeleteSlot(ScratchA);
             SaveSystem.DeleteSlot(ScratchB);
             check(!SaveSystem.Exists(ScratchA) && !SaveSystem.Exists(ScratchB), "scratch slots cleaned up");
