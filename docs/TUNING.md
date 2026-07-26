@@ -30,11 +30,42 @@ identity, never by eye.
 > terminal speed of ~2.5 m/s — below `PoolSpeedThreshold` of 0.75. Every run stalled within
 > seconds. If runs are dying young, check this ratio before anything else.
 
-### `SteerSpeedCost` — the skill ceiling
+### Steering — three numbers, and only one of them is about strength
 
-Currently `0.55`. Fighting gravity must cost, because "knowing when *not* to touch" is the only
-mastery the game offers. Too low and steering is free (no skill); too high and the player feels
+`SteerSpeedCost = 0.55`. Fighting gravity must cost, because "knowing when *not* to touch" is the
+only mastery the game offers. Too low and steering is free (no skill); too high and the player feels
 punished for participating.
+
+`SteerFullSpeed = 11`. The speed at which the thumb has full authority; below it, authority fades
+out with speed. **You can only lean water that is already moving.** Without this, `SteerAccel`
+exceeded downhill acceleration on a 30° face and a held lean could spiral the stream in place
+indefinitely — traced doing exactly that for 70 of one run's 75 seconds, descending 4 m in the
+process. 11 is a knee, not a taste: over 150 runs per arm, timeouts go `15 / 7 / 4 / 0 / 0` at
+`7 / 9 / 10 / 11 / 12`.
+
+`SteerAccel = 42`, and the reason it is so much larger than the 20 it used to be is that the
+simulation now **discards whatever part of a lean points up the fall line**. The thumb
+steers across the mountain and never up it. That makes the spiral impossible by construction rather
+than by tuning, and it costs nothing anybody wanted, because nobody is trying to push water uphill
+on purpose — but it also means most of the old number was being spent on climbing. Re-centred over
+150 runs per arm at `20 / 30 / 42 / 56 / 70 / 90`: 42 is the largest value with **zero** timeouts.
+Above it the stream can be spun in circles along a *contour*, which the fall-line rule does not
+forbid (2 timeouts per 150 at 56, 6 at 70, 14 at 90).
+
+> **The trap to avoid here.** These three numbers pull in opposite directions and it is very easy to
+> trade the wrong one away. Authority *at rest* is what caused the deadlock; authority *at speed* is
+> what lets a player carve a route to a basin off the incised channel. They are only separable once
+> the lean cannot fight gravity at all. Sweep with `RILL → Run Headless Steering Sweep (long)` and
+> `RILL → Run Headless Campaign Sweep`, and read **closest approach**, never final miss distance —
+> a run that flows *past* its target scores identically to one that never arrived.
+
+### `BasinSoakRate` — what a lake takes from a stream crossing it
+
+`8` m³/s. The design has always said a lake with room absorbs the run; only the opposite case (a
+full lake, which spills) was ever implemented, so a head entering an empty bowl sailed across the
+dry floor and climbed out the far side on momentum. A drain rather than a hard capture on purpose:
+being stopped dead by scenery is a punishment, whereas watching your water feed the lake you aimed
+at is the point. Measured at **2,388 m³ per 150 runs** left in lakes in passing.
 
 ### `CarveRate` — how fast a mountain becomes yours
 
@@ -48,22 +79,33 @@ run. Too fast and the mountain is used up in a week; too slow and nothing visibl
 From `RILL → Run Headless Smoke Test` — 24 unattended runs with random occasional steering, seed
 `20260726`, Sandstone.
 
-| Metric | Value | Reading |
-|---|---|---|
-| Summit height | 146 m over a 512 m base | Good |
-| Run duration | 12–40 s | On target (design says 20–60 s) |
-| Distance | ~110–250 m | Good |
-| Sediment moved | 80–100 m³/run | Good |
-| Deepest cut | 0.4–0.5 m/run | Good |
-| Cumulative cut after 24 runs | −5.3 m | Good — visible geology |
-| Top speed | 28 m/s (clamped) | The polish loop works |
-| Water held | 1,264 m³ across basins | Basin loop alive |
-| Secrets found | **0 of 60** | **Broken — see below** |
-| Save round-trip | exact | Good |
+| Metric | 24 runs | 150 runs | Reading |
+|---|---|---|---|
+| Summit height | 146 m over a 512 m base | — | Good |
+| Run duration | 15–45 s | — | On target (design says 20–60 s) |
+| Distance | 178 m/run | **253 m/run** | Good — was 118 / 136 before 2026-07-26 |
+| Descent used | 110 m of 145 | 127 m of 141 | The run gets most of the way down the mountain |
+| Sediment moved | 83 m³/run | 88 m³/run | Good |
+| Reached the sea | 4 of 24 | **82 of 150** | Was 2 and 45 |
+| Delivered to sea | 175 m³ | 3,447 m³ | Was 92 and 2,322 |
+| Runs that never ended | **0** | **0** | Was 4 and 12–14 |
+| Cumulative cut | −3.4 m | −9.4 m | Good — visible geology, and inside `GradeDepth` |
+| Deposits | 1 cell over 2 m | 145 cells in 11 masses, largest 188 m² | Silt bars, not a dam |
+| Top speed | 28 m/s (clamped) | 28 m/s | The polish loop works |
+| Water held | 1,065 m³ | 2,962 m³ | Basin loop alive |
+| Basin lattice | `0 · 27 · 0 · 0 · 74 %` | `100 · 93 · 0 · 100 · 100 %` | Four of five fill |
+| Dam breaks | **0** | 4, 207 m³ over the lip | Works; invisible in a first session |
+| Secrets found | 3 of 60 | 11 of 60 | A curve, not an exhausted track |
+| Save round-trip | exact | exact | Good |
 
 ### The balance knife-edge
 
-Basin strength swung twice and has not settled:
+**Settled 2026-07-26.** The swing below was real, and what resolved it was not a basin constant at
+all: runs were stalling instead of ending, the thumb could fight gravity, lakes with room absorbed
+nothing, and four of five basins sat off the spring's drainage. With those fixed, 82 runs in 150
+reach the sea *and* 2,962 m³ is held in basins, which the table below treats as mutually exclusive.
+The lesson is that "reaches the sea" and "fills basins" were never opposed — both were being eaten
+by the same defects. History kept for the record:
 
 | Config | Result |
 |---|---|
@@ -92,6 +134,7 @@ preference:
 4. More sites.
 
 ### Daily glyph reads as empty
+
 24 runs produced a handful of marks on the 7×7 grid. The share unit has to look like something.
 
 ---
