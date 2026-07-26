@@ -226,6 +226,32 @@ namespace Rill.EditorTools
             log.AppendFormat("  fullest basin    {0:0.0}%\n", FullestBasin(world) * 100f);
             log.AppendFormat("  polished cells   {0} ({1:0.0}% of field)\n", PolishedCells(world), PolishedCells(world) * 100f / world.Field.Count);
             log.AppendFormat("  secrets revealed {0} of {1}\n", RevealedCount(world), world.Secrets.Count);
+            {
+                // "0 revealed" has two opposite causes: sites the water never crosses (a placement
+                // problem) and sites it crosses but does not cut deeply enough (a pricing problem).
+                int touched = 0;
+                float sumNeed = 0f, sumBest = 0f;
+                for (int i = 0; i < world.Secrets.Count; i++)
+                {
+                    var s = world.Secrets[i];
+                    float best = 0f;
+                    int n = world.Field.Size, cx = s.Cell % n, cz = s.Cell / n;
+                    for (int dz = -2; dz <= 2; dz++)
+                        for (int dx = -2; dx <= 2; dx++)
+                        {
+                            int x = cx + dx, z = cz + dz;
+                            if (x < 0 || z < 0 || x >= n || z >= n) continue;
+                            int c = z * n + x;
+                            float e = world.Field.Virgin[c] - world.Field.Height[c];
+                            if (e > best) best = e;
+                        }
+                    if (best > 0.05f) touched++;
+                    sumBest += best;
+                    sumNeed += world.Field.Virgin[s.Cell] - s.RevealElevation;
+                }
+                log.AppendFormat("  secret sites     {0} of {1} touched by any erosion; avg best cut {2:0.00} m vs avg needed {3:0.00} m\n",
+                    touched, world.Secrets.Count, sumBest / Mathf.Max(1, world.Secrets.Count), sumNeed / Mathf.Max(1, world.Secrets.Count));
+            }
             log.Append("  basin lattice:  ");
             for (int i = 0; i < world.Basins.Basins.Count; i++)
             {

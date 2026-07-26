@@ -221,7 +221,7 @@ namespace Rill.App
             {
                 var s = Secrets[i];
                 if (s.Revealed) continue;
-                if (Field.Height[s.Cell] > s.RevealElevation) continue;
+                if (!ErodedNear(s.Cell, Field.Virgin[s.Cell] - s.RevealElevation)) continue;
                 s.Revealed = true;
                 s.RevealedOnRun = RunNumber;
                 rep.Revealed.Add(s);
@@ -230,6 +230,41 @@ namespace Rill.App
                 if (s.Kind == SecretKind.Spring) OpenSpring(s);
                 if (s.Kind == SecretKind.CaveMouth) OpenCave(s);
             }
+        }
+
+        /// <summary>
+        /// Has the player worn the ground down by <paramref name="need"/> metres anywhere within a
+        /// couple of cells of this site?
+        ///
+        /// Requiring the exact cell made secrets practically unfindable: a channel is a few metres
+        /// wide and wanders, so cutting one specific 2 m cell deeply enough is a coincidence rather
+        /// than a skill. With exact-cell matching, 24 runs revealed 0 of 51.
+        ///
+        /// But the widened test must compare *erosion*, not elevation. Asking whether any nearby
+        /// cell sits below the target elevation is satisfied by slope alone — 4 m downhill on a
+        /// 30° face is already 2 m lower than here, before anyone has played. That version revealed
+        /// 37 of 51, and gave itself away by reporting the same 37 after 24 runs and after 150:
+        /// a count that does not move with play was never driven by play.
+        /// </summary>
+        bool ErodedNear(int cell, float need)
+        {
+            if (need <= 0f) return true;
+            const int r = 2;                 // 2 cells = 4 m at the default cell size
+            int n = Field.Size;
+            int cx = cell % n, cz = cell / n;
+            for (int dz = -r; dz <= r; dz++)
+            {
+                int z = cz + dz;
+                if (z < 0 || z >= n) continue;
+                for (int dx = -r; dx <= r; dx++)
+                {
+                    int x = cx + dx;
+                    if (x < 0 || x >= n) continue;
+                    int c = z * n + x;
+                    if (Field.Virgin[c] - Field.Height[c] >= need) return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>A revealed spring becomes a permanent second source: the mountain's plumbing changed.</summary>

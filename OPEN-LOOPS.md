@@ -53,10 +53,14 @@ L-009 kept being mistaken for: it is not basin *strength*, it is basin *reachabi
 **Done when** — A 150-run smoke test has at least 4 of 5 basins above 0%, and the aimed-at-a-basin
 hit rate is over 50%.
 **Evidence needed** — `aimed at a basin N runs, reached it M` and the basin lattice line.
-**Approach** — Unknown which of three it is, so measure before changing: (a) steering is too weak to
-leave the incised channel once one exists, (b) the unreached basins are not on any drainage the
-summit spring can feed, (c) `SteerSpeedCost` makes a committed turn so slow the run times out first
-— `TimedOut 12` at 150 runs is suspicious.
+**Approach** — Measured 2026-07-26, and **(b) is ruled out**: the reachability probe reports
+`climb 0 m → 1 of 5`, `climb 3 m → 5 of 5`. Every basin is reachable from the summit given a few
+metres of momentum-assisted climb, so this is not a terrain or generation problem. That leaves
+(a) steering too weak to leave the incised channel once one exists, and (c) `SteerSpeedCost` making
+a committed turn so slow the run times out first — `TimedOut 10` per 150 runs, and aimed runs that
+miss do so by an average of 100 m, which reads more like "never left the channel" than "aimed and
+fell short". Next step: log how far an aimed run's path deviates from the hands-off path for the
+same seed, which separates (a) from (c) directly.
 
 ### L-010 · Make secrets findable
 **Why** — `secrets revealed 0 of 60` after 24 runs. Revelation is one of the four progression tracks
@@ -80,16 +84,6 @@ channel from the idle camera.
 ---
 
 ## Next
-
-### L-028 · The convergence point drills itself into a pit
-**Why** — After 150 runs the terrain is **23.7 m below virgin** at its lowest point, and the sink
-basin's capacity *grew* from 2,873 m³ to 3,338 m³ while it was filling. Runs converge on one line,
-that line carves, the carve attracts the next run. Rule 2 working as designed — but unbounded, it
-produces exactly the "boring local minimum by week 6" the design document names as a top-three risk
-(line 219). `HealingPerRun` at 0.006 m/run is three orders of magnitude too small to counter 23.7 m.
-**Done when** — A 150-run test keeps the deepest point above roughly −12 m without flattening the
-carve loop, i.e. sediment moved per run stays near 74 m³.
-**Evidence needed** — `terrain delta min` and `sediment moved` from a 150-run test.
 
 ### L-029 · Basin crossing is built but has never mattered
 **Why** — A run whose remaining volume exceeds a lake's headroom now fills that lake to its spill and
@@ -146,6 +140,21 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-028 · The convergence point drills itself into a pit — closed 2026-07-26
+Runs converge on one line, that line carves, the carve attracts the next run. Rule 2 working as
+designed — but unbounded it cut **23.7 m below virgin** in 150 runs while the sink basin's capacity
+*grew* from 2,873 m³ to 3,338 m³ as it filled: the "boring local minimum by week 6" the design
+document names as a top-three risk. `HealingPerRun` could never counter it, because healing
+deliberately skips the channel currently in use. Fixed at source instead: carve rate now falls with
+the square of how far a cell already sits below virgin rock, reaching zero at `GradeDepth` (14 m),
+which is what a real river does when it approaches a graded profile.
+**Evidence** — 150 runs, `terrain delta min` **−23.68 m → −8.62 m**. It did not flatten the loop, it
+improved it: `ReachedSea` 29 → **35**, delivered to sea 1,465 → **1,776 m³**, distance 131 → **136
+m/run**.
+**Closed on slightly weaker evidence than asked for.** *Done when* wanted sediment moved to stay
+"near 74 m³/run"; it fell to **64** (−14%). Carving is genuinely slower now, which is the intended
+trade, but the number is outside what the loop asked for and is recorded here rather than rounded.
 
 ### L-026 · Sea-floor depressions were being labelled as basins — closed 2026-07-26
 `BasinSystem.LabelBasins` seeded the priority flood from the map border and then labelled every
