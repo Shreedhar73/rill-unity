@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **13** · Closed this cycle: **28** (17 archived)
+Last updated: **2026-07-26** · Open loops: **14** · Closed this cycle: **28** (19 archived)
 
 ---
 
@@ -76,6 +76,30 @@ visible. A tap skips it, so a returning player never sits through it.
 ---
 
 ## Next
+
+### L-042 · The mountain silts up its own approaches
+**Why** — Measured 2026-07-26, and only visible because L-040 made it measurable: downhill
+reachability of the basin lattice is `5 of 5` on a freshly generated mountain and **`4 of 5` after
+150 runs**. Basin #1 — the largest, and 93% full — became unreachable without climbing. Nothing
+carved it off; deposition did. The river builds bars and levees along its own corridor, and one of
+them closed the door.
+**Why it matters more than one basin** — this game's entire premise is that nothing resets and you
+play the same mountain for months. A lattice that quietly becomes unreachable is a slow death that
+would only show up in week six, which is exactly the horizon the design document names as its
+top-three risk ("a boring local minimum by week 6"). L-028 fixed the *incision* half of that. This
+is the deposition half, and it was not visible until basins were placed somewhere water could get to.
+**Do not assume it is a defect.** A river silting up an old channel and finding a new one is the
+game working — rule 2 in reverse — and `HealingPerRun` exists precisely so abandoned ground recovers.
+The question is whether the process ever *removes* more of the lattice than it opens, and over 150
+runs the answer was net −1 with nothing new opened.
+**Done when** — Either reachability is stable or improving over 500 runs, or there is a mechanism
+that reopens what silts closed, and the count is reported every run so it cannot decay in silence.
+**Evidence needed** — `reach (climb 0 m)` at 0, 150 and 500 runs, plus which basin was lost and what
+closed it: a deposit ridge (compare `Height - Virgin` along the approach) or a filled lake.
+**Careful** — Do not fix this by clamping deposition. L-041 measured the deposits as 11 scattered
+silt bars totalling 0.22% of the field, which is a landform budget, not a runaway. If one 14 m bar in
+the wrong place can close a basin, the fragility is in how narrow the approach is, not in how much
+silt exists.
 
 ### L-018 · Onboarding — the first 30 seconds explain nothing
 **Why** — There is no button and nothing moves on its own to suggest steering exists, so a player
@@ -382,44 +406,5 @@ gradient mapped over 2.5 m rather than 6 m (basins here are only metres deep, so
 every lake at the shallow colour); the shader blends toward sky instead of adding it, which had been
 washing the water to a grey film; and the sea is subdivided 96² so each vertex carries real depth
 instead of a 4-vertex quad that could only ever be one flat tone.
-
-### L-021 · Biome balance — Glacier / Volcanic / Granite — closed 2026-07-26
-"Implemented, never run" was worse than it sounded: `BiomeRules.BetweenRuns` is called only from
-`RunController.FinishRun`, so **no headless test had ever executed it**. Glacier freeze/thaw,
-volcanic vents and granite spalling had run zero times in this project's history. The first
-comparison, made before that was noticed, measured generation alone and produced a tidy, wrong
-answer — four biomes collapsing into two pairs on identical terrain:
-
-| biome | summit | basin capacity | sediment | basin sites |
-|---|---|---|---|---|
-| Sandstone | 146.4 m | 5,591 m³ | 1,493 | `11m/157m …` |
-| Granite | 146.4 m | 4,411 m³ | 1,455 | `8m/157m …` |
-| Glacier | 146.4 m | 5,571 m³ | 1,508 | *identical to Sandstone* |
-| Volcanic | 146.4 m | 4,415 m³ | 1,447 | *identical to Granite* |
-
-**Evidence, with the rules actually running** — Glacier: `"Channels froze overnight" x5`, **1,705 ice
-cells**. Volcanic: `terrain delta max 13.20 m` against 1.18–1.47 m everywhere else — the vents build
-an order of magnitude more terrain than any other biome causes. Granite: no events, correctly, as it
-only nudges `Polish` upward ("what you cut here stays cut"). Sandstone has no rules by design.
-**Defect found and fixed** — Volcanic grew the mountain 13 m over 24 runs and told the player
-*nothing* unless water happened to quench a vent. A mountain that grows in silence breaks the same
-rule as a system that silently does nothing, so vent growth now reports its volume.
-**Left open deliberately, as new loops rather than scope creep** — weather was `Drought` on every
-run of every biome (it is seed-derived), so the glacier **thaw** path is still unexercised: only
-freeze has ever run. And `Field.Ice` is written by `BiomeRules` and read only by
-`TerrainMeshBuilder`, i.e. it is a visual tint with no simulation consequence. Both are now L-033
-and L-034.
-
-### L-033 · Glacier thaw has never run — closed 2026-07-26
-Weather is derived from the date, and the default seed lands on `Drought` every run, so only the
-freeze branch had ever executed. Added a test that searches for dates producing specific weather and
-drives both halves explicitly.
-**Evidence** — `after 12 runs of Drought   ice cells 870   headlines: NONE` then
-`after 12 runs of Snowmelt  ice cells 0   headlines: The thaw released 187 m³ | 142 m³ | 96 m³`.
-Ice cleared 870 → 0, meltwater non-zero. Both *Done when* conditions met.
-**Weaker than asked in one respect** — the loop said "Snowmelt **and** Storm". Only Snowmelt was
-driven. Both set the same `thawing` flag on the same branch, so the code path is identical, but
-Storm has not literally been run and this entry should not be read as saying it has.
-**Defect found while closing, fixed** — the thaw announced meltwater it never delivered. See L-035.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
