@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **22** (10 archived)
+Last updated: **2026-07-26** · Open loops: **16** · Closed this cycle: **23** (14 archived)
 
 ---
 
@@ -93,6 +93,30 @@ diagnostic that pointed every aimed run at one deliberately awkward basin and sh
 against these.
 **Careful** — Still do not tune `SteerAccel` or `SteerSpeedCost` on this alone. 40% may be correct
 for a game whose whole skill ceiling is restraint; that is a feel question and L-012 answers it.
+**Superseded 2026-07-26 by L-038.** The dynamics this was measured against no longer exist: runs now
+travel 226 m instead of 155 m and no longer stall short. Re-measure before arguing either way, and
+read L-039 first — the arrival rate moved, and not in the direction this loop was hoping for.
+
+### L-039 · Aimed delivery halved while delivery to the sea doubled
+**Why** — Opened by the L-038 measurements, and it is the one number that got worse. Over 150 runs
+with ~36 aimed runs, water put into the *specific* basin the run was aimed at went `14 of 36 (39%)`
+before to `7 of 36 (19%)` after. Delivery to the sea went the other way, `2,322 → 4,719 m³`, and runs
+ending in *some* basin rose `39 → 51`. So water is not being lost; it is going somewhere else.
+**Why it matters more than it looks** — the basin lattice is the progression track. "North basin 87%
+full" is the open loop the design leans on for retention, and it is only an open loop if the player
+can decide to close it. Delivery to the sea is the ending, not the campaign.
+**Two candidate causes, and they need opposite fixes.** (1) Runs travel much further now, so a run
+that would have stopped in its target basin flows through and out the far side — in which case the
+number is a mis-measure and the fix is the metric. Closest approach barely moved (`59 → 64 m`), which
+supports this. (2) The hollow escape steers for the player: it moves the head to whichever rim cell
+the flood found, which is chosen by terrain and not by intent. It fires only 3 times per 24 runs at
+the tuned value, so this should be small — but "should be small" is exactly the reasoning this
+project has been wrong about before.
+**Done when** — Either aimed delivery is back above 35% at 150 runs, or there is a measurement
+separating the two causes above and a written argument for the number that remains.
+**Evidence needed** — `aimed delivered`, `aimed closest`, and a count of how many aimed runs passed
+*through* their target basin without stopping. That last one does not exist yet and is the whole
+question.
 
 ---
 
@@ -166,6 +190,44 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-038 · Four runs in twenty-four never ended at all — closed 2026-07-26
+**Why** — `TimedOut 4 per 24 runs` had been sitting in every smoke test result since the harness
+was written, and was read as "some runs are slow". It is not the same thing. A run that ends is
+feedback; a run that neither moves nor ends is 75 seconds of watching nothing happen, and the design
+document's kill criterion is about whether someone wants one more run.
+**Done when** — No run in a session spends its clock without getting anywhere, and the reach of a
+normal run is measured rather than assumed.
+**Evidence** — A once-a-second trace of the head, which is what no aggregate could give. Run 3 spent
+68 of its 75 seconds oscillating between 69 m and 84 m of elevation at 0.1–3 m/s while polishing the
+same two metres of ground from 0.10 to 0.99. Run 10's stall elevation *rose* every second — a slow
+head is over its sediment capacity, so it deposits, so it buries itself.
+
+Two causes, both fixed. (1) **675 cells of this mountain are closed depressions the basin lattice
+declines to name** (it ignores anything under 24 cells, deliberately), and the simulation had no
+fill-and-spill for them at all. It does now: minimax flood to the rim, pay for the fill out of the
+run's own volume, write the pond into the field, cut the lip by 22 cm because overtopping erodes,
+and swim to the lip using the crossing machinery rather than jumping to it. (2) **`SteerAccel` (20)
+exceeds downhill acceleration on a 30° face (15)**, so a held lean could fight gravity to a draw
+indefinitely. Steering authority is now bought with momentum.
+
+24 runs, before → after: `ReachedSea 2 → 5`, `TimedOut 4 → 0`, distance `118 → 161 m/run`, descent
+`85 → 109 m of 145`, sediment `62 → 73 m³/run`, delivered to sea `92 → 219 m³`, stopped in a basin
+`10 → 15`, basin crossings `0 → 2`, fullest basin `63.9% → 99.9%`. At 150 runs, sea arrivals
+`45 → 96` and delivery `2,322 → 4,719 m³`.
+
+`SteerFullSpeed = 11` is measured, not chosen: over 150 runs per arm, timeouts go `15 / 7 / 4 / 0 / 0`
+at `7 / 9 / 10 / 11 / 12`, so it is the most authority the player keeps while a held lean stays
+incapable of stopping the descent.
+**The session shape changed more than the numbers did** — a basin fills inside a first session
+rather than after fifty runs, water crosses a full lake by run 24, and run 2 of a new mountain
+reaches the sea.
+**Two false starts worth keeping.** Triggering the escape on *speed* missed the exact case it was
+written for: an oscillating head reads 0.5–2.7 m/s and never spends a continuous second slow. Stuck
+is net displacement, not speed. And seeding the flood where the head was caught — part-way up one
+side, since it is oscillating — made the search find the hollow's own floor and report no rim, so it
+fired 3 times in 24 runs instead of the ~95 those runs needed.
+**Cost, recorded rather than rounded** — see L-039. Aimed delivery into a *specific* basin fell.
 
 ### L-032 · Basin crossing teleports the stream — closed 2026-07-26
 `CrossBasin` set `Head.Pos` to the outlet in a single step, drawing the ribbon as a straight line
@@ -317,67 +379,5 @@ Closing on the premise being disproven rather than on the numbers, with the arri
 forward as **L-030** and the metric flaw recorded there.
 **Third harness flaw in this loop** — sub-sea-level basins, a bot that could not steer, and a bot
 that could not persist. Every one looked like a simulation bug.
-
-### L-011 · See the strata pass — closed 2026-07-26
-Per-pixel strata bands, seam darkening and concavity occlusion were written to fix a mountain that
-rendered as a smooth orange bedsheet, and had never been looked at by anyone — the shaders compiled
-and nothing more. Confirmed working in the editor.
-**Evidence** — Direct observation by the project owner ("l-011 is working"), after pressing Play.
-The earlier Game-view screenshot showing bare skybox was edit mode: there is nothing in the scene
-until `GameBootstrap` builds it at runtime.
-**Closed on weaker evidence than asked for.** *Done when* wanted a screenshot showing distinct
-sediment bands and a carved channel legible as a channel from the idle camera; what closed it is a
-person saying it works, with no image archived in the repo. That is a real observation and enough to
-stop calling the render path unverified, but it is not the artefact the loop asked for, and nobody
-later can check it. If a screenshot gets taken, add it to `docs/` and reference it here.
-
-### L-029 · Basin crossing is built but has never mattered — closed 2026-07-26
-A run whose remaining volume exceeds a lake's headroom fills that lake to its spill and continues
-from the outlet. The version it replaced provably never worked — a 0.35g nudge toward the spill cell
-loses to terrain gravity on the rim it has to climb, and ran for 1,187 sub-steps across 24 runs
-while carrying out zero of them.
-**Evidence** — 150 runs: `basin crossings 23 runs crossed a full lake; 5 of those reached the sea;
-avg 42 m travelled after crossing`. The distance-after-crossing figure is the load-bearing one: the
-crossing count alone was never evidence, because a counter proves the branch executed rather than
-that it carried the run anywhere. 5 of the 35 sea arrivals followed a crossing.
-**Caveat** — 0 crossings in 24 runs. The mechanic only engages once a basin is genuinely full, which
-takes roughly 50 runs on the default seed, so nobody playing a first session will ever see it. That
-is expected rather than broken, but it means L-019 (cascade spectacle) still has nothing to show
-early and the visual has still never been *watched* — only measured.
-
-### L-010 · Make secrets findable — closed 2026-07-26
-Three compounding causes, and the first two fixes each looked like progress while the track stayed
-dead. (1) Placement was only *biased* toward channels — any concave cell qualified and off-route
-cells were accepted 20% of the time anyway. (2) Revelation required the buried cell *itself* to be
-cut to depth, but a channel is metres wide and wanders, so hitting one specific 2 m cell repeatedly
-is a coincidence rather than a skill. (3) The real one, only visible once measured: flow
-accumulation describes drainage across the whole mountain, but every run starts at one summit
-spring and converges into a single corridor — **45 of 51 sites had received no erosion at all after
-150 runs**. Sites are now split half on a summit-traced corridor (240 descent walks) and half on the
-wider network, sampled from candidate lists directly rather than by rejection sampling, which had
-been silently placing 20 sites where 60 were asked for.
-**Evidence** — `secrets placed 60`, **`secrets revealed 3 of 60`** after 24 runs (*Done when* asked
-2–5), rising to `12 of 60` at 150 — a curve, not an exhausted track. Site contact went `3 of 51
-touched` → `18 of 60`, average best cut 0.03 m → 0.18 m against 1.41 m needed.
-**On the second clause** — "none reachable without routing water over the spot" is argued
-structurally, not measured per secret: revelation now tests `Virgin[c] - Height[c] >= depth`, which
-is erosion, and erosion only happens where water flowed. That is worth stating plainly because an
-intermediate version compared *elevation* instead and revealed 37 of 51 without anyone playing —
-caught only because it reported the same 37 after 24 runs and after 150.
-
-### L-028 · The convergence point drills itself into a pit — closed 2026-07-26
-Runs converge on one line, that line carves, the carve attracts the next run. Rule 2 working as
-designed — but unbounded it cut **23.7 m below virgin** in 150 runs while the sink basin's capacity
-*grew* from 2,873 m³ to 3,338 m³ as it filled: the "boring local minimum by week 6" the design
-document names as a top-three risk. `HealingPerRun` could never counter it, because healing
-deliberately skips the channel currently in use. Fixed at source instead: carve rate now falls with
-the square of how far a cell already sits below virgin rock, reaching zero at `GradeDepth` (14 m),
-which is what a real river does when it approaches a graded profile.
-**Evidence** — 150 runs, `terrain delta min` **−23.68 m → −8.62 m**. It did not flatten the loop, it
-improved it: `ReachedSea` 29 → **35**, delivered to sea 1,465 → **1,776 m³**, distance 131 → **136
-m/run**.
-**Closed on slightly weaker evidence than asked for.** *Done when* wanted sediment moved to stay
-"near 74 m³/run"; it fell to **64** (−14%). Carving is genuinely slower now, which is the intended
-trade, but the number is outside what the loop asked for and is recorded here rather than rounded.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
