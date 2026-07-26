@@ -51,6 +51,11 @@ namespace Rill.App
         public float BrushRadiusPerVolume = 0.9f;
         public float PolishRate = 0.55f;         // per second of fast flow
         public float MaxCarvePerStep = 0.05f;    // safety clamp; no spikes, ever
+        [Tooltip("Metres below virgin rock at which carving stops. Runs converge on one line and " +
+                 "that line carves, which is rule 2 working — but unbounded it drilled 23.7 m in " +
+                 "150 runs and the sink basin's capacity GREW while filling. A real river reaches " +
+                 "a graded profile instead of cutting forever; this is that floor.")]
+        public float GradeDepth = 14f;
 
         [Header("Volume")]
         public float StartVolume = 60f;          // m^3 of water in a normal run

@@ -43,6 +43,28 @@ namespace Rill.Flow
         public float WaterToSea { get; private set; }
         public float SedimentMoved { get; private set; }
 
+        /// <summary>
+        /// Volume still in the head when the run ended. Head.Volume is zeroed by Finish, so without
+        /// this there is no way to tell a run that ran dry from a run that stopped moving with 50 m³
+        /// still in it — two failures that look identical in every other statistic.
+        /// </summary>
+        public float VolumeAtEnd { get; private set; }
+
+        /// <summary>Sub-steps spent standing in open water, and of those, how many took the
+        /// through-flow branch. A near-full basin that still swallows runs shows up here as
+        /// InWaterSteps high and ThroughFlowSteps zero — invisible in any end-of-run statistic.</summary>
+        public int InWaterSteps { get; private set; }
+        public int ThroughFlowSteps { get; private set; }
+
+        /// <summary>
+        /// Distance travelled after the run's last basin crossing. A crossing count only proves the
+        /// branch ran; this proves it *carried the run somewhere*, which is the distinction that
+        /// cost this project the most time (see docs/VERIFICATION.md).
+        /// </summary>
+        public float DistanceAfterCrossing { get; private set; }
+        public bool CrossedAnyBasin { get; private set; }
+        float _distanceAtLastCrossing;
+
         /// <summary>Recent head positions, used by the ribbon mesh and the run's signature glyph.</summary>
         public readonly List<Vector3> Path = new List<Vector3>(512);
 
@@ -55,6 +77,11 @@ namespace Rill.Flow
         /// Kept as a delegate so the simulation never has to know what a pickup is.
         /// </summary>
         public System.Func<Vector2, float, float, float> PickupCheck;
+
+        // A run may spill through several lakes on its way down, but not the same one twice — two
+        // adjacent basins whose spill cells point at each other would trade the head forever.
+        const int MaxCrossingsPerRun = 4;
+        readonly HashSet<int> _crossed = new HashSet<int>();
 
         float _accum;
         float _poolTimer;
@@ -87,7 +114,11 @@ namespace Rill.Flow
 
             Running = true;
             Ending = RunEnding.Abandoned;
-            Elapsed = Distance = TopSpeed = WaterToSea = SedimentMoved = 0f;
+            Elapsed = Distance = TopSpeed = WaterToSea = SedimentMoved = VolumeAtEnd = 0f;
+            InWaterSteps = ThroughFlowSteps = 0;
+            DistanceAfterCrossing = _distanceAtLastCrossing = 0f;
+            CrossedAnyBasin = false;
+            _crossed.Clear();
             _accum = _poolTimer = _fallTimer = 0f;
             Path.Clear();
             Path.Add(Head.World);
@@ -142,25 +173,29 @@ namespace Rill.Flow
             // --- drag: fresh rock is slow, your own polished channel is fast. The whole economy.
             float drag = Mathf.Lerp(_cfg.DragFresh, _cfg.DragPolished, polish);
 
+            // A lake with room left in it absorbs the run — that is what a basin is for. A lake
+            // without room does not: it fills, spills, and the stream leaves by the outlet.
+            //
+            // Two earlier versions of this failed silently. Steering the head toward the spill cell
+            // with a 0.35g nudge loses to terrain gravity on the rim it has to climb: 1,187
+            // sub-steps in that branch across 24 runs, zero runs carried out. Gating the crossing
+            // on standing water (depth > 5 cm) then missed almost every case, because a head
+            // entering a lake decelerates in the shallow margin and pools before it ever reaches
+            // water that deep: 105 of 150 runs died inside a basin that was 100% full.
+            //
+            // So the test is basin membership, not water depth.
+            var basin = _world.Basins.BasinAt(_f.NearestIndex(Head.Pos.x, Head.Pos.y));
+            if (basin != null && CanCross(basin))
+            {
+                ThroughFlowSteps++;
+                CrossBasin(basin);
+                return;
+            }
+
             if (waterHere > 0.05f)
             {
-                // A lake with room left in it absorbs the run — that is what a basin is for.
-                // A lake that is already near its spill level is not a sink but a piece of river:
-                // the water crosses it and leaves by the outlet. Without this every run in the
-                // game ends in the first depression it finds and nothing ever reaches the sea.
-                var basin = _world.Basins.BasinAt(_f.NearestIndex(Head.Pos.x, Head.Pos.y));
-                if (basin != null && basin.FillFraction > 0.5f)
-                {
-                    Vector2Int sp = basin.SpillXZ(_f.Size);
-                    Vector2 toSpill = _f.GridToWorldXZ(sp.x, sp.y) - Head.Pos;
-                    if (toSpill.sqrMagnitude > 1e-4f)
-                        Head.Vel += toSpill.normalized * (_cfg.Gravity * 0.35f * dt);
-                    drag += 0.6f;
-                }
-                else
-                {
-                    drag += 2.5f;
-                }
+                InWaterSteps++;
+                drag += 2.5f;
             }
 
             Head.Vel *= Mathf.Exp(-drag * dt);
@@ -223,6 +258,19 @@ namespace Rill.Flow
             {
                 float depth = _cfg.CarveRate * (speed / _cfg.CarveReferenceSpeed) * volumeNorm * (1.15f - hardness) * dt;
                 depth += drop > 0f ? drop * 0.02f : 0f;                 // plunge pools deepen fast
+
+                // Rock gets harder to move the further below the original surface it sits, so the
+                // channel approaches a graded profile instead of drilling a shaft. Without this the
+                // convergence point reached 23.7 m below virgin in 150 runs — the "boring local
+                // minimum" the design document names as a top-three risk.
+                int here = _f.NearestIndex(Head.Pos.x, Head.Pos.y);
+                float incision = _f.Virgin[here] - _f.Height[here];
+                if (incision > 0f)
+                {
+                    float grade = Mathf.Clamp01(1f - incision / Mathf.Max(_cfg.GradeDepth, 0.01f));
+                    depth *= grade * grade;
+                }
+
                 depth = Mathf.Min(depth, _cfg.MaxCarvePerStep);
                 if (depth > 1e-5f)
                 {
@@ -288,10 +336,65 @@ namespace Rill.Flow
             }
         }
 
+        /// <summary>
+        /// True when this lake cannot swallow the run: the water left in the head is more than the
+        /// headroom below the spill level. Deliberately a volume comparison and not a fill
+        /// percentage — a 4,967 m³ tarn at 0% and a 396 m³ tarn at 0% look identical as fractions
+        /// and behave completely differently, and it is the small ones that should become river
+        /// first.
+        /// </summary>
+        bool CanCross(Basin b)
+        {
+            if (_crossed.Count >= MaxCrossingsPerRun) return false;
+            if (_crossed.Contains(b.Id)) return false;   // already spilled this one; do not ring-route
+            return b.Capacity - b.Volume < Head.Volume;
+        }
+
+        /// <summary>
+        /// Fills the basin to its spill level with as much of the run as fits, then continues the
+        /// stream from the outlet with what is left. Water is conserved across the crossing: the
+        /// part that fits is in the basin, the rest is still in the head.
+        /// </summary>
+        void CrossBasin(Basin b)
+        {
+            _crossed.Add(b.Id);
+            CrossedAnyBasin = true;
+            _distanceAtLastCrossing = Distance;
+
+            float headroom = Mathf.Max(0f, b.Capacity - b.Volume);
+            if (headroom > 0f)
+            {
+                float given = Mathf.Min(headroom, Head.Volume);
+                Head.Volume -= given;
+                _world.Basins.AddWater(b.Cells[0], given);
+            }
+
+            Vector2Int sp = b.SpillXZ(_f.Size);
+            Vector2 outlet = _f.GridToWorldXZ(sp.x, sp.y);
+            float speedIn = Head.Vel.magnitude;
+
+            Head.Pos = outlet;
+            Head.Height = _f.SampleHeightWorld(outlet.x, outlet.y);
+
+            // Leaving over the lip, the stream has lost its line: it restarts from the outlet
+            // pointing downhill. Keep a third of the speed it arrived with so a fast run still
+            // exits fast, but never below StartSpeed or the run re-pools on the spot.
+            float slope;
+            Vector2 down = _f.DownhillWorld(outlet.x, outlet.y, out slope);
+            if (down.sqrMagnitude < 1e-6f) down = new Vector2(0f, -1f);
+            Head.Vel = down.normalized * Mathf.Max(_cfg.StartSpeed, speedIn * 0.35f);
+
+            _poolTimer = 0f;
+            Path.Add(Head.World);
+            if (Splash != null) Splash(Head.World, 0.6f);
+        }
+
         void Finish(RunEnding ending, bool deliverVolume)
         {
             Running = false;
             Ending = ending;
+            VolumeAtEnd = Mathf.Max(0f, Head.Volume);
+            DistanceAfterCrossing = CrossedAnyBasin ? Distance - _distanceAtLastCrossing : 0f;
 
             // Whatever rock is still in suspension settles where the water stopped.
             if (Head.Sediment > 1e-4f)
