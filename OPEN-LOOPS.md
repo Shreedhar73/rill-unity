@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **20** (9 archived)
+Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **20** (10 archived)
 
 ---
 
