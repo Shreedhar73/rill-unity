@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **16** · Closed this cycle: **36** (23 archived)
+Last updated: **2026-07-26** · Open loops: **16** · Closed this cycle: **36** (26 archived)
 
 ---
 
@@ -547,62 +547,5 @@ ever sends. It now prints the last `RunsPerDay` runs as the real case, and repor
 carry water in each, because "reads as empty" is a number.
 **Not closed on a person's reaction.** Nobody has pasted one into a chat and watched what happens,
 which is the only test that matters for a viral mechanic.
-
-### L-041 · Deposition builds an 8.9 m mound and nobody has looked at it — closed 2026-07-26
-Opened the same day, on the observation that `terrain delta max` had gone `+1.31 m → +8.87 m` once
-runs started travelling 269 m instead of 136 m. The fear was a silt wall across the runout ruining
-the bottom third of the mountain; the alternative was a delta, which the design wants. A single
-maximum is the same number for both, so the loop asked for the footprint.
-**Evidence** — `deposits 145 cells over 2 m above virgin in 11 masses; largest 47 cells (188 m²) at
-33 m elevation; spread 0-93 m`. Eleven disconnected silt bars scattered down the mountain, the
-largest about 14 m across, together **0.22% of the field**. Not a wall, not a dam, not one landform
-— and the maximum came down to `+6.00 m` on its own once the basins moved onto the drainage.
-**Closed on weaker evidence than it asked for, deliberately.** *Done when* wanted somebody to look
-at it. Nobody has. What the measurement does settle is the specific risk the loop was opened for: a
-connected mass blocking the runout would show as one component of thousands of cells, and the
-largest is forty-seven. The aesthetic question — whether eleven silt bars look like anything — is
-still open and belongs with the other look-at-it loops.
-**Nothing was clamped**, which the loop asked for explicitly. Deposition is still free to build.
-
-### L-040 · Four of five basins cannot be reached downhill from the spring — closed 2026-07-26
-Basins were scored on concavity and relief anywhere between 10 m and 110 m of elevation, which
-describes where a lake *could* sit on this mountain. The game asks a different question — where can
-the player put water — and on the default seed only **1 of 5** basins was reachable downhill from
-the spring. The other four read as `0%` forever in the lattice the whole retention design leans on,
-and the failure was invisible by construction: a basin that *cannot* be filled and one that has
-*not been* filled yet produce an identical line in every report this project has.
-`CarveBasins` now floods downhill from the spring before scoring anything, and reports the candidate
-count it drew from, so "carved 5 basins" can never again quietly mean "carved 5 basins nobody can
-reach".
-**Evidence** — `reach (climb 0 m)` went **1 of 5 → 5 of 5**, from
-`723 candidate cells on the spring's drainage`. One sustained campaign against basin #0, off the
-incised channel, takes it **0% → 100%** — the claim the progression track rests on, which L-027
-established and which had quietly stopped being true. Over 150 runs the lattice ends
-`100% · 93% · 0% · 100% · 100%` against `0% · 11% · 64% · 0% · 0%` before, water held
-`2,671 → 2,962 m³`, and runs stopping in a basin `39 → 66 of 150`.
-**Fixed at the layer it was broken at, deliberately.** `SteerAccel 56` also fills basin #0, and was
-measured doing it. It was rejected: buying reachability with steering costs first-session sea
-arrivals (6 → 2 over 24 runs), brings timeouts back, and works by letting the thumb drag water along
-a contour — weakening the fall-line rule established the same day to make room for a generation bug.
-**The trade, recorded** — sea arrivals `101 → 82` and delivery to the sea `4,846 → 3,447 m³` over
-150 runs, because there are now four fillable lakes between the spring and the coast catching water
-on the way past where before there was effectively one. That is the lattice working, not a
-regression, but it is a real change in where a session's water ends up.
-
-### L-030 · An aimed run arrives about 40% of the time — closed 2026-07-26
-Closed by L-038, L-039 and L-040 together rather than by anything aimed at it directly. The loop
-asked for an arrival rate over 50% or a written argument that ~40% was the intended difficulty.
-**Evidence** — 150 runs: `aimed delivered 11 of 36 (31%)`, and **`11 of the 21 answerable (52%)`**.
-Closest approach fell `98 m → 53 m`.
-**Closed on the answerable denominator, and that needs saying plainly.** The raw rate is 31%. The
-other 15 aimed runs were aimed at a basin that was already full, which cannot receive water however
-well the run is flown — and that is a real state of the world now that basins actually fill, not a
-harness quirk that can be tuned away. The 50% clause is met against targets that could physically
-answer, and is not met against all aimed runs. Anyone re-reading this should use the `aimed
-answerable` line, which exists now precisely so this distinction cannot be fudged again.
-**What actually moved it** — none of it was steering strength, which is what this loop kept warning
-against tuning. It was: runs that stalled instead of ending (L-038), basins that did not absorb a
-stream passing over them and steering that could push water uphill (L-039), and four fifths of the
-lattice sitting off the spring's drainage (L-040).
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
