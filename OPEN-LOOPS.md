@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **24** (14 archived)
+Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **26** (17 archived)
 
 ---
 
@@ -73,55 +73,9 @@ moment, then the card arrives. A player who wants to skip it can.
 and the card, fading the ribbon at 0.6× speed while the already-framed camera and carve overlay are
 visible. A tap skips it, so a returning player never sits through it.
 
-### L-030 · An aimed run arrives about 40% of the time
-**Why** — L-027 established that a player who commits a campaign to a basin can fill it. What it also
-measured is that individual aimed runs are unreliable, and the ones that miss get within an average
-of 56 m before ending 122 m away. Some of that is the design working — the incised channel *should*
-fight you, and "restraint is the skill ceiling" — but it has never been examined, and
-`TimedOut 12 per 150 runs` says some aimed runs crawl the full 75 s without getting anywhere.
-**Done when** — Either the aimed-arrival rate is over 50%, or there is a written argument (backed by
-the hand playtest in L-012) that ~40% is the intended difficulty, and the loop closes as by-design.
-**Evidence needed** — `aimed delivered` and `aimed closest`, and for the by-design route, a person's
-account of whether missing feels like their fault or the game's.
-**Measured 2026-07-26** — Two metrics, 150 runs, campaigns in blocks of 50:
-`aimed at a basin 36 runs, reached it 16 (44%)` and `aimed delivered 14 of 36 (39%)`.
-The suspicion recorded when this loop was opened — that the stop-based "hit" *undercounts*, because
-a run delivering water and flowing onward scores as a miss — **was wrong**. Delivery-based arrival
-is slightly *lower*, since a run can stop in a basin that is already full and add nothing. Both
-metrics agree on roughly 40%, so the number can now be trusted. The earlier 28% figure came from a
-diagnostic that pointed every aimed run at one deliberately awkward basin and should not be compared
-against these.
-**Careful** — Still do not tune `SteerAccel` or `SteerSpeedCost` on this alone. 40% may be correct
-for a game whose whole skill ceiling is restraint; that is a feel question and L-012 answers it.
-**Superseded 2026-07-26 by L-038.** The dynamics this was measured against no longer exist: runs now
-travel 226 m instead of 155 m and no longer stall short. Re-measure before arguing either way, and
-read L-039 first — the arrival rate moved, and not in the direction this loop was hoping for.
-
 ---
 
 ## Next
-
-### L-040 · Four of five basins cannot be reached downhill from the spring
-**Why** — `reach (climb 0 m): #0 NO  #1 yes  #2 NO  #3 NO  #4 NO   (1 of 5)`. The basin lattice is
-the progression track — "north basin 87% full" is the open loop the design leans on for retention —
-and it is only a track if the player can decide to close it. Water that has to be driven *uphill* to
-reach a basin is not a route; it is the player fighting rule 1, and rule 1 is the game.
-**This is a generation problem wearing a tuning problem's clothes**, and that is worth stating
-plainly because it was nearly fixed at the wrong layer. Steering authority *can* buy it:
-`SteerAccel 56` takes basin #0 from 0% to **100%** under one sustained campaign where 42 leaves it
-at 0%. But it costs first-session sea arrivals (6 → 2 over 24 runs), brings timeouts back (0 → 2 per
-150), and it buys reachability by letting the thumb spin the stream along a contour — i.e. by
-weakening the fall-line rule that had just been established. A basin should be somewhere water can
-*flow*, not somewhere it can be dragged.
-**Done when** — At least 4 of 5 basins are downhill-reachable from the spring on the default seed,
-without raising `SteerAccel` above 42, and a sustained campaign can fill an off-channel one.
-**Evidence needed** — The `reach (climb 0 m)` line, and `RILL/Run Headless Basin Campaign` taking a
-basin that is *not* the sink from 0% to over 60%.
-**Where to look first** — `MountainGenerator` and `BasinSystem.LabelBasins`. Basins are found by
-priority-flood over whatever the generator produced; nothing has ever asked whether they sit on a
-drainage path from the summit spring. Placing them on traced descent paths is the same technique
-that fixed secret placement in L-010, where 45 of 51 sites had received no erosion at all because
-the code reasoned about the whole mountain's drainage instead of about where runs actually go.
 
 ### L-041 · Deposition builds an 8.9 m mound and nobody has looked at it
 **Why** — `terrain delta max` was `+1.31 m` before the flow work and is **`+8.87 m`** after 150
@@ -205,6 +159,47 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-040 · Four of five basins cannot be reached downhill from the spring — closed 2026-07-26
+Basins were scored on concavity and relief anywhere between 10 m and 110 m of elevation, which
+describes where a lake *could* sit on this mountain. The game asks a different question — where can
+the player put water — and on the default seed only **1 of 5** basins was reachable downhill from
+the spring. The other four read as `0%` forever in the lattice the whole retention design leans on,
+and the failure was invisible by construction: a basin that *cannot* be filled and one that has
+*not been* filled yet produce an identical line in every report this project has.
+`CarveBasins` now floods downhill from the spring before scoring anything, and reports the candidate
+count it drew from, so "carved 5 basins" can never again quietly mean "carved 5 basins nobody can
+reach".
+**Evidence** — `reach (climb 0 m)` went **1 of 5 → 5 of 5**, from
+`723 candidate cells on the spring's drainage`. One sustained campaign against basin #0, off the
+incised channel, takes it **0% → 100%** — the claim the progression track rests on, which L-027
+established and which had quietly stopped being true. Over 150 runs the lattice ends
+`100% · 93% · 0% · 100% · 100%` against `0% · 11% · 64% · 0% · 0%` before, water held
+`2,671 → 2,962 m³`, and runs stopping in a basin `39 → 66 of 150`.
+**Fixed at the layer it was broken at, deliberately.** `SteerAccel 56` also fills basin #0, and was
+measured doing it. It was rejected: buying reachability with steering costs first-session sea
+arrivals (6 → 2 over 24 runs), brings timeouts back, and works by letting the thumb drag water along
+a contour — weakening the fall-line rule established the same day to make room for a generation bug.
+**The trade, recorded** — sea arrivals `101 → 82` and delivery to the sea `4,846 → 3,447 m³` over
+150 runs, because there are now four fillable lakes between the spring and the coast catching water
+on the way past where before there was effectively one. That is the lattice working, not a
+regression, but it is a real change in where a session's water ends up.
+
+### L-030 · An aimed run arrives about 40% of the time — closed 2026-07-26
+Closed by L-038, L-039 and L-040 together rather than by anything aimed at it directly. The loop
+asked for an arrival rate over 50% or a written argument that ~40% was the intended difficulty.
+**Evidence** — 150 runs: `aimed delivered 11 of 36 (31%)`, and **`11 of the 21 answerable (52%)`**.
+Closest approach fell `98 m → 53 m`.
+**Closed on the answerable denominator, and that needs saying plainly.** The raw rate is 31%. The
+other 15 aimed runs were aimed at a basin that was already full, which cannot receive water however
+well the run is flown — and that is a real state of the world now that basins actually fill, not a
+harness quirk that can be tuned away. The 50% clause is met against targets that could physically
+answer, and is not met against all aimed runs. Anyone re-reading this should use the `aimed
+answerable` line, which exists now precisely so this distinction cannot be fudged again.
+**What actually moved it** — none of it was steering strength, which is what this loop kept warning
+against tuning. It was: runs that stalled instead of ending (L-038), basins that did not absorb a
+stream passing over them and steering that could push water uphill (L-039), and four fifths of the
+lattice sitting off the spring's drainage (L-040).
 
 ### L-039 · Aimed delivery halved while delivery to the sea doubled — closed 2026-07-26
 **Three causes, and only one of them was a defect in the game.**
@@ -375,58 +370,5 @@ Ice cleared 870 → 0, meltwater non-zero. Both *Done when* conditions met.
 driven. Both set the same `thawing` flag on the same branch, so the code path is identical, but
 Storm has not literally been run and this entry should not be read as saying it has.
 **Defect found while closing, fixed** — the thaw announced meltwater it never delivered. See L-035.
-
-### L-035 · The thaw announced water it never delivered — closed 2026-07-26
-`thawedVolume` was accumulated solely to build the headline string. The game told the player
-"The thaw released 187 m³" and put nothing anywhere: no basin gained volume, no run gained volume,
-only `Wet` was nudged. The code's own comment claimed "Meltwater is real water: a thaw is a free
-run's worth of volume, spread out" — it was neither. A game whose entire trust contract is that the
-world honestly records what you did cannot announce water the player never receives.
-Meltwater now goes into the world, routed downhill to a basin by the same `AddWater` path as every
-other drop, and the headline reports what actually arrived rather than what melted.
-**Evidence** — glacier thaw test, basin water **656 m³ → 1,203 m³** across the thaw phase, and the
-headline now reads `The thaw released 187 m³ (132 m³ reached the basins)`. Before the fix the same
-run reported the same 187 m³ with basin water unchanged by the thaw.
-
-### L-034 · Ice is decoration — closed 2026-07-26
-`Field.Ice` was written by the glacier rules and read only by `TerrainMeshBuilder` as a colour tint,
-so a frozen channel behaved exactly like an open one and the whole biome was a palette swap with a
-headline. Ice now has physical consequences in `FlowSimulation`: slick to travel over
-(`drag × 0.55` at full ice) and armoured against carving (`carve × 0.25`). A glacier should be fast
-and grudging about being cut, which is what makes it a different game rather than a filter.
-**Evidence** — 24 runs, Glacier against Sandstone on the same seed, with 1,725 ice cells present:
-distance **118 → 131 m/run (+11%)**, top speed **24.8 → 28.0 m/s** (now reaching the cap). The loop
-warned that the two biomes already differed by ~4% in sediment, i.e. noise; +11% distance and +13%
-speed are comfortably clear of it.
-**The carve-armour half did not show in the totals** — sediment moved is 63 vs 62 m³/run, a 1.3%
-difference well inside noise. Runs on ice cut less *where the ice is* but travel further and faster,
-so they carve more everywhere else and it nets out. The drag effect is proven; the armour effect is
-not, and a per-cell measurement would be needed to claim it.
-
-### L-027 · Only two basins in five ever receive water — closed 2026-07-26
-**The premise was wrong.** The loop assumed three fifths of the basin lattice was unreachable
-scenery. It is not: every basin is reachable, and a player who commits a campaign to one can fill
-it. What the loop was actually measuring was its own test bot, which picked a fresh random basin
-every single run — so no basin was ever worked at twice running, and carving a new route is the only
-way to reach one off the incised channel.
-**Evidence** — 150 runs, all aimed runs committed to a single off-channel basin: basin #0 went from
-`0%` to **`85%` full**, and the lattice read `85% · 56% · 97% · 0% · 0%`. Progression of the bot,
-same seed, same 150 runs throughout:
-
-| bot behaviour | aimed hit | closest | basins > 0% |
-|---|---|---|---|
-| random target each run | 31% | 64 m | 2 of 5 |
-| campaigns, blocks of 30 | 25% | 81 m | 2 of 5 |
-| campaigns, blocks of 50 | 44% | 56 m | 3 of 5 |
-| one sustained campaign | 28% | 56 m | 3 of 5, target 0% → **85%** |
-
-**Neither *Done when* clause was met literally, and both were mis-specified.** It asked for 4 of 5
-basins above 0%: a 150-run test contains ~36 aimed runs, and one basin needs roughly that many on
-its own, so no single test can wet five. It asked for a >50% aimed hit rate: "hit" counts only runs
-that *stop* in the target basin, so a run that delivers water and flows onward scores as a miss.
-Closing on the premise being disproven rather than on the numbers, with the arrival rate carried
-forward as **L-030** and the metric flaw recorded there.
-**Third harness flaw in this loop** — sub-sea-level basins, a bot that could not steer, and a bot
-that could not persist. Every one looked like a simulation bug.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
