@@ -63,6 +63,23 @@ Writes `docs/shots/*.png` using the game's own shaders and mesh builders. **With
 refuses rather than writing a blank image. Props, the ribbon and spray are absent by construction
 (`Graphics.DrawMesh` from `Update` never runs outside play mode), so their absence proves nothing.
 
+And after any change to boot, navigation, UI wiring or run-loop state — **play the actual game**
+(back up `~/Library/Application Support/DefaultCompany/rill-unity/rill` first; it plays a real run
+on the real slot, and note there is no `-quit` — the probe exits the editor itself):
+
+```bash
+/Applications/Unity/Unity-6000.5.5f1/Unity.app/Contents/MacOS/Unity \
+  -batchmode -projectPath . \
+  -executeMethod Rill.EditorTools.RillPlayProbe.Run -logFile /tmp/probe.log
+grep "\[PROBE\]" /tmp/probe.log   # want: 18 ok, 0 failed, 0 runtime errors
+```
+
+Real play mode, real boot, real button wiring: home → Begin → run → settle → report → Back → home,
+with screenshots from inside the live game and a count of every runtime exception. It exists
+because every other check was green for hours while the game did not boot: the captures are staged
+photographs that call the setters the game calls, and prove nothing about whether the game reaches
+them (L-057).
+
 ### The failure mode this project keeps hitting
 
 **A system that silently does nothing looks exactly like a system that works.** `CarveBasins` placed

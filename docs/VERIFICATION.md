@@ -60,6 +60,36 @@ collectibles are drawn with `Graphics.DrawMesh` from `Update`, which never runs 
 Nor are the ribbon, spray or carve overlay, which are per-run state. It shows the mountain between
 runs.
 
+**And the deeper limit, learned on 2026-07-26: it is a staged photograph.** The interface capture
+builds the HUD by hand and calls the same setters the game calls — which verifies the setters and
+says *nothing* about whether the running game reaches them. Begin was present in every captured
+frame during the hours the real game did not boot at all.
+
+### 5. Play the actual game — ~1 minute, the only check that runs the real boot
+
+```bash
+/Applications/Unity/Unity-6000.5.5f1/Unity.app/Contents/MacOS/Unity \
+  -batchmode -projectPath . \
+  -executeMethod Rill.EditorTools.RillPlayProbe.Run -logFile /tmp/probe.log
+grep "\[PROBE\]" /tmp/probe.log
+```
+
+No `-quit` — the probe exits the editor itself, nonzero if anything failed. **Back up the save
+directory first** (`~/Library/Application Support/DefaultCompany/rill-unity/rill`): it plays a real
+run on the real slot.
+
+Real play mode: the real `GameBootstrap.Awake`, real Update loops, real button wiring. It walks
+home → Begin → release → run → settle → report → dismiss → Back → home, asserts at each step,
+screenshots the live game to `docs/shots/play_*.png`, and counts every runtime error raised
+anywhere. Its first run found three bugs no other level could see: `MountainRoster` constructed in
+a MonoBehaviour field initializer threw on `persistentDataPath` and killed the whole boot (no
+title, no report, runs that could never finish); `Navigator.FinishLaunch` was exercised by the
+headless test and called by nothing in the game, stranding the first Back on a dead screen; and
+`SplashFX` threw on every launch configuring a playing particle system.
+
+**Run it after any change to boot, navigation, UI wiring, or run-loop state.** A green smoke test
+plus a green capture proved exactly nothing about any of those.
+
 ### 2. Compile in Unity, headless — ~1 minute
 
 ```bash
@@ -149,5 +179,6 @@ Two corollaries, both learned the expensive way on 2026-07-26:
 1. `./tools/unity-stub/typecheck.sh` — clean, including warnings.
 2. Batch compile — no `error CS`, no `Shader error`.
 3. Smoke test — sane spread of endings, basins at a range of fill levels, save round-trips exactly.
-4. Press Play — water leaves the notch, carves a visible channel, the carve report is not empty.
-5. Delete the save (`RILL → Delete Saved Mountain`) and confirm a fresh mountain generates.
+4. Play probe — 18 ok, 0 failed, 0 runtime errors, after backing up the save.
+5. Press Play — water leaves the notch, carves a visible channel, the carve report is not empty.
+6. Delete the save (`RILL → Delete Saved Mountain`) and confirm a fresh mountain generates.

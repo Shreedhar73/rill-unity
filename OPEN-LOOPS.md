@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **41** (28 archived)
+Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **43** (30 archived)
 
 ---
 
@@ -258,6 +258,42 @@ spray half alone.
 
 ## Recently closed
 
+### L-057 · The game did not boot, and every green test said it did — closed 2026-07-26
+Re-reported after the L-053–L-056 fixes: "that Begin option is not there... you are fixing the
+things where we are not reaching." **Correct on both counts.** `MountainRoster` was constructed in
+a `RunController` *field initializer*; its constructor reads save headers from disk, and Unity
+forbids `persistentDataPath` there — so it threw during `AddComponent`, silently killing every
+field initializer after that line. `_projects`, `_lastPath` and `_cascades` were null, `Initialise`
+died before `EnterTitle`, and every `FinishRun` threw. The visible game: no title, no Begin, no
+settle beat, no report — booted straight onto a mountain whose runs could start and never finish.
+**Why every test lied.** The typecheck, the smoke test, navigation, mountains and both capture
+tools were all green throughout, because none of them construct the MonoBehaviour — the captures
+are *staged photographs* that call the same setters the game calls, which verifies the setters and
+says nothing about whether the running game reaches them. L-053's evidence (`ui_home.png`) was
+exactly such a photograph: not wrong about the layout, wrong as proof the game showed it.
+**The fix for the class, not the instance** — `RILL/Run Play-Mode Probe`: real play mode, real
+boot, real button wiring, walks home → Begin → run → sea → settle → report → dismiss → Back →
+home, screenshots each step from inside the live game, counts every runtime exception, exits
+nonzero on any failure. Its first run found this loop, L-058, and the SplashFX boot error — none
+visible to any existing check.
+**Evidence** — probe before: `RUNTIME ERROR: get_persistentDataPath is not allowed... 'RunController'`,
+`FAIL boots to the title, state=Idle`, thousands of NREs. Probe after: **18 ok, 0 failed, 0 runtime
+errors**, and `docs/shots/play_*.png` are the running game photographed from inside — Begin on the
+title over the player's real mountain, the settle beat, the report card with the run's ribbon, and
+the L-056 shoreline trees regrowing at the lake in `play_report.png`.
+
+### L-058 · Back from the mountain stranded the player on a dead screen — closed 2026-07-26
+Found by the probe on the same first run. `Navigator.FinishLaunch` existed, was exercised by the
+headless navigation test, and was called by **nothing in the game** — the test calls it by hand,
+which is the same staged-photograph gap as L-057. The Navigator sat on `Launch` forever; the first
+Back from the mountain popped to Launch, fell into `ShowScreen`'s panel branch, and left the player
+on a screen with no back button and no title. Entering the title now finishes the launch, because
+the title is the home screen.
+**Evidence** — probe before: `FAIL Back returns to the main screen, state=Panel`. After: the full
+loop ends back on the title with Begin visible, 18 ok. Also fixed on the way, found by the probe's
+error counter: `SplashFX` set duration on an already-playing ParticleSystem and threw on every
+boot since the day it was written.
+
 ### L-053 · The start button vanished from the main screen — closed 2026-07-26
 Reported that evening, verbatim: "the start button is gone." `SetMountains` hid the Begin button the
 moment the three slot rows existed, on the theory that the rows replace it. They do not — three stat
@@ -478,70 +514,5 @@ last one I corrected by hand once and it came straight back, which is the tell t
 were never the problem — the camera now refuses to be underground.
 **Left undone deliberately** — canopies (`PropMeshes.Canopy`) exist and are not used by anything, so
 broadleaf growth is still built and unobserved.
-
-### L-015 · Persistent wet-channel darkening — closed 2026-07-26
-A carved channel was invisible when dry, so the player could not see their own river system between
-runs — which is most of the time they spend looking at the mountain.
-**Closed with images archived**, which is what this project has never had:
-[`docs/shots/`](docs/shots/) holds the mountain at 24 and 150 runs, from the idle overview and from
-a close pass on the deepest cut, rendered from batch mode by `RILL/Capture Mountain PNG`. At 150
-runs (`terrain −10.39 m to +4.68 m vs virgin`) the channel reads as a carved valley with the strata
-bands **bending into it**, and four lakes are visible from the idle camera — the basin lattice
-filling is now something you can see rather than a percentage in a log.
-**The fix was the opposite of what the loop assumed, and the first render is what said so.** The
-loop asked for *darkening*. Darkening was already happening four times over — a polish tint, a CPU
-wet blend, the shader's occlusion term and the shader's own wet darkening, multiplying to about
-**0.25 of the surrounding rock** — and the result was a black stripe down the mountain that painted
-over the deeper strata band the cut had just exposed. That defeats "every metre of depth is legible
-as colour", the design's central visual promise, precisely where the player has done the most work.
-So: the incision-colour term added earlier the same day was removed outright, occlusion floored at
-0.55, polish made a tint rather than a darkener, and the wet term halved on both sides.
-**What actually makes an old channel legible is geometry, not paint.** The cell sits lower, so it
-takes a lower band's colour; and it is inside something, so occlusion shades it. Both survive
-`PolishDecayPerRun` taking polish to zero, which is exactly the "old channel" case the loop was
-about.
-**Weaker than asked in one respect, and it is a physical limit rather than a bug.** From the *full*
-idle overview — 435 m back on a 512 m mountain — a 2–4 m channel is a couple of pixels and reads as
-a faint line. It is unmistakable at any closer framing. Worth noting alongside: `GameBootstrap` sets
-`OverviewDistance` to `extent × 0.85` = 435 m, which is outside the 45–320 m range
-`RillCamera.Zoom` will clamp to, so the default idle camera sits further out than the player can
-ever zoom back to.
-
-### L-044 · A basin can be erased by being filled — closed 2026-07-26
-A 500-run campaign against one basin ends with the lattice down from 5 to 3. The player's target
-disappears mid-campaign and nothing anywhere said so. L-035 was closed for announcing water it never
-delivered; this is the inverse — delivering a change and never mentioning it — and the trust
-contract only survives if both directions hold.
-`BasinSystem` now identifies each basin by its **deepest cell** across a rebuild (ids are assigned by
-scan order every time and are *not* stable) and raises `Lost` when that cell is no longer inside any
-depression. `RillWorld` turns it into a headline that says where the water went, because it is not
-gone — `GatherExistingWater` routes anything outside a depression downhill until it finds one, and
-saying so is the difference between an ending and a bug.
-**Evidence** — 500-run campaign: `2 silted out of existence, 0 merges — raised by the world: 2 and
-0; as the card's title 1 (all appear in its body)`, with the text
-`"West basin silted up for good — its 80 m³ moved on downhill"` and the same for North basin at
-39 m³. The one that lost the title lost it to a dam break in the same run and is still on screen,
-since `HudController` lists every headline under the title. 24 and 500 runs of *ordinary* play both
-report `basin count 5 throughout` and zero lattice changes, so this only fires for players who
-campaign hard enough to earn it.
-**Three things had to be fixed before any of it was visible, and each looked like the previous one
-working.**
-1. **The detection appeared to do nothing** — zero events across a season in which the lattice
-   demonstrably shrank. The fault was in the *harness*: the smoke test called `EndRun` **before**
-   `Basins.Rebuild()`, the opposite of `RunController.FinishRun`, so every headline a rebuild raises
-   was cleared by the next `BeginRun` before anything read it. This is the fifth time a
-   silently-does-nothing result in this project has turned out to be the test rather than the game.
-2. **Merge detection was built on a wrong inference.** Seeing the count fall with no `Lost` events,
-   I concluded the basins were merging rather than vanishing. They were vanishing. The merge path
-   has since fired **zero** times in any test and is kept as unproven code, labelled as such,
-   because it is a real event that can happen and the check is two lines.
-3. **The headline was invisible to the player.** `CarveReport.Summary()` — the card's title — checks
-   `Overflowed`, `Revealed`, `BasinChanges` and `DeepestCarve`, and would never have shown a lattice
-   change at all. It now ranks one just under a dam break.
-**Closed on weaker evidence than it asked for in one respect.** *Done when* wanted "a name for what
-the place became". The headline says the tarn silted up and where its water went; it does not name
-the successor landform. Nothing in the world currently knows whether a filled tarn became meadow,
-gravel flat or bog — the ecosystem tracks moisture but not history — so naming it would be a
-fabrication, which is the exact failure L-035 was closed for. Left undone deliberately.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
