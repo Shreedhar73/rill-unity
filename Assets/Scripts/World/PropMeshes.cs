@@ -55,6 +55,100 @@ namespace Rill.World
             return Build("Cone", verts, tris);
         }
 
+        /// <summary>
+        /// A conifer: three stacked skirts on a short trunk. A single open cone — which is what
+        /// this was — reads as a flat paper triangle from the side, because there is only one
+        /// silhouette edge and nothing to catch light differently at different heights. Stacked
+        /// tiers give it a profile and a bit of self-shadowing for nothing.
+        /// </summary>
+        public static Mesh Conifer(float radius, float height, int segments = 7)
+        {
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+
+            // Trunk: a stubby prism so the tree meets the ground rather than floating on a point.
+            float trunkR = radius * 0.13f;
+            float trunkH = height * 0.18f;
+            int trunkBase = verts.Count;
+            for (int i = 0; i < segments; i++)
+            {
+                float a = i / (float)segments * Mathf.PI * 2f;
+                float cx = Mathf.Cos(a), cz = Mathf.Sin(a);
+                verts.Add(new Vector3(cx * trunkR, 0f, cz * trunkR));
+                verts.Add(new Vector3(cx * trunkR, trunkH, cz * trunkR));
+            }
+            for (int i = 0; i < segments; i++)
+            {
+                int a0 = trunkBase + i * 2, a1 = a0 + 1;
+                int b0 = trunkBase + ((i + 1) % segments) * 2, b1 = b0 + 1;
+                tris.Add(a0); tris.Add(a1); tris.Add(b0);
+                tris.Add(b0); tris.Add(a1); tris.Add(b1);
+            }
+
+            // Three skirts, each narrower and shorter than the one below it.
+            const int Tiers = 3;
+            float tierBase = trunkH * 0.75f;
+            float remaining = height - tierBase;
+            for (int t = 0; t < Tiers; t++)
+            {
+                float f = t / (float)Tiers;
+                float r = radius * (1f - f * 0.55f);
+                float y0 = tierBase + remaining * f * 0.62f;
+                float y1 = y0 + remaining * (0.52f - f * 0.10f);
+
+                int apex = verts.Count;
+                verts.Add(new Vector3(0f, y1, 0f));
+                int ring = verts.Count;
+                for (int i = 0; i < segments; i++)
+                {
+                    float a = (i / (float)segments + t * 0.17f) * Mathf.PI * 2f;   // twist each tier
+                    verts.Add(new Vector3(Mathf.Cos(a) * r, y0, Mathf.Sin(a) * r));
+                }
+                for (int i = 0; i < segments; i++)
+                {
+                    tris.Add(apex);
+                    tris.Add(ring + i);
+                    tris.Add(ring + (i + 1) % segments);
+                }
+            }
+            return Build("Conifer", verts, tris);
+        }
+
+        /// <summary>
+        /// A rounded canopy for broadleaf growth: two stacked rings capped top and bottom, so a
+        /// bush is a mass rather than a spike.
+        /// </summary>
+        public static Mesh Canopy(float radius, float height, int segments = 8)
+        {
+            var verts = new List<Vector3> { new Vector3(0f, 0f, 0f) };
+            var tris = new List<int>();
+
+            int lower = verts.Count;
+            for (int i = 0; i < segments; i++)
+            {
+                float a = i / (float)segments * Mathf.PI * 2f;
+                verts.Add(new Vector3(Mathf.Cos(a) * radius, height * 0.42f, Mathf.Sin(a) * radius));
+            }
+            int upper = verts.Count;
+            for (int i = 0; i < segments; i++)
+            {
+                float a = (i / (float)segments + 0.5f / segments) * Mathf.PI * 2f;
+                verts.Add(new Vector3(Mathf.Cos(a) * radius * 0.62f, height * 0.80f, Mathf.Sin(a) * radius * 0.62f));
+            }
+            int top = verts.Count;
+            verts.Add(new Vector3(0f, height, 0f));
+
+            for (int i = 0; i < segments; i++)
+            {
+                int n = (i + 1) % segments;
+                tris.Add(0); tris.Add(lower + i); tris.Add(lower + n);                       // skirt
+                tris.Add(lower + i); tris.Add(upper + i); tris.Add(lower + n);               // band
+                tris.Add(lower + n); tris.Add(upper + i); tris.Add(upper + n);
+                tris.Add(upper + i); tris.Add(top); tris.Add(upper + n);                     // cap
+            }
+            return Build("Canopy", verts, tris);
+        }
+
         public static Mesh Box(Vector3 size)
         {
             var m = new Mesh { name = "Box" };

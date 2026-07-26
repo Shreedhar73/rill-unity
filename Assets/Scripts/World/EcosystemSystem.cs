@@ -55,7 +55,8 @@ namespace Rill.World
 
             _mossMesh = PropMeshes.Disc(0.9f, 7);
             _reedMesh = PropMeshes.Blade(0.22f, 1.7f);
-            _bushMesh = PropMeshes.Cone(1.0f, 2.6f, 6);
+            // Was a single 6-sided open cone, which reads as a flat paper triangle.
+            _bushMesh = PropMeshes.Conifer(1.05f, 3.1f, 7);
             _hutMesh = PropMeshes.Box(new Vector3(2.2f, 1.8f, 2.4f));
 
             _mossMat = Tinted(propMaterialTemplate, new Color(0.35f, 0.55f, 0.32f));

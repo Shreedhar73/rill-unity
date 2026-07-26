@@ -61,10 +61,11 @@ Shader "Rill/Strata"
                 float4 color    : COLOR;
             };
 
-            fixed4 _Ambient, _SunTint, _RimColor, _OverlayColor;
+            fixed4 _Ambient, _SunTint, _RimColor, _OverlayColor, _HazeColor;
             float  _Wrap, _RimPower, _RimStrength;
             float  _BandHeight, _BandContrast, _SeamDarken, _SeamWidth;
             float  _AOStrength, _WetDarken, _CliffDarken;
+            float  _HazeStart, _HazeRange, _HazeMax;
 
             v2f vert (appdata v)
             {
@@ -137,6 +138,14 @@ Shader "Rill/Strata"
                     float pulse = 0.65 + 0.35 * sin(_Time.y * 4.0);
                     lit = lerp(lit, _OverlayColor.rgb, saturate(glow * pulse));
                 }
+
+                // Aerial perspective. Without it every ridge is the same contrast at every
+                // distance, and the mountain reads as a flat map rather than a landscape with
+                // depth — the single cheapest thing that makes terrain look big.
+                float dist = length(_WorldSpaceCameraPos - i.worldPos);
+                float haze = saturate((dist - _HazeStart) / max(_HazeRange, 1.0));
+                haze = haze * haze * (3.0 - 2.0 * haze);          // smoothstep, so near ground is untouched
+                lit = lerp(lit, _HazeColor.rgb, haze * _HazeMax);
 
                 return fixed4(lit, 1.0);
             }
