@@ -34,6 +34,15 @@ namespace Rill.EditorTools
         public static void RunHeadlessLong() { Play(150); }
 
         /// <summary>
+        /// A season, not a session. The lattice loses a basin to the river's own deposits somewhere
+        /// inside 150 runs, and the design expects the same mountain to be played for months — so
+        /// the question "does reachability stabilise or keep falling" cannot be answered at session
+        /// length. (L-042)
+        /// </summary>
+        [MenuItem("RILL/Run Headless Smoke Test (season)", false, 62)]
+        public static void RunHeadlessSeason() { Play(500); }
+
+        /// <summary>
         /// Every biome, 24 runs each. Glacier, Volcanic and Granite have never been run at all —
         /// they are implemented, compiled, and completely unobserved, which in this project has
         /// meant "silently does nothing" more often than not. Sandstone is the tuned one; the
@@ -321,6 +330,7 @@ namespace Rill.EditorTools
             var stopDetail = new Dictionary<RunEnding, StopStats>();
             var trace = new List<string>(128);
             int tracesPrinted = 0;
+            var reachHistory = new StringBuilder();
 
             for (int run = 1; run <= Runs; run++)
             {
@@ -536,6 +546,51 @@ namespace Rill.EditorTools
                 dailyPaths.Add(new List<Vector3>(sim.Path));
                 dailySea.Add(sim.Ending == RunEnding.ReachedSea);
 
+                // Reachability of the lattice, sampled as the session goes rather than only at the
+                // end. It was 5 of 5 at generation and 4 of 5 after 150 runs — the river silts up
+                // its own approaches — and a single end-of-test number cannot say when, how fast,
+                // or whether anything ever reopens. (L-042)
+                if (run == 1 || run % 25 == 0 || run == Runs)
+                {
+                    var probeRng = new Rng(world.Seed);
+                    Vector3 probeSpawn = world.SpawnPoint(ref probeRng);
+                    var now = DownhillReachable(world, probeSpawn, 0f);
+                    var virgin = DownhillReachable(world, probeSpawn, 0f, world.Field.Virgin);
+                    // Strictly-downhill is a lower bound the simulation never obeys: water here
+                    // tops 25 m/s and v²/2g at that speed is tens of metres of climb. Reporting
+                    // only the strict number would make a lattice the player can still reach on
+                    // momentum look like one they have lost.
+                    var withRun = DownhillReachable(world, probeSpawn, 3f);
+                    int okNow = 0, okVirgin = 0, okMomentum = 0, lostAndWanted = 0;
+                    var lost = new StringBuilder();
+                    for (int i = 0; i < world.Basins.Basins.Count; i++)
+                    {
+                        var b = world.Basins.Basins[i];
+                        bool a = false, v = false;
+                        for (int k = 0; k < b.Cells.Length && !(a && v); k++)
+                        {
+                            if (now[b.Cells[k]]) a = true;
+                            if (virgin[b.Cells[k]]) v = true;
+                        }
+                        if (a) okNow++;
+                        if (v) okVirgin++;
+                        for (int k = 0; k < b.Cells.Length; k++)
+                            if (withRun[b.Cells[k]]) { okMomentum++; break; }
+                        // A basin the water can no longer get to only costs the player something if
+                        // it still had room. Losing the approach to a lake that is already full is
+                        // the mountain finishing with it, not the progression track dying.
+                        if (!a)
+                        {
+                            lost.AppendFormat("#{0} {1:0}%  ", i, b.FillFraction * 100f);
+                            if (b.FillFraction < 0.99f) lostAndWanted++;
+                        }
+                    }
+                    reachHistory.AppendFormat("    run {0,4}   downhill {1}/{2}, on momentum {6}/{2}, on virgin rock {3}/{2}   no downhill route: {4}{5}\n",
+                        run, okNow, world.Basins.Basins.Count, okVirgin,
+                        lost.Length == 0 ? "none" : lost.ToString(),
+                        lostAndWanted > 0 ? "  <- " + lostAndWanted + " still had room" : "", okMomentum);
+                }
+
                 if (run <= 3 || run == Runs || run % 25 == 0)
                 {
                     log.AppendFormat("run {0,3}  {1,-12} {2,5:0.0}s  {3,6:0} m  top {4,5:0.0} m/s  moved {5,8:n0} m³  deepest {6:0.00} m  \"{7}\"\n",
@@ -618,6 +673,7 @@ namespace Rill.EditorTools
                 aimedRuns > 0 ? aimedClosest / aimedRuns : 0f);
             log.AppendFormat("  aimed at the sea {0} runs, reached it {1} ({2:0}%)\n",
                 seaRuns, seaHits, seaRuns > 0 ? seaHits * 100f / seaRuns : 0f);
+            log.Append("  lattice reachability over the session (downhill only / allowing a 3 m climb on momentum):\n").Append(reachHistory);
             log.Append("  basin sites:    ");
             for (int i = 0; i < world.Basins.Basins.Count; i++)
             {
@@ -841,8 +897,12 @@ namespace Rill.EditorTools
         /// </summary>
         static bool[] DownhillReachable(RillWorld w, Vector3 spawn, float climb)
         {
+            return DownhillReachable(w, spawn, climb, w.Field.Height);
+        }
+
+        static bool[] DownhillReachable(RillWorld w, Vector3 spawn, float climb, float[] h)
+        {
             int n = w.Field.Size;
-            var h = w.Field.Height;
             var reach = new bool[w.Field.Count];
             int seed = w.Field.NearestIndex(spawn.x, spawn.z);
             reach[seed] = true;
