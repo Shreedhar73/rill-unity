@@ -51,6 +51,11 @@ Shader "Rill/PooledWater"
             float  _RippleAmount;
             float  _Fresnel;
 
+            // Set once per frame by the day cycle. Water is unlit — its colour comes from depth
+            // rather than from a normal — so without this the sea stays full daytime blue at
+            // midnight while the mountain beside it has gone dark.
+            fixed4 _RillDayTint;
+
             v2f vert (appdata v)
             {
                 v2f o;
@@ -78,7 +83,7 @@ Shader "Rill/PooledWater"
                 // pixel toward white and the lake rendered as a grey film rather than water.
                 // Blending toward the sky instead keeps the water's own colour dominant.
                 float sky = saturate(fres * 0.45 + ripple * _RippleAmount * 0.25);
-                fixed3 col = lerp(body, _SkyColor.rgb, sky);
+                fixed3 col = lerp(body, _SkyColor.rgb, sky) * _RillDayTint.rgb;
 
                 // Deep water is not translucent. This used to be a flat
                 // saturate(a * (0.72 + fres * 0.45)), and from a high camera the fresnel term is

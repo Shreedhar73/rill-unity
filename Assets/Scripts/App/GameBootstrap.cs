@@ -30,6 +30,7 @@ namespace Rill.App
 
         public RillWorld World { get; private set; }
         public RunController Runner { get; private set; }
+        public SkyDriver Sky { get; private set; }
 
         Material _terrainMat, _ribbonMat, _waterMat, _propMat, _dropletMat;
         RillCamera _camera;
@@ -50,6 +51,11 @@ namespace Rill.App
 
             BuildLighting();
             var cam = BuildCamera();
+
+            var sky = gameObject.AddComponent<SkyDriver>();
+            sky.Sun = _sun;
+            sky.Cam = cam;
+            Sky = sky;
             var terrain = BuildTerrain();
             var pooled = BuildPooledWater();
             BuildSea();
@@ -91,7 +97,8 @@ namespace Rill.App
             Runner.PropMaterial = _propMat;
             Runner.PendingBonusVolume = RainGatheredWhileAway(almanac);
 
-            Runner.Initialise(World, almanac, daily, archive, player, confluence, _weather);
+            Runner.Sky = Sky;
+            Runner.Initialise(World, almanac, daily, archive, player, confluence, _weather, SaveSlot);
 
             // First keyframe so even a brand-new mountain has a time-lapse to grow from.
             if (!archive.Exists) archive.Append(World.Field, World.RunNumber);
@@ -173,17 +180,18 @@ namespace Rill.App
         {
             var go = new GameObject("Sun");
             go.transform.SetParent(transform, false);
-            var light = go.AddComponent<Light>();
-            light.type = LightType.Directional;
-            light.color = new Color(1f, 0.96f, 0.89f);
-            light.intensity = 1.05f;
-            light.shadows = LightShadows.None;   // the strata carry the form; shadows cost frames
-            go.transform.rotation = Quaternion.Euler(46f, 35f, 0f);
+            _sun = go.AddComponent<Light>();
+            _sun.type = LightType.Directional;
+            _sun.shadows = LightShadows.None;   // the strata carry the form; shadows cost frames
 
+            // Colour, angle, intensity, ambient and sky all come from SkyDriver now. They used to be
+            // four constants set once here and never touched again, so every session of every day
+            // looked identical in a game whose premise is a world that carries time in it.
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.42f, 0.46f, 0.55f);
             RenderSettings.fog = false;
         }
+
+        Light _sun;
 
         Camera BuildCamera()
         {

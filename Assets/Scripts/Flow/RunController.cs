@@ -33,6 +33,7 @@ namespace Rill.Flow
         public SplashFX Fx;
         public HudController Hud;
         public FlowAudio Audio;
+        public SkyDriver Sky;
 
         [Header("Cadence")]
         public int TimeLapseEveryRuns = 3;
@@ -834,6 +835,7 @@ namespace Rill.Flow
             if (InDaily)
             {
                 InDaily = false;
+                if (Sky != null) Sky.UseFixedHour = false;
                 RebindRenderers(Home, _homeLife);
                 EnterIdle();
                 return;
@@ -843,6 +845,9 @@ namespace Rill.Flow
             _homeLife = Ecosystem.LifeField;
             var dailyWorld = RillWorld.Create(Config, _daily.Seed, Config.Biome);
             InDaily = true;
+            // Everyone competing on the same seed has to be looking at the same mountain, so the
+            // Daily is lit at a fixed hour rather than by the player's clock.
+            if (Sky != null) { Sky.UseFixedHour = true; Sky.FixedHour = DayCycle.DailyHour; }
             RebindRenderers(dailyWorld, new float[dailyWorld.Field.Count]);
             EnterIdle();
         }

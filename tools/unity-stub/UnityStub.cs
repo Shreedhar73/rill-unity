@@ -101,6 +101,7 @@ namespace UnityEngine
 
     public struct Quaternion
     {
+        public static Quaternion Slerp(Quaternion a, Quaternion b, float t) { return a; }
         public static Quaternion identity { get { return new Quaternion(); } }
         public static Quaternion Euler(float x, float y, float z) { return new Quaternion(); }
         public static Quaternion Euler(Vector3 v) { return new Quaternion(); }
@@ -150,6 +151,7 @@ namespace UnityEngine
         public static int Clamp(int v, int a, int b) { return 0; }
         public static float Clamp01(float v) { return 0f; }
         public static float Lerp(float a, float b, float t) { return 0f; }
+        public static float InverseLerp(float a, float b, float v) { return 0f; }
         public static float SmoothStep(float a, float b, float t) { return 0f; }
         public static float MoveTowards(float a, float b, float d) { return 0f; }
         public static int RoundToInt(float v) { return 0; }
@@ -289,6 +291,8 @@ namespace UnityEngine
     public class Shader : Object
     {
         public static Shader Find(string name) { return null; }
+        public static void SetGlobalColor(string name, Color value) { }
+        public static void SetGlobalFloat(string name, float value) { }
     }
 
     public class Material : Object

@@ -40,6 +40,8 @@ namespace Rill.EditorTools
         const int Width = 1600;
         const int Height = 900;
 
+        static Color _skyColor = new Color(0.72f, 0.82f, 0.92f);
+
         [MenuItem("RILL/Capture Mountain PNG (24 runs)", false, 41)]
         public static void Capture() { Shoot(24); }
 
@@ -102,7 +104,8 @@ namespace Rill.EditorTools
                 revelation.BakeStaticRenderers(revGo.transform);
 
                 BuildSea(root.transform, world, waterMat);
-                BuildSun(root.transform);
+                var sun = BuildSun(root.transform);
+                _skyColor = ApplyHour(sun, 13f);
 
                 string dir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "docs", "shots"));
                 Directory.CreateDirectory(dir);
@@ -142,6 +145,16 @@ namespace Rill.EditorTools
                            village, 42f, 20f, 30f, 40f);
                 else
                     Debug.Log("[RILL] capture: no settlement yet, village framing skipped");
+
+                // The whole reason day/night was done early: it is the one thing in this batch that
+                // can be checked from a terminal. Three hours, same mountain, same framing.
+                foreach (var h in new[] { 7f, 13f, 19.5f, 23f })
+                {
+                    _skyColor = ApplyHour(sun, h);
+                    Render(world, Path.Combine(dir, string.Format("hour_{0:00}.png", Mathf.RoundToInt(h))),
+                           summit, extent * 0.85f, extent * 0.6f, 30f, 48f);
+                }
+                _skyColor = ApplyHour(sun, 13f);
 
                 Debug.Log("[RILL] capture: done, PNGs in " + dir);
             }
@@ -227,7 +240,7 @@ namespace Rill.EditorTools
             var camGo = new GameObject("CaptureCamera");
             var cam = camGo.AddComponent<Camera>();
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = new Color(0.72f, 0.82f, 0.92f);
+            cam.backgroundColor = _skyColor;
             cam.fieldOfView = fov;
             cam.nearClipPlane = 0.5f;
             cam.farClipPlane = 2000f;
@@ -270,20 +283,29 @@ namespace Rill.EditorTools
             }
         }
 
-        static void BuildSun(Transform parent)
+        static Light BuildSun(Transform parent)
         {
             var go = new GameObject("Sun");
             go.transform.SetParent(parent, false);
             var light = go.AddComponent<Light>();
             light.type = LightType.Directional;
-            light.color = new Color(1f, 0.96f, 0.89f);
-            light.intensity = 1.05f;
             light.shadows = LightShadows.None;
-            go.transform.rotation = Quaternion.Euler(46f, 35f, 0f);
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.42f, 0.46f, 0.55f);
             RenderSettings.fog = false;
+            return light;
+        }
+
+        /// <summary>Puts the scene at an hour of the day. Returns the sky colour for the camera.</summary>
+        static Color ApplyHour(Light sun, float hour)
+        {
+            var sky = DayCycle.At(hour);
+            sun.transform.rotation = sky.SunRotation;
+            sun.color = sky.SunColor;
+            sun.intensity = sky.SunIntensity;
+            RenderSettings.ambientLight = sky.Ambient;
+            Shader.SetGlobalColor("_RillDayTint", sky.SurfaceTint);
+            return sky.Sky;
         }
 
         /// <summary>The same subdivided sea GameBootstrap builds — a flat quad renders as one tone.</summary>
