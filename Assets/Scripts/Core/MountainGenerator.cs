@@ -117,7 +117,11 @@ namespace Rill.Core
             // "east basin 87% full" is the open loop the player comes back to close — so the
             // tarns have to be cut deliberately after erosion, at a range of sizes so there are
             // always several part-finished at once.
-            CarveBasins(field, 5, ref rng);
+            // The spring has to be known before the tarns are cut, because where they can be cut
+            // depends on where water from it can actually get to. HighestCell is a pure query and
+            // the summit does not move materially over the two smoothing passes that follow.
+            Vector2 preSummit = HighestCell(field);
+            CarveBasins(field, 5, field.Index(Mathf.RoundToInt(preSummit.x), Mathf.RoundToInt(preSummit.y)), ref rng);
 
             ThermalRelax(field, 1, 1.1f * s.CellSize);
 
@@ -169,7 +173,7 @@ namespace Rill.Core
         /// Each keeps a low lip on its downhill side, so when it finally overflows the water has
         /// somewhere obvious to go and the dam break reads as a place rather than an accident.
         /// </summary>
-        static void CarveBasins(HeightField f, int count, ref Rng rng)
+        static void CarveBasins(HeightField f, int count, int springCell, ref Rng rng)
         {
             // Rank every candidate site and take the best, rather than sampling at random and
             // hoping one passes a threshold. An earlier version rejection-sampled on slope and
@@ -178,6 +182,18 @@ namespace Rill.Core
             var sites = new System.Collections.Generic.List<int>(2048);
             var scores = new System.Collections.Generic.List<float>(2048);
 
+            // Only ground the spring's water can actually reach without climbing. Scoring by
+            // concavity alone describes where a lake *could* sit on this mountain, which is not the
+            // same question as where the player can put water — and the answer differed badly:
+            // 4 of the 5 tarns on the default seed sat off the summit's drainage entirely and could
+            // never be filled by any amount of steering, while reading as 0% forever in a lattice
+            // the whole retention design leans on.
+            //
+            // This is the same mistake, and the same fix, as L-010: flow accumulation describes the
+            // mountain, descent from the spring describes the game.
+            bool[] reachable = DownhillFrom(f, springCell);
+            int onDrainage = 0;
+
             for (int z = 20; z < f.Size - 20; z += 3)
             {
                 for (int x = 20; x < f.Size - 20; x += 3)
@@ -185,6 +201,8 @@ namespace Rill.Core
                     int i = f.Index(x, z);
                     float h = f.Height[i];
                     if (h < 10f || h > 110f) continue;
+                    if (!reachable[i]) continue;
+                    onDrainage++;
 
                     // Flat ground scores well; ground that already collects water scores better.
                     float relief = Relief(f, x, z, 9);
@@ -193,7 +211,11 @@ namespace Rill.Core
                     scores.Add(concavity * 2.2f - relief / 18f);
                 }
             }
-            if (sites.Count == 0) return;
+            if (sites.Count == 0)
+            {
+                Debug.Log("[RILL] No basin site on the spring's drainage — carved none.");
+                return;
+            }
 
             var order = new int[sites.Count];
             for (int i = 0; i < order.Length; i++) order[i] = i;
@@ -289,8 +311,45 @@ namespace Rill.Core
                 used.Add(new Vector2Int(x, z));
             }
 
-            Debug.Log("[RILL] Carved " + used.Count + " basins into the eroded mountain.");
+            Debug.Log("[RILL] Carved " + used.Count + " basins into the eroded mountain, from "
+                      + onDrainage + " candidate cells on the spring's drainage.");
             f.MarkAllDirty();
+        }
+
+        /// <summary>
+        /// Cells water leaving <paramref name="start"/> can reach without ever going uphill.
+        ///
+        /// A worklist rather than a height-sorted sweep, because eight-way descent is not a total
+        /// order — two cells at the same elevation can each be reachable through the other's
+        /// neighbours. Deliberately strict about climbing: a run has momentum and can top a small
+        /// rise, but a basin that can only be filled by spending that momentum is a basin the
+        /// player has to fight rule 1 to reach, and rule 1 is the game.
+        /// </summary>
+        static bool[] DownhillFrom(HeightField f, int start)
+        {
+            int n = f.Size;
+            var reach = new bool[f.Count];
+            var work = new System.Collections.Generic.Queue<int>();
+            reach[start] = true;
+            work.Enqueue(start);
+
+            while (work.Count > 0)
+            {
+                int c = work.Dequeue();
+                int cx = c % n, cz = c / n;
+                float h = f.Height[c];
+                for (int k = 0; k < 8; k++)
+                {
+                    int nx = cx + (k == 0 || k == 4 || k == 5 ? 1 : k == 1 || k == 6 || k == 7 ? -1 : 0);
+                    int nz = cz + (k == 2 || k == 4 || k == 6 ? 1 : k == 3 || k == 5 || k == 7 ? -1 : 0);
+                    if (nx < 0 || nz < 0 || nx >= n || nz >= n) continue;
+                    int ni = nz * n + nx;
+                    if (reach[ni] || f.Height[ni] > h) continue;
+                    reach[ni] = true;
+                    work.Enqueue(ni);
+                }
+            }
+            return reach;
         }
 
         /// <summary>Rescales the land so the summit lands exactly on the requested peak height.</summary>
