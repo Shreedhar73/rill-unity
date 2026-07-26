@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **35** (23 archived)
+Last updated: **2026-07-26** · Open loops: **16** · Closed this cycle: **36** (23 archived)
 
 ---
 
@@ -75,22 +75,6 @@ building outward if the core does not compel. The core loop is measurably much s
 this morning — 378 of 500 runs reach the sea, no run fails to end — but nobody has still ever wanted
 one more run in front of a witness. If the playtest goes badly, this batch is the work most likely to
 be wasted. Recorded here so that is a known bet rather than a surprise.
-
-### L-050 · The sun does not move
-**Why** — Requested 2026-07-26. The light is one fixed directional at `Euler(46, 35, 0)`, set once at
-boot and never touched, so every session of every day looks identical — and the game's whole premise
-is a world that carries time in it.
-**Why it is worth doing early despite being cosmetic** — it is the only item in this batch I can
-*prove*. `RILL/Capture Mountain PNG` renders terrain and lighting from a terminal, so dawn, noon and
-dusk can be archived and compared. The shell, the modes and the records screen are all UI and cannot
-be checked without a person pressing Play.
-**Done when** — Sun angle, sun colour, ambient and sky follow time of day; three renders at different
-hours are archived and are obviously different.
-**Where it should come from** — `WeatherSystem` is already derived from the UTC date and drives
-weather deterministically. Time of day should come from the player's **local clock**, not from the
-seed: playing in the evening should look like evening. That is free, it needs no content, and it is
-the kind of detail that makes a world feel like a place. The Daily is the exception — it must stay
-identical for everyone, so it takes a fixed hour.
 
 ### L-049 · The app appears rather than opens
 **Why** — Requested 2026-07-26. L-037 gave the game a title screen; it still has no launch. The
@@ -279,6 +263,31 @@ spray half alone.
 ---
 
 ## Recently closed
+
+### L-050 · The sun does not move — closed 2026-07-26
+One fixed directional at `Euler(46, 35, 0)`, set once at boot and never touched, so every session of
+every day looked identical — in a game whose premise is a world that carries time in it.
+**Evidence** — four hours archived in [`docs/shots/`](docs/shots/): `hour_07`, `hour_13`, `hour_20`,
+`hour_23`, same mountain and framing, obviously different. `DayCycle` is plain C# so the capture tool
+can ask for any hour, which was the whole argument for doing this loop out of order — it is the only
+item in the batch that can be proven from a terminal.
+**Two design calls** — elevation peaks at **62°, not 90°**, because an overhead sun lights every face
+equally and erases exactly the strata terracing this game spends all its shading on; and time of day
+comes from the player's **local clock**, not the seed, so opening the game in the evening opens it at
+evening. The Daily overrides to a fixed hour, since everyone competing on one seed must see the same
+mountain.
+**Three things the renders caught that reasoning had not.**
+1. **Warm orange does not survive as a flat sky.** The camera clear colour is one fill; a dusk-orange
+   one turned the whole top of the screen muddy brown. Warmth belongs on the *light*, where it falls
+   across the terracing and reads as morning.
+2. **The sea did not darken at night.** The water shader is unlit by design — its colour comes from
+   depth, not a normal — so at midnight the ocean was full daytime blue beside a dark mountain.
+   `SkyState.SurfaceTint` is now a global the water multiplies by.
+3. **Twilight did not exist.** The band ran −8° to +12° of elevation, about half an hour of real
+   time, so **19:30 rendered as a pixel-identical copy of midnight**. Rendered both, compared,
+   widened it.
+**Unobserved in play**, like everything else here — `SkyDriver` applies it live, damped so switching
+in and out of the Daily reads as time passing rather than as a glitch, and nobody has watched that.
 
 ### L-047 · One mountain, forever, and no way to have another — closed 2026-07-26
 `SaveSystem` had taken a `slot` argument since it was written and nothing ever passed anything but 0.
