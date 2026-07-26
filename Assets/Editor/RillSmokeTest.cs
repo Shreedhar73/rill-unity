@@ -32,13 +32,32 @@ namespace Rill.EditorTools
         [MenuItem("RILL/Run Headless Smoke Test (long)", false, 61)]
         public static void RunHeadlessLong() { Play(150); }
 
-        static void Play(int Runs)
+        /// <summary>
+        /// Every biome, 24 runs each. Glacier, Volcanic and Granite have never been run at all —
+        /// they are implemented, compiled, and completely unobserved, which in this project has
+        /// meant "silently does nothing" more often than not. Sandstone is the tuned one; the
+        /// others are read against it.
+        /// </summary>
+        [MenuItem("RILL/Run Headless Smoke Test (all biomes)", false, 62)]
+        public static void RunHeadlessBiomes()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL biome comparison, 24 runs each ===");
+            foreach (Biome b in System.Enum.GetValues(typeof(Biome)))
+                log.Append(PlayBiome(24, b));
+            Debug.Log(log.ToString());
+        }
+
+        static void Play(int Runs) { Debug.Log(PlayBiome(Runs, Biome.Sandstone).ToString()); }
+
+        static StringBuilder PlayBiome(int Runs, Biome biome)
         {
             var log = new StringBuilder();
             var config = new GameConfig();
-            var world = RillWorld.Create(config, 20260726u, Biome.Sandstone);
+            config.Biome = biome;
+            var world = RillWorld.Create(config, 20260726u, biome);
 
-            log.AppendLine("=== RILL headless smoke test ===");
+            log.AppendFormat("=== RILL headless smoke test — {0} ===\n", biome);
             log.AppendFormat("field {0}² at {1} m/cell = {2} m across\n", config.Size, config.CellSize, config.WorldExtent);
             log.AppendFormat("summit {0}  height {1:0.0} m\n", world.SummitCell, world.SummitWorld.y);
             log.AppendFormat("secrets placed {0}\n", world.Secrets.Count);
@@ -330,7 +349,7 @@ namespace Rill.EditorTools
             log.AppendLine("  daily glyph:");
             log.AppendLine(glyph);
 
-            Debug.Log(log.ToString());
+            return log;
         }
 
         /// <summary>

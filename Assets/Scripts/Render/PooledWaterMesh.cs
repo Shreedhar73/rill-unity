@@ -79,7 +79,27 @@ namespace Rill.Render
                     }
                     if (!near) continue;
 
-                    float surface = _f.Height[i] + Mathf.Max(d, 0f) + SurfaceLift;
+                    // A water surface is LEVEL. For a submerged cell, Height + Water already gives
+                    // the lake's surface elevation. For the feather ring — cells that only exist
+                    // because a neighbour holds water — d is 0, so this used to place the vertex at
+                    // *terrain* height, which is above the water by definition (that is why the
+                    // cell is dry). Every lake was therefore a flat disc that walled upward into a
+                    // collar at its rim: "flat discs with hard shorelines", exactly as reported.
+                    // Ring vertices now take the neighbouring lake's surface level instead.
+                    float surface;
+                    if (d > MinDepth)
+                    {
+                        surface = _f.Height[i] + d;
+                    }
+                    else
+                    {
+                        surface = _f.Height[i];
+                        if (x > 0 && _f.Water[i - 1] > MinDepth) surface = Mathf.Max(surface, _f.Height[i - 1] + _f.Water[i - 1]);
+                        if (x < n - 1 && _f.Water[i + 1] > MinDepth) surface = Mathf.Max(surface, _f.Height[i + 1] + _f.Water[i + 1]);
+                        if (z > 0 && _f.Water[i - n] > MinDepth) surface = Mathf.Max(surface, _f.Height[i - n] + _f.Water[i - n]);
+                        if (z < n - 1 && _f.Water[i + n] > MinDepth) surface = Mathf.Max(surface, _f.Height[i + n] + _f.Water[i + n]);
+                    }
+                    surface += SurfaceLift;
                     _vertexIndex[i] = _verts.Count;
                     _verts.Add(new Vector3((x - n * 0.5f) * _f.CellSize, surface, (z - n * 0.5f) * _f.CellSize));
 
@@ -92,7 +112,10 @@ namespace Rill.Render
                     // at the waterline, so the edge dissolves instead of stopping.
                     float shore = Mathf.Clamp01(d / 0.75f);
                     byte a = (byte)(shore * Mathf.Clamp01(0.45f + d * 0.45f) * 255f);
-                    byte depthByte = (byte)(Mathf.Clamp01(d / 6f) * 255f);
+                    // Depth gradient over 2.5 m, not 6 m. Real basins here are only a few metres
+                    // deep, so a 6 m range left almost every lake pinned at the shallow colour and
+                    // the gradient invisible — the lake read as one flat tone.
+                    byte depthByte = (byte)(Mathf.Clamp01(d / 2.5f) * 255f);
                     _colors.Add(new Color32(255, depthByte, 255, a));
                 }
             }

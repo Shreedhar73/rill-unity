@@ -4,8 +4,8 @@ Shader "Rill/PooledWater"
 {
     Properties
     {
-        _ShallowColor ("Shallow", Color) = (0.42, 0.74, 0.78, 1)
-        _DeepColor    ("Deep", Color) = (0.09, 0.28, 0.42, 1)
+        _ShallowColor ("Shallow", Color) = (0.35, 0.72, 0.74, 1)
+        _DeepColor    ("Deep", Color) = (0.05, 0.20, 0.38, 1)
         _SkyColor     ("Sky reflection", Color) = (0.78, 0.88, 0.98, 1)
         _RippleScale  ("Ripple scale", Range(0.02, 2)) = 0.35
         _RippleSpeed  ("Ripple speed", Range(0, 4)) = 0.8
@@ -74,7 +74,11 @@ Shader "Rill/PooledWater"
                 float3 viewDir = normalize(_WorldSpaceCameraPos - i.worldPos);
                 float fres = pow(1.0 - saturate(dot(normalize(i.normal), viewDir)), _Fresnel);
 
-                fixed3 col = body + _SkyColor.rgb * (fres * 0.55 + ripple * _RippleAmount * 0.35);
+                // Sky was ADDED on top of the body colour, so fresnel plus ripple pushed every
+                // pixel toward white and the lake rendered as a grey film rather than water.
+                // Blending toward the sky instead keeps the water's own colour dominant.
+                float sky = saturate(fres * 0.45 + ripple * _RippleAmount * 0.25);
+                fixed3 col = lerp(body, _SkyColor.rgb, sky);
                 float alpha = saturate(i.color.a * (0.72 + fres * 0.45));
                 return fixed4(col, alpha);
             }
