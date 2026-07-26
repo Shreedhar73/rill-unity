@@ -79,7 +79,20 @@ Shader "Rill/PooledWater"
                 // Blending toward the sky instead keeps the water's own colour dominant.
                 float sky = saturate(fres * 0.45 + ripple * _RippleAmount * 0.25);
                 fixed3 col = lerp(body, _SkyColor.rgb, sky);
-                float alpha = saturate(i.color.a * (0.72 + fres * 0.45));
+
+                // Deep water is not translucent. This used to be a flat
+                // saturate(a * (0.72 + fres * 0.45)), and from a high camera the fresnel term is
+                // tiny, so the sea never exceeded about 72% opacity ANYWHERE — including sixteen
+                // metres down. Inside the heightfield you were therefore seeing a quarter of the
+                // real, mottled seabed through the water; outside it there is no terrain at all,
+                // only the clear colour. That difference drew the field's square boundary across
+                // the open ocean as clearly as a border on a map. (L-045)
+                //
+                // Shallow water keeps its translucency, which is what makes a lake bed and a
+                // beach readable; depth closes it. Squared so the opacity arrives late and the
+                // shore keeps its soft gradient.
+                float clarity = 0.72 + fres * 0.45;
+                float alpha = saturate(i.color.a * lerp(clarity, 1.15, depth01 * depth01));
                 return fixed4(col, alpha);
             }
             ENDCG
