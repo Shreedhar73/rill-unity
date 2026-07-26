@@ -44,6 +44,34 @@ Every loop has:
 
 ## Now
 
+### L-012 · Hand playtest against the kill criterion
+**Why** — The design document sets an explicit M3 kill criterion: if playtesting does not produce
+unprompted "one more run" behaviour, redesign *before* art exists. Nothing in this repo speaks to
+it. Every metric so far is a proxy for fun, and in this project proxies have been wrong repeatedly —
+three separate "the simulation is broken" conclusions were flaws in the test harness.
+**Done when** — At least one person has played 20+ runs unprompted, and the reaction is recorded
+honestly — including if it is boring.
+**Evidence needed** — Written notes, pasted verbatim into the close entry. Negative results are the
+valuable ones here.
+**Blocked by** — **A human.** This is the one loop that cannot be closed from a terminal, and it
+cannot be closed by the person who built the thing playing it themselves either: the tester must not
+already know that the mountain remembers, because discovering that *is* the game.
+**Ready** — Protocol written at [`docs/PLAYTEST.md`](docs/PLAYTEST.md): what not to say (most of it),
+the single control hint that is allowed, a recording template, and a table of known confounds so
+placeholder art and missing onboarding are not misread as the loop failing. Run it on a **fresh save
+slot** — a mountain with 150 runs of channels already carved is a different game from a virgin one,
+and first-session feel is what the criterion is about.
+**Risk of a false negative** — L-018 (nothing explains the first 30 seconds) is still open, and a
+tester who never discovers they can steer will find the game boring for a reason that has nothing to
+do with the core loop. The protocol's one permitted sentence exists to isolate that. If the result
+is negative, check it was not just this.
+**Promoted to the top 2026-07-26, and it is now the only thing that matters.** Everything else that
+could be advanced from a terminal has been. The core loop is measurably 1.5–2× stronger than it was
+that morning — 82 runs in 150 reach the sea against 45, no run in 150 fails to end against 12, four
+of five basins fill against one — but every one of those is a proxy, and this project's own record is
+that five separate "the simulation is broken" conclusions turned out to be flaws in the test harness.
+**A number cannot tell you whether somebody wants one more run.**
+
 ### L-037 · The app has no front door
 **Why** — Requested 2026-07-26: the game opened straight into a playable mountain. There was no
 title, no moment of arrival, no deliberate act of starting — the app simply appeared, mid-game. A
@@ -118,28 +146,6 @@ the water" on idle afterwards, and a mid-run prompt if two seconds pass untouche
 steer, it clears and does not return. Session-scoped, because an existing save has no record of
 whether its owner ever learned. Says **nothing** about the mountain remembering — that discovery is
 the game.
-
-### L-012 · Hand playtest against the kill criterion
-**Why** — The design document sets an explicit M3 kill criterion: if playtesting does not produce
-unprompted "one more run" behaviour, redesign *before* art exists. Nothing in this repo speaks to
-it. Every metric so far is a proxy for fun, and in this project proxies have been wrong repeatedly —
-three separate "the simulation is broken" conclusions were flaws in the test harness.
-**Done when** — At least one person has played 20+ runs unprompted, and the reaction is recorded
-honestly — including if it is boring.
-**Evidence needed** — Written notes, pasted verbatim into the close entry. Negative results are the
-valuable ones here.
-**Blocked by** — **A human.** This is the one loop that cannot be closed from a terminal, and it
-cannot be closed by the person who built the thing playing it themselves either: the tester must not
-already know that the mountain remembers, because discovering that *is* the game.
-**Ready** — Protocol written at [`docs/PLAYTEST.md`](docs/PLAYTEST.md): what not to say (most of it),
-the single control hint that is allowed, a recording template, and a table of known confounds so
-placeholder art and missing onboarding are not misread as the loop failing. Run it on a **fresh save
-slot** — a mountain with 150 runs of channels already carved is a different game from a virgin one,
-and first-session feel is what the criterion is about.
-**Risk of a false negative** — L-018 (nothing explains the first 30 seconds) is still open, and a
-tester who never discovers they can steer will find the game boring for a reason that has nothing to
-do with the core loop. The protocol's one permitted sentence exists to isolate that. If the result
-is negative, check it was not just this.
 
 ### L-014 · Sense of speed
 **Why** — The momentum economy is the game's skill ceiling, and at 24 m/s it currently looks the
