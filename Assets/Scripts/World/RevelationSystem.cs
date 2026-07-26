@@ -91,6 +91,46 @@ namespace Rill.World
             return c;
         }
 
+        /// <summary>
+        /// Bakes the revealed markers into real MeshRenderers under <paramref name="parent"/>, the
+        /// same seam EcosystemSystem has, and for the same reason: these are drawn with
+        /// Graphics.DrawMesh from Update, which never runs outside play mode, so an offscreen
+        /// render showed a mountain with no discoveries on it and that meant nothing at all.
+        ///
+        /// The shimmering hints are deliberately NOT baked. Their whole character is a pulse driven
+        /// by Time.time; a still frame of one is a static yellow disc, which would misrepresent it
+        /// rather than show it.
+        /// </summary>
+        public int BakeStaticRenderers(Transform parent)
+        {
+            int baked = 0;
+            foreach (var kv in _revealed)
+            {
+                if (kv.Value.Count == 0) continue;
+                var combines = new CombineInstance[kv.Value.Count];
+                for (int i = 0; i < kv.Value.Count; i++)
+                {
+                    combines[i].mesh = _markerMesh;
+                    combines[i].transform = kv.Value[i];
+                }
+
+                var combined = new Mesh { name = "Secret_" + kv.Key };
+                combined.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+                combined.CombineMeshes(combines, true, true);
+
+                var go = new GameObject("Secret_" + kv.Key);
+                go.transform.SetParent(parent, false);
+                go.AddComponent<MeshFilter>().sharedMesh = combined;
+                var mr = go.AddComponent<MeshRenderer>();
+                mr.sharedMaterial = _mats[kv.Key];
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                mr.receiveShadows = false;
+                baked += kv.Value.Count;
+            }
+            if (baked > 0) Debug.Log("[RILL] baked secret markers x" + baked);
+            return baked;
+        }
+
         void Update()
         {
             if (_markerMesh == null) return;

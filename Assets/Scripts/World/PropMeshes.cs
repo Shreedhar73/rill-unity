@@ -77,7 +77,7 @@ namespace Rill.World
                 tris.Add(b); tris.Add(b + 1); tris.Add(b + 2);
                 tris.Add(b); tris.Add(b + 2); tris.Add(b + 3);
             }
-            return Build("ReedClump", verts, tris, 0.40f, 1.12f);
+            return Build("ReedClump", verts, tris, 0.56f, 1.12f);
         }
 
         /// <summary>
@@ -109,7 +109,8 @@ namespace Rill.World
                 6,7,9, 7,8,9,
                 5,6,9, 4,8,7
             };
-            return Build("Hut", verts, tris, 0.58f, 1.05f);
+            // Walls only lightly shaded: a hut is small and a steep gradient turns it to mud.
+            return Build("Hut", verts, tris, 0.74f, 1.06f);
         }
 
         public static Mesh Disc(float radius, int segments = 8)

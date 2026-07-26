@@ -74,6 +74,11 @@ namespace Rill.EditorTools
                 var eco = ecoGo.AddComponent<EcosystemSystem>();
                 eco.Initialise(world, propMat);
 
+                var revGo = new GameObject("Secrets");
+                revGo.transform.SetParent(root.transform, false);
+                var revelation = revGo.AddComponent<RevelationSystem>();
+                revelation.Initialise(world, propMat);
+
                 Play(world, config, runs, eco);
 
                 var terrainGo = new GameObject("Terrain");
@@ -93,6 +98,8 @@ namespace Rill.EditorTools
                 // here, so without this the pictures show bare rock and say nothing about whether
                 // the mountain looks alive.
                 eco.BakeStaticRenderers(ecoGo.transform);
+                revelation.Refresh();
+                revelation.BakeStaticRenderers(revGo.transform);
 
                 BuildSea(root.transform, world, waterMat);
                 BuildSun(root.transform);
@@ -125,7 +132,18 @@ namespace Rill.EditorTools
                 Render(world, Path.Combine(dir, "mountain_" + runs + "_life.png"),
                        grove, 72f, 34f, 30f, 40f);
 
-                Debug.Log("[RILL] capture: wrote 3 PNGs to " + dir);
+                // A settlement, if the mountain has grown one. Twelve huts on a 512 m mountain will
+                // never turn up in a general framing by luck, and a prop nobody has seen is a prop
+                // nobody has checked — the pitched roof was built and unobserved for exactly that
+                // reason.
+                Vector3 village;
+                if (eco.TryGetVillage(out village))
+                    Render(world, Path.Combine(dir, "mountain_" + runs + "_village.png"),
+                           village, 42f, 20f, 30f, 40f);
+                else
+                    Debug.Log("[RILL] capture: no settlement yet, village framing skipped");
+
+                Debug.Log("[RILL] capture: done, PNGs in " + dir);
             }
             finally
             {
@@ -217,6 +235,15 @@ namespace Rill.EditorTools
 
             Vector3 back = Quaternion.Euler(0f, yaw, 0f) * new Vector3(0f, 0f, -1f);
             Vector3 pos = target + back * distance + Vector3.up * height;
+
+            // Keep the camera out of the rock. A framing computed purely from distance and height
+            // lands inside the hillside whenever the ground behind the subject rises, and the
+            // result is a screen filled by one enormous smooth face — which happened twice, was
+            // corrected by hand the first time, and came straight back. Correcting the constants
+            // treats the symptom; the camera should simply refuse to be underground.
+            float ground = world.Field.SampleHeightWorld(pos.x, pos.z);
+            if (pos.y < ground + 14f) pos.y = ground + 14f;
+
             camGo.transform.position = pos;
             camGo.transform.rotation = Quaternion.LookRotation((target - pos).normalized, Vector3.up);
 

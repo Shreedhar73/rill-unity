@@ -59,10 +59,13 @@ namespace Rill.World
             _reedMesh = PropMeshes.ReedClump(0.26f, 1.7f);
             // Was a single 6-sided open cone, which reads as a flat paper triangle.
             _bushMesh = PropMeshes.Conifer(1.05f, 3.1f, 7);
-            _hutMesh = PropMeshes.Hut(new Vector3(2.4f, 2.3f, 2.6f));
+            // Bigger than the 2.4 x 2.3 x 2.6 it was. A conifer here is 3.1 m, so at the old
+            // size a dwelling was smaller than the trees around it and vanished into them — a
+            // village has to be the thing you notice in a wood, not the thing hidden by it.
+            _hutMesh = PropMeshes.Hut(new Vector3(3.8f, 3.4f, 4.2f));
 
             _mossMat = Tinted(propMaterialTemplate, new Color(0.35f, 0.55f, 0.32f));
-            _reedMat = Tinted(propMaterialTemplate, new Color(0.45f, 0.66f, 0.35f));
+            _reedMat = Tinted(propMaterialTemplate, new Color(0.52f, 0.72f, 0.38f));
             // Lifted from (0.28, 0.48, 0.30). Rendered against the mountain, conifers at the old
             // value read as near-black cutouts: the base of a tree is most of its visible mass and
             // the baked shading darkens exactly there, so the two compounded.
@@ -225,7 +228,13 @@ namespace Rill.World
 
                     var m = Matrix4x4.TRS(p, Quaternion.Euler(0f, rot, 0f), Vector3.one * scale);
 
-                    if (l >= 5.5f && (h % 37u) == 0u && _huts.Count < 60)
+                    // A hut needs somewhere to stand. Props are placed at a single sampled height
+                    // with no slope adaptation, which is invisible for a tree — a buried trunk
+                    // still reads as a tree — and wrong for a building: rendered on a 35° face, a
+                    // 2.4 m hut is half-buried uphill and floating downhill, and reads as a pale
+                    // card stuck to the rock. People build on flats, so this is what it should
+                    // always have been rather than a workaround.
+                    if (l >= 5.5f && (h % 37u) == 0u && _huts.Count < 60 && _f.NormalAt(x, z).y > 0.91f)
                     {
                         _huts.Add(m);
                     }
@@ -259,6 +268,21 @@ namespace Rill.World
         /// One combined mesh per type rather than thousands of GameObjects: the props are a handful
         /// of triangles each, so 2,000 of them still fits comfortably in a 32-bit index buffer.
         /// </summary>
+        /// <summary>
+        /// World position of a settlement, if any has appeared. Used to frame a capture on one:
+        /// twelve huts on a 512 m mountain will not turn up in a general framing by luck, and a
+        /// prop nobody has seen is a prop nobody has checked.
+        /// </summary>
+        public bool TryGetVillage(out Vector3 position)
+        {
+            position = Vector3.zero;
+            if (_huts.Count == 0) return false;
+            // Middle of the list rather than the first: huts are emitted in scan order, so the
+            // first is on the edge of whatever cluster exists and frames badly.
+            position = _huts[_huts.Count / 2].GetColumn(3);
+            return true;
+        }
+
         public void BakeStaticRenderers(Transform parent)
         {
             Bake(parent, "Moss", _mossMesh, _mossMat, _moss);
