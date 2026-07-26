@@ -157,14 +157,29 @@ whether its owner ever learned. Says **nothing** about the mountain remembering 
 the game.
 
 ### L-016 · Prop silhouettes worth looking at
-**Why** — Promoted from Later 2026-07-26, because it is now the largest thing between this mountain
-and looking finished. Conifers and canopies were built the same day; moss, reeds and huts are still
-cones and discs.
-**Blocked from measurement, in a specific and fixable way** — props are drawn with
-`Graphics.DrawMesh` from `Update`, which never runs outside play mode, so `RILL/Capture Mountain
-PNG` cannot show them. Every other part of the look can now be checked from a terminal and this
-cannot. Making `EcosystemSystem` and `RevelationSystem` able to emit real `MeshRenderer`s (or
-having the capture tool call their draw code directly) unblocks it.
+**Why** — Promoted from Later 2026-07-26, because it is the largest thing between this mountain and
+looking finished.
+**Unblocked from measurement 2026-07-26.** Props were drawn with `Graphics.DrawMesh` from `Update`,
+which never runs outside play mode, so the capture tool rendered rock and lakes and never the life
+on them — "no trees in the picture" meant nothing at all. `EcosystemSystem.BakeStaticRenderers`
+combines each instance list into one real `MeshRenderer`, so the whole look is now checkable from a
+terminal.
+**What the first render with life in it showed** — see [`docs/shots/`](docs/shots/). A green line of
+conifers traces the channel from the summit to the sea, with clumps around every lake. **The forest
+is the record of where the player routed water.** That was always the design and it had never once
+been visible. `842 bushes, 77 reeds, 57 moss, 12 huts` at 150 runs.
+**Done since** — conifers had transform variance already (scale, height, yaw) and still read as
+stamped paper cutouts, because one material per prop type means one flat tone and a flat tone has no
+form however you rotate it. Vertex colour was the only per-vertex channel available and the prop
+shader spent nothing on it; `PropMeshes` now bakes a vertical gradient into it — deep shade under a
+conifer's skirts, full colour at the crown — and `Prop.shader` multiplies by it. Still one material,
+still instanced, no runtime cost.
+**Still open, and this is what is left** — moss is a flat disc, reeds are single blades, huts are
+boxes; all three read as what they are. Conifers are the only prop with a real silhouette. And
+`RevelationSystem` markers are still invisible to the capture tool, since only the ecosystem got a
+bake path.
+**Done when** — Every prop type reads as its thing at the idle camera, and a render is archived that
+shows it.
 
 ### L-014 · Sense of speed
 **Why** — The momentum economy is the game's skill ceiling, and at 24 m/s it currently looks the

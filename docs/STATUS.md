@@ -132,8 +132,16 @@ value a real channel darkened by about 7%.
 Still placeholder: UI (legacy `Text`, hand-placed rects) and the impact of a plunge.
 
 ### 5. Progression tracks are alive but faint
-Ecosystem, revelation and volume all technically advance, none at a rate that would register
-across a real session. Life tiers in particular have never been observed reaching birds or deer.
+Revelation and volume advance at rates that now look reasonable (`11–17 of 60` secrets over
+150–500 runs; four of five basins fill).
+
+**The claim that life "has never been observed reaching birds or deer" is out of date as of
+2026-07-26 and was never true so much as unmeasured.** Rendering the mountain with the ecosystem
+driven per run gives, at 150 runs: `A village settled at the delta`, **3,239 living cells**, and
+`842 bushes, 77 reeds, 57 moss, 12 huts` — the top tier, reached well inside a fortnight of play.
+What matters more is where it is: the conifers trace the channel from the summit to the sea and
+clump around every lake, so **the forest is a record of where the player routed water**. See
+[`shots/`](shots/).
 
 ### 6. The Daily glyph is nearly empty
 Rendered from 24 runs it produced a handful of marks on a 7×7 grid. The viral share unit needs to
