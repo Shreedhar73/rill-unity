@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **16** · Closed this cycle: **23** (14 archived)
+Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **24** (14 archived)
 
 ---
 
@@ -97,30 +97,45 @@ for a game whose whole skill ceiling is restraint; that is a feel question and L
 travel 226 m instead of 155 m and no longer stall short. Re-measure before arguing either way, and
 read L-039 first — the arrival rate moved, and not in the direction this loop was hoping for.
 
-### L-039 · Aimed delivery halved while delivery to the sea doubled
-**Why** — Opened by the L-038 measurements, and it is the one number that got worse. Over 150 runs
-with ~36 aimed runs, water put into the *specific* basin the run was aimed at went `14 of 36 (39%)`
-before to `7 of 36 (19%)` after. Delivery to the sea went the other way, `2,322 → 4,719 m³`, and runs
-ending in *some* basin rose `39 → 51`. So water is not being lost; it is going somewhere else.
-**Why it matters more than it looks** — the basin lattice is the progression track. "North basin 87%
-full" is the open loop the design leans on for retention, and it is only an open loop if the player
-can decide to close it. Delivery to the sea is the ending, not the campaign.
-**Two candidate causes, and they need opposite fixes.** (1) Runs travel much further now, so a run
-that would have stopped in its target basin flows through and out the far side — in which case the
-number is a mis-measure and the fix is the metric. Closest approach barely moved (`59 → 64 m`), which
-supports this. (2) The hollow escape steers for the player: it moves the head to whichever rim cell
-the flood found, which is chosen by terrain and not by intent. It fires only 3 times per 24 runs at
-the tuned value, so this should be small — but "should be small" is exactly the reasoning this
-project has been wrong about before.
-**Done when** — Either aimed delivery is back above 35% at 150 runs, or there is a measurement
-separating the two causes above and a written argument for the number that remains.
-**Evidence needed** — `aimed delivered`, `aimed closest`, and a count of how many aimed runs passed
-*through* their target basin without stopping. That last one does not exist yet and is the whole
-question.
-
 ---
 
 ## Next
+
+### L-040 · Four of five basins cannot be reached downhill from the spring
+**Why** — `reach (climb 0 m): #0 NO  #1 yes  #2 NO  #3 NO  #4 NO   (1 of 5)`. The basin lattice is
+the progression track — "north basin 87% full" is the open loop the design leans on for retention —
+and it is only a track if the player can decide to close it. Water that has to be driven *uphill* to
+reach a basin is not a route; it is the player fighting rule 1, and rule 1 is the game.
+**This is a generation problem wearing a tuning problem's clothes**, and that is worth stating
+plainly because it was nearly fixed at the wrong layer. Steering authority *can* buy it:
+`SteerAccel 56` takes basin #0 from 0% to **100%** under one sustained campaign where 42 leaves it
+at 0%. But it costs first-session sea arrivals (6 → 2 over 24 runs), brings timeouts back (0 → 2 per
+150), and it buys reachability by letting the thumb spin the stream along a contour — i.e. by
+weakening the fall-line rule that had just been established. A basin should be somewhere water can
+*flow*, not somewhere it can be dragged.
+**Done when** — At least 4 of 5 basins are downhill-reachable from the spring on the default seed,
+without raising `SteerAccel` above 42, and a sustained campaign can fill an off-channel one.
+**Evidence needed** — The `reach (climb 0 m)` line, and `RILL/Run Headless Basin Campaign` taking a
+basin that is *not* the sink from 0% to over 60%.
+**Where to look first** — `MountainGenerator` and `BasinSystem.LabelBasins`. Basins are found by
+priority-flood over whatever the generator produced; nothing has ever asked whether they sit on a
+drainage path from the summit spring. Placing them on traced descent paths is the same technique
+that fixed secret placement in L-010, where 45 of 51 sites had received no erosion at all because
+the code reasoned about the whole mountain's drainage instead of about where runs actually go.
+
+### L-041 · Deposition builds an 8.9 m mound and nobody has looked at it
+**Why** — `terrain delta max` was `+1.31 m` before the flow work and is **`+8.87 m`** after 150
+runs. Runs now travel 269 m instead of 136 m and drop their sediment much further down the mountain,
+so a real landform is being built. That may be a delta — which would be one of the best things in the
+game, since the design wants landforms to emerge rather than be authored — or it may be a silt wall
+across the runout that quietly ruins the bottom third of the mountain. Both look identical in this
+number.
+**Done when** — Somebody has looked at it, and it is either named as a feature or bounded.
+**Evidence needed** — A screenshot of the runout after 150 runs, plus the footprint: how many cells
+are more than 2 m above virgin, and whether they form one mass or a scatter.
+**Careful** — Do not clamp it before looking. L-028 bounded *incision* for a measured reason (a
+23.7 m shaft, and the design document naming it as a top-three risk); there is no equivalent
+evidence here yet, and clamping deposition would remove deltas along with the problem.
 
 ### L-018 · Onboarding — the first 30 seconds explain nothing
 **Why** — There is no button and nothing moves on its own to suggest steering exists, so a player
@@ -190,6 +205,40 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-039 · Aimed delivery halved while delivery to the sea doubled — closed 2026-07-26
+**Three causes, and only one of them was a defect in the game.**
+
+1. **The harness was aiming at basins that were already full.** The campaign target cycled by index,
+   and basin #2 reaches 100% by run 24 on this seed, so `15 of 36` aimed runs were aimed at
+   something that could not receive water however well it was flown — and that fraction grew over a
+   session *because the game was working*. Every aimed-delivery figure in this file since L-027 is
+   partly a measure of the test picking impossible targets. The bot now picks the basin with the
+   most headroom, and `aimed answerable` is printed so it cannot hide again.
+2. **A basin with room absorbed nothing.** The design has always said a lake with headroom swallows
+   the run; only the opposite case (a full lake, which spills) was ever implemented. A head entering
+   an empty bowl sailed across the dry floor and climbed out the far side on momentum. Basins now
+   drink from a stream passing over them — a drain, not a capture, because being stopped dead by
+   scenery is a punishment while feeding the lake you aimed at is the point.
+3. **Steering could push water uphill**, which is the real defect and the one hiding underneath.
+   L-038 stopped a held lean spiralling the stream by scaling authority with speed, but that also
+   removed authority the player needs to carve a route off the incised channel. The two are
+   separable — deadlock is authority at *rest*, route-carving is authority at *speed* — but only
+   once the lean cannot fight gravity at all. The simulation now discards whatever part of the
+   steering force points up the fall line.
+**Evidence** — `aimed entered 5 of 36 got inside the target basin; 0 of those sailed across and
+left` (was 15 entered, 8 of them leaving again) and `fed in passing 1,917 m³ left in basins the runs
+flowed over`. Over a 24-run session, closest approach to an aimed basin is **41 m against the 111 m
+this project has measured since the beginning** — the player routes water *better* than before the
+whole episode, which is the opposite of what throttling steering was expected to cost.
+**`SteerAccel` re-centred on measurement, not restored.** With the uphill half discarded the old 20
+bought almost no turning. 150 runs per arm at 20 / 30 / 42 / 56 / 70 / 90: **42 is the largest value
+with zero timeouts**, because above it the stream can be spun in circles along a contour, which the
+fall-line rule does not forbid.
+**Closed on stronger evidence than it asked for in one respect and weaker in another.** *Done when*
+wanted aimed delivery above 35% or a measurement separating the causes. The separation is here and
+is conclusive; the rate itself is **14%**, and the reason is L-040, not steering — the headroom-max
+bot now correctly spends its campaigns on the three basins that cannot be reached downhill at all.
 
 ### L-038 · Four runs in twenty-four never ended at all — closed 2026-07-26
 **Why** — `TimedOut 4 per 24 runs` had been sitting in every smoke test result since the harness
