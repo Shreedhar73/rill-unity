@@ -797,6 +797,9 @@ namespace Rill.Flow
         {
             _settleReport = report;
             _settleTimer = SettleSeconds;
+            // The mid-run steering hint has done its job by now; left alone it sat under the
+            // report card, photographed by the probe as a stray caption on the ending.
+            Hud.SetHint("");
             Current = State.Settling;
         }
 

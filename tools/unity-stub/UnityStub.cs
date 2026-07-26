@@ -457,6 +457,7 @@ namespace UnityEngine
         public static string dataPath { get { return ""; } }
         public static int targetFrameRate { get; set; }
         public static bool isEditor { get { return false; } }
+        public static bool isPlaying { get { return false; } }
         public static void Quit() { }
         public delegate void LogCallback(string condition, string stackTrace, LogType type);
         public static event LogCallback logMessageReceived;

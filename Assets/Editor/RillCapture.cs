@@ -149,6 +149,31 @@ namespace Rill.EditorTools
                 hud.SetHint("Tap to release the water");
                 RenderUI(world, hud, Path.Combine(dir, "ui_mountain.png"));
 
+                // The end card, with every kind of line it can carry: events, the stat columns,
+                // the optional pickups block. This is the run's reward and it shipped unlooked-at
+                // like everything else; a fixture keeps the photograph repeatable.
+                hud.SetHint("");
+                hud.SetIdleUI(false);   // the game hides the idle row for the whole run and report
+                var rep = new CarveReport
+                {
+                    RunNumber = 61,
+                    Ending = RunEnding.ReachedSea,
+                    DistanceTravelled = 236f,
+                    TopSpeed = 19.4f,
+                    WaterToSea = 43f,
+                    SedimentMoved = 88.2f,
+                    DeepestCarve = 0.62f,
+                    NewChannelMetres = 34f,
+                    SeedsCaught = 3,
+                    GatesThreaded = 1
+                };
+                rep.Headlines.Add("North basin broke its banks");
+                rep.LifeArrivals.Add("Reeds arrived");
+                rep.BasinChanges.Add(new CarveReport.BasinDelta { Name = "North basin", Before01 = 0.62f, After01 = 0.74f });
+                hud.ShowReport(rep, 5, 60);
+                RenderUI(world, hud, Path.Combine(dir, "ui_report.png"));
+                hud.HideAllPanels();
+
                 Debug.Log("[RILL] capture: interface PNGs in " + dir);
             }
             finally

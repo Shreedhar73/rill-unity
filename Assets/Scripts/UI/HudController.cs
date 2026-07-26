@@ -29,7 +29,7 @@ namespace Rill.UI
         public event Action<int> MountainPicked;
 
         Canvas _canvas;
-        Text _topLeft, _topRight, _hint, _reportTitle, _reportBody, _panelBody, _panelTitle;
+        Text _topLeft, _topRight, _hint, _reportTitle, _panelBody, _panelTitle;
         Image _reportCard, _panel, _speedFill;
         CanvasGroup _reportGroup, _panelGroup, _buttonsGroup, _speedGroup, _titleGroup;
         Text _titleWord, _titleTag, _titleRecord;
@@ -384,15 +384,35 @@ namespace Rill.UI
 
         void BuildReportCard(Transform root)
         {
-            _reportCard = UIFactory.MakePanel(root, "CarveReport", UIFactory.Panel);
+            // More opaque than the standard panel on purpose. The card is the run's reward and the
+            // one piece of UI that must be readable over anything — noon sea or midnight rock — and
+            // at the panel's 0.72 it was neither: photographed washed-out and reported as such.
+            _reportCard = UIFactory.MakePanel(root, "CarveReport", new Color(0.07f, 0.085f, 0.11f, 0.93f));
             UIFactory.Place(_reportCard.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900f, 620f));
             _reportGroup = UIFactory.Group(_reportCard.gameObject);
 
-            _reportTitle = UIFactory.MakeText(_reportCard.transform, "Title", "", 46, TextAnchor.UpperCenter, UIFactory.Ink);
-            UIFactory.Place(_reportTitle.gameObject, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -40f), new Vector2(820f, 120f));
+            _reportTitle = UIFactory.MakeText(_reportCard.transform, "Title", "", 44, TextAnchor.MiddleCenter, UIFactory.Ink);
+            UIFactory.Place(_reportTitle.gameObject, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -28f), new Vector2(820f, 96f));
 
-            _reportBody = UIFactory.MakeText(_reportCard.transform, "Body", "", 30, TextAnchor.UpperLeft, UIFactory.InkDim);
-            UIFactory.Place(_reportBody.gameObject, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -180f), new Vector2(780f, 360f));
+            _reportSub = UIFactory.MakeText(_reportCard.transform, "Sub", "", 27, TextAnchor.MiddleCenter, UIFactory.InkDim);
+            UIFactory.Place(_reportSub.gameObject, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -122f), new Vector2(820f, 44f));
+
+            // A short accent rule between the headline and the numbers. It is the only colour on
+            // the card, which is what makes the headline read as a headline.
+            var rule = UIFactory.MakePanel(_reportCard.transform, "Rule", new Color(0.55f, 0.84f, 0.93f, 0.85f), false);
+            UIFactory.Place(rule.gameObject, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -182f), new Vector2(220f, 3f));
+            rule.raycastTarget = false;
+
+            var rows = new GameObject("Rows", typeof(RectTransform));
+            rows.transform.SetParent(_reportCard.transform, false);
+            _reportRows = UIFactory.Rect(rows);
+            _reportRows.anchorMin = _reportRows.anchorMax = new Vector2(0.5f, 1f);
+            _reportRows.pivot = new Vector2(0.5f, 1f);
+            _reportRows.anchoredPosition = new Vector2(0f, -ReportHeader);
+            _reportRows.sizeDelta = new Vector2(790f, 10f);
+
+            _reportFooter = UIFactory.MakeText(_reportCard.transform, "Footer", "Tap to continue", 26, TextAnchor.MiddleCenter, UIFactory.InkDim);
+            UIFactory.Place(_reportFooter.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(500f, 44f));
 
             var dismiss = _reportCard.gameObject.AddComponent<Button>();
             dismiss.onClick.AddListener(() =>
@@ -401,6 +421,57 @@ namespace Rill.UI
                 if (ReportDismissed != null) ReportDismissed();
             });
         }
+
+        // Vertical space above the first row (title, subtitle, rule) and below the last (footer).
+        const float ReportHeader = 212f;
+        const float ReportFooter = 92f;
+        const float ReportRowHeight = 52f;
+
+        RectTransform _reportRows;
+        Text _reportSub, _reportFooter;
+        readonly List<GameObject> _reportRowItems = new List<GameObject>();
+        float _reportRowY;
+
+        void ClearReportRows()
+        {
+            for (int i = 0; i < _reportRowItems.Count; i++)
+            {
+                if (_reportRowItems[i] == null) continue;
+                // The capture tool shows this card outside play mode, where Destroy is an error.
+                if (Application.isPlaying) Destroy(_reportRowItems[i]);
+                else DestroyImmediate(_reportRowItems[i]);
+            }
+            _reportRowItems.Clear();
+            _reportRowY = 0f;
+        }
+
+        /// <summary>A measurement: dim label on the left, bright value on the right, one line each.
+        /// The old card packed these into one Text with run-together spaces, which read as a log
+        /// dump — columns are most of the difference between a card and a printout.</summary>
+        void AddReportStat(string label, string value)
+        {
+            var l = UIFactory.MakeText(_reportRows, "L", label, 28, TextAnchor.MiddleLeft, UIFactory.InkDim);
+            UIFactory.Place(l.gameObject, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, -_reportRowY), new Vector2(440f, ReportRowHeight));
+            var v = UIFactory.MakeText(_reportRows, "V", value, 28, TextAnchor.MiddleRight, UIFactory.Ink);
+            UIFactory.Place(v.gameObject, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0f, -_reportRowY), new Vector2(340f, ReportRowHeight));
+            _reportRowItems.Add(l.gameObject);
+            _reportRowItems.Add(v.gameObject);
+            _reportRowY += ReportRowHeight;
+        }
+
+        /// <summary>Something that happened, as opposed to something measured: centred, in the
+        /// accent, because these lines — a dam break, reeds arriving, a fossil — are the reasons
+        /// to read the card at all.</summary>
+        void AddReportEvent(string text)
+        {
+            var t = UIFactory.MakeText(_reportRows, "E", text, 28, TextAnchor.MiddleCenter,
+                                       new Color(0.62f, 0.87f, 0.95f, 0.95f));
+            UIFactory.Place(t.gameObject, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -_reportRowY), new Vector2(790f, ReportRowHeight));
+            _reportRowItems.Add(t.gameObject);
+            _reportRowY += ReportRowHeight;
+        }
+
+        void AddReportGap() { _reportRowY += 20f; }
 
         void BuildPanel(Transform root)
         {
@@ -460,41 +531,45 @@ namespace Rill.UI
         {
             if (_reportCard == null) return;
             _reportTitle.text = rep.Summary();
+            _reportSub.text = rep.EndingLine + "   ·   run " + rep.RunNumber.ToString("n0");
 
-            var sb = new StringBuilder();
-            sb.Append(rep.EndingLine).Append("   ·   run ").Append(rep.RunNumber).Append('\n');
-            sb.Append('\n');
-            sb.AppendFormat("Sediment moved      {0:n1} m³\n", rep.SedimentMoved);
-            if (rep.DeepestCarve > 0.001f)
-                sb.AppendFormat("Deepest cut         {0:0.00} m\n", rep.DeepestCarve);
-            if (rep.NewChannelMetres > 0.5f)
-                sb.AppendFormat("Channel worked      {0:0} m\n", rep.NewChannelMetres);
-            sb.AppendFormat("Distance            {0:0} m at up to {1:0.0} m/s\n", rep.DistanceTravelled, rep.TopSpeed);
-            if (rep.WaterToSea > 0.01f)
-                sb.AppendFormat("Delivered to sea    {0:0} m³\n", rep.WaterToSea);
+            ClearReportRows();
 
-            if (rep.GatesThreaded > 0 || rep.SeedsCaught > 0 || rep.FlowersSplashed > 0)
-            {
-                sb.Append('\n');
-                if (rep.GatesThreaded > 0) sb.AppendFormat("Gates threaded      {0}\n", rep.GatesThreaded);
-                if (rep.SeedsCaught > 0) sb.AppendFormat("Seeds carried       {0}\n", rep.SeedsCaught);
-                if (rep.FlowersSplashed > 0) sb.AppendFormat("Dye splashed        {0}\n", rep.FlowersSplashed);
-            }
-
+            // What happened, before what was measured. The events are why the card is worth
+            // reading; the numbers are the receipt.
+            int events = 0;
             for (int i = 0; i < rep.BasinChanges.Count && i < 3; i++)
             {
                 var b = rep.BasinChanges[i];
-                sb.AppendFormat("\n{0}  {1:0}% → {2:0}%", b.Name, b.Before01 * 100f, b.After01 * 100f);
+                AddReportEvent(string.Format("{0}   {1:0}% → {2:0}%", b.Name, b.Before01 * 100f, b.After01 * 100f));
+                events++;
             }
-            for (int i = 0; i < rep.Headlines.Count; i++)
-                sb.Append('\n').Append(rep.Headlines[i]);
-            for (int i = 0; i < rep.LifeArrivals.Count; i++)
-                sb.Append('\n').Append(rep.LifeArrivals[i]);
+            for (int i = 0; i < rep.Headlines.Count; i++) { AddReportEvent(rep.Headlines[i]); events++; }
+            for (int i = 0; i < rep.LifeArrivals.Count; i++) { AddReportEvent(rep.LifeArrivals[i]); events++; }
+            if (events > 0) AddReportGap();
 
-            sb.Append("\n\nUncovered ").Append(secretsFound).Append(" of ").Append(secretsTotal);
-            sb.Append("\n\nTap to continue");
+            AddReportStat("Sediment moved", string.Format("{0:n1} m³", rep.SedimentMoved));
+            if (rep.DeepestCarve > 0.001f) AddReportStat("Deepest cut", string.Format("{0:0.00} m", rep.DeepestCarve));
+            if (rep.NewChannelMetres > 0.5f) AddReportStat("Channel worked", string.Format("{0:0} m", rep.NewChannelMetres));
+            AddReportStat("Distance", string.Format("{0:0} m", rep.DistanceTravelled));
+            AddReportStat("Top speed", string.Format("{0:0.0} m/s", rep.TopSpeed));
+            if (rep.WaterToSea > 0.01f) AddReportStat("Delivered to sea", string.Format("{0:0} m³", rep.WaterToSea));
 
-            _reportBody.text = sb.ToString();
+            if (rep.GatesThreaded > 0 || rep.SeedsCaught > 0 || rep.FlowersSplashed > 0)
+            {
+                AddReportGap();
+                if (rep.GatesThreaded > 0) AddReportStat("Gates threaded", rep.GatesThreaded.ToString());
+                if (rep.SeedsCaught > 0) AddReportStat("Seeds carried", rep.SeedsCaught.ToString());
+                if (rep.FlowersSplashed > 0) AddReportStat("Dye splashed", rep.FlowersSplashed.ToString());
+            }
+
+            AddReportGap();
+            AddReportStat("Uncovered", secretsFound + " of " + secretsTotal);
+
+            // The card is exactly as tall as what it has to say.
+            var rt = UIFactory.Rect(_reportCard.gameObject);
+            rt.sizeDelta = new Vector2(900f, Mathf.Clamp(ReportHeader + _reportRowY + ReportFooter, 480f, 1400f));
+
             SetReportVisible(true);
         }
 
