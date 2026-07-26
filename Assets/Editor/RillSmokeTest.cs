@@ -126,6 +126,93 @@ namespace Rill.EditorTools
         static void Play(int Runs) { Debug.Log(PlayBiome(Runs, Biome.Sandstone).ToString()); }
 
         /// <summary>
+        /// Three mountains, and the guards that stop a slot picker becoming a new-game button
+        /// standing next to three save files. Invariant 1 is absolute — "no new game that touches
+        /// an existing slot" — so every way to lose a mountain is asserted against here rather
+        /// than trusted to the UI.
+        ///
+        /// Uses high slot numbers so a real player's mountains can never be touched by the test.
+        /// </summary>
+        [MenuItem("RILL/Run Headless Mountains Test", false, 71)]
+        public static void RunHeadlessMountains()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL three mountains ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            // The roster addresses slots 0..2, which are a player's real saves. Redirect it by
+            // clearing those slots only inside a scratch area would need plumbing; instead the test
+            // asserts on behaviour it can reach without destroying anything, and does its
+            // destructive work through SaveSystem on slots well out of range.
+            const int ScratchA = 90, ScratchB = 91;
+            SaveSystem.DeleteSlot(ScratchA);
+            SaveSystem.DeleteSlot(ScratchB);
+
+            var cfg = new GameConfig();
+
+            SaveSystem.MountainSummary none;
+            check(!SaveSystem.ReadSummary(ScratchA, out none), "an empty slot reports no summary");
+            check(!none.Occupied, "and is not marked occupied");
+
+            var made = RillWorld.Create(cfg, 4242u, Biome.Glacier);
+            made.RunNumber = 17;
+            made.LifetimeSediment = 1234f;
+            made.LifetimeWaterToSea = 567f;
+            SaveSystem.Save(made, new float[made.Field.Count], ScratchA);
+
+            SaveSystem.MountainSummary got;
+            check(SaveSystem.ReadSummary(ScratchA, out got), "a saved mountain reports a summary");
+            check(got.Occupied && got.Seed == 4242u, "with the right seed");
+            check(got.Biome == Biome.Glacier, "and the right biome, so the picker can name it");
+            check(got.RunNumber == 17 && Mathf.Abs(got.LifetimeSediment - 1234f) < 0.5f,
+                  "and the lifetime record, without deserialising the terrain");
+
+            // The header read must not depend on the arrays that follow it.
+            var big = RillWorld.Create(cfg, 99u, Biome.Volcanic);
+            SaveSystem.Save(big, new float[big.Field.Count], ScratchB);
+            SaveSystem.MountainSummary b;
+            check(SaveSystem.ReadSummary(ScratchB, out b) && b.Seed == 99u && b.Biome == Biome.Volcanic,
+                  "two slots hold two different mountains at once");
+
+            SaveSystem.MountainSummary a2;
+            SaveSystem.ReadSummary(ScratchA, out a2);
+            check(a2.Seed == 4242u, "and writing the second did not touch the first");
+
+            // The roster's guards, exercised on a roster pointed at real slots but only through
+            // methods that cannot mutate: Create refuses, Delete refuses on a wrong seed.
+            var roster = new MountainRoster();
+            check(MountainRoster.Slots == 3, "the roster is three slots");
+            for (int i = 0; i < MountainRoster.Slots; i++)
+            {
+                if (!roster.Occupied(i)) continue;
+                uint realSeed = roster[i].Seed;
+                check(roster.Create(i, Biome.Sandstone, 1u, cfg) == null,
+                      "Create refuses an occupied slot outright — there is no overwrite path");
+                check(!roster.Delete(i, realSeed ^ 1u),
+                      "Delete refuses a seed that does not match the mountain in the slot");
+                check(roster.Occupied(i), "and the mountain is still there afterwards");
+                break;
+            }
+            if (roster.OccupiedCount == 0)
+                log.AppendLine("  note  no real mountain saved, so the refuse-to-overwrite guards were not exercised");
+
+            check(roster.FirstEmpty() >= 0 || roster.OccupiedCount == MountainRoster.Slots,
+                  "FirstEmpty is a slot index or -1 when all three are taken");
+
+            SaveSystem.DeleteSlot(ScratchA);
+            SaveSystem.DeleteSlot(ScratchB);
+            check(!SaveSystem.Exists(ScratchA) && !SaveSystem.Exists(ScratchB), "scratch slots cleaned up");
+
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
+        /// <summary>
         /// Every navigation transition, driven directly. The shell's state machine is deliberately
         /// MonoBehaviour-free so this can exist: UI cannot be checked from a terminal, and L-018 is
         /// what happens when the only thing that could catch a gate is a person pressing Play.

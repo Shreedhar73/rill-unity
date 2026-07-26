@@ -32,6 +32,67 @@ namespace Rill.Meta
         public static string WorldPath(int slot) => Path.Combine(RootDir, "world_" + slot + ".rill");
         public static bool Exists(int slot) => File.Exists(WorldPath(slot));
 
+        /// <summary>
+        /// Everything a slot picker needs about a mountain, without paying for the mountain.
+        /// A mature world is a couple of megabytes of float arrays; drawing a three-slot menu must
+        /// not deserialise three of them.
+        /// </summary>
+        public struct MountainSummary
+        {
+            public int Slot;
+            public bool Occupied;
+            public uint Seed;
+            public Biome Biome;
+            public int RunNumber;
+            public float LifetimeSediment;
+            public float LifetimeWaterToSea;
+            public float LifetimePlaySeconds;
+            public long FirstPlayedUtcTicks;
+        }
+
+        /// <summary>
+        /// Reads just the header. It sits ahead of the terrain arrays in the format, so the gzip
+        /// stream is only pulled far enough to get it — about sixty bytes rather than several
+        /// megabytes.
+        /// </summary>
+        public static bool ReadSummary(int slot, out MountainSummary summary)
+        {
+            summary = new MountainSummary { Slot = slot };
+            string path = WorldPath(slot);
+            if (!File.Exists(path)) return false;
+
+            try
+            {
+                using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
+                using (var gz = new GZipStream(fs, CompressionMode.Decompress))
+                using (var r = new BinaryReader(gz))
+                {
+                    if (r.ReadUInt32() != Magic) return false;
+                    int version = r.ReadInt32();
+                    if (version < 3) return false;
+
+                    summary.Seed = r.ReadUInt32();
+                    summary.Biome = (Biome)r.ReadInt32();
+                    r.ReadInt32();      // size
+                    r.ReadSingle();     // cell size
+                    r.ReadInt32();      // summit x
+                    r.ReadInt32();      // summit z
+                    summary.RunNumber = r.ReadInt32();
+                    summary.LifetimeSediment = r.ReadSingle();
+                    summary.LifetimeWaterToSea = r.ReadSingle();
+                    summary.LifetimePlaySeconds = r.ReadSingle();
+                    summary.FirstPlayedUtcTicks = r.ReadInt64();
+                    summary.Occupied = true;
+                    return true;
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[RILL] could not read slot " + slot + " header: " + e.Message);
+                return false;
+            }
+        }
+
         public static void Save(RillWorld world, float[] lifeField, int slot = 0)
         {
             string path = WorldPath(slot);
