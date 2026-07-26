@@ -104,6 +104,7 @@ namespace Rill.World
             var f = world.Field;
             var vents = Vents(world);
             bool madeObsidian = false;
+            float grown = 0f;
 
             for (int v = 0; v < vents.Count; v++)
             {
@@ -112,7 +113,7 @@ namespace Rill.World
                 Vector2 xz = f.GridToWorldXZ(x, z);
 
                 // Lava piles up: the only place in RILL where the mountain grows on its own.
-                f.AddBrush(f.Height, xz.x, xz.y, 3.2f, VentGrowth);
+                grown += f.AddBrush(f.Height, xz.x, xz.y, 3.2f, VentGrowth);
 
                 // Water that met lava leaves obsidian: permanently the hardest rock on the mountain.
                 if (f.SampleWetWorld(xz.x, xz.y) > 0.25f || f.SampleWaterWorld(xz.x, xz.y) > 0.02f)
@@ -129,6 +130,11 @@ namespace Rill.World
 
             f.MarkAllDirty();
             if (madeObsidian) headlines.Add("Water met lava — obsidian formed");
+            // The vents build 13 m of new rock over 24 runs — an order of magnitude more terrain
+            // change than any other biome causes — and used to say nothing at all unless water
+            // happened to quench one. A mountain that grows in silence breaks the same rule as a
+            // system that silently does nothing: if it creates something, report the amount.
+            else if (grown > 1f) headlines.Add(string.Format("The vents added {0:n0} m³ of new rock", grown));
         }
 
         // ------------------------------------------------------------------ granite

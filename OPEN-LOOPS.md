@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **15** (4 archived)
+Last updated: **2026-07-26** · Open loops: **18** · Closed this cycle: **16** (4 archived)
 
 ---
 
@@ -113,6 +113,33 @@ against these.
 **Careful** — Still do not tune `SteerAccel` or `SteerSpeedCost` on this alone. 40% may be correct
 for a game whose whole skill ceiling is restraint; that is a feel question and L-012 answers it.
 
+### L-021 · Biome balance — Glacier / Volcanic / Granite — closed 2026-07-26
+"Implemented, never run" was worse than it sounded: `BiomeRules.BetweenRuns` is called only from
+`RunController.FinishRun`, so **no headless test had ever executed it**. Glacier freeze/thaw,
+volcanic vents and granite spalling had run zero times in this project's history. The first
+comparison, made before that was noticed, measured generation alone and produced a tidy, wrong
+answer — four biomes collapsing into two pairs on identical terrain:
+
+| biome | summit | basin capacity | sediment | basin sites |
+|---|---|---|---|---|
+| Sandstone | 146.4 m | 5,591 m³ | 1,493 | `11m/157m …` |
+| Granite | 146.4 m | 4,411 m³ | 1,455 | `8m/157m …` |
+| Glacier | 146.4 m | 5,571 m³ | 1,508 | *identical to Sandstone* |
+| Volcanic | 146.4 m | 4,415 m³ | 1,447 | *identical to Granite* |
+
+**Evidence, with the rules actually running** — Glacier: `"Channels froze overnight" x5`, **1,705 ice
+cells**. Volcanic: `terrain delta max 13.20 m` against 1.18–1.47 m everywhere else — the vents build
+an order of magnitude more terrain than any other biome causes. Granite: no events, correctly, as it
+only nudges `Polish` upward ("what you cut here stays cut"). Sandstone has no rules by design.
+**Defect found and fixed** — Volcanic grew the mountain 13 m over 24 runs and told the player
+*nothing* unless water happened to quench a vent. A mountain that grows in silence breaks the same
+rule as a system that silently does nothing, so vent growth now reports its volume.
+**Left open deliberately, as new loops rather than scope creep** — weather was `Drought` on every
+run of every biome (it is seed-derived), so the glacier **thaw** path is still unexercised: only
+freeze has ever run. And `Field.Ice` is written by `BiomeRules` and read only by
+`TerrainMeshBuilder`, i.e. it is a visual tint with no simulation consequence. Both are now L-033
+and L-034.
+
 ### L-013 · Water rendering
 **Why** — Lakes render as flat discs with hard shorelines; the sea is a plain blue plane. Water is
 the subject of the entire game and currently looks like placeholder geometry.
@@ -133,6 +160,24 @@ other and against terrain.
 ---
 
 ## Next
+
+### L-033 · Glacier thaw has never run
+**Why** — Weather is derived from the world seed, and on the default seed it is `Drought` for every
+run, so the glacier's freeze branch is the only one ever exercised. The thaw branch — which releases
+meltwater as real volume and is the entire point of a glacier biome — has never executed in any test
+or any session. 1,705 cells are being frozen and nothing has ever melted them.
+**Done when** — A test drives `Snowmelt` and `Storm` weather and reports meltwater volume released
+and ice cells cleared, both non-zero.
+**Evidence needed** — `The thaw released N m³` headline plus an ice-cell count that falls.
+
+### L-034 · Ice is decoration
+**Why** — `Field.Ice` is written by `BiomeRules.Glacier` and read only by `TerrainMeshBuilder` as a
+colour tint. It has no effect on flow, carving, drag or infiltration, so a frozen channel behaves
+exactly like an open one. The glacier biome is currently a palette swap with a headline.
+**Done when** — Ice measurably changes a run: frozen ground either resists carving or shifts drag,
+and a smoke test shows a different sediment or distance profile on Glacier than on Sandstone.
+**Careful** — Sandstone and Glacier currently differ by ~4% in sediment moved, which is noise. Any
+change here must be measured against that, not against intent.
 
 ### L-012 · Hand playtest against the kill criterion
 **Why** — The design document sets an explicit M3 kill criterion: if playtesting does not produce
@@ -177,7 +222,6 @@ between runs — which is most of the time they spend looking at the mountain.
 | L-018 | Onboarding — first 30 seconds explain nothing | Needs the loop settled first, or it teaches the wrong thing. |
 | L-019 | Cascade / dam-break spectacle | Now fires — `North basin broke its banks` appears in 150-run logs. Unblocked; still nobody has seen it. |
 | L-020 | Daily glyph legibility — currently near-empty | Viral spine, but pointless before retention exists. |
-| L-021 | Biome balance — Glacier / Volcanic / Granite | Implemented, never run. Sandstone must be right first. |
 | L-022 | Device performance pass | Never run on a phone. No profiling of any kind, ever. |
 | L-023 | Region streaming beyond one 512 m field | Scope question, not a bug. |
 | L-024 | Confluence backend, visits, paper boats | Deliberately out of scope while offline-first. |
