@@ -88,7 +88,15 @@ namespace Rill.EditorTools
                 int intendedBasin = -1;
                 if (aimBasin)
                 {
-                    intendedBasin = rng.Range(0, world.Basins.Basins.Count);
+                    // A campaign, not a lottery. Picking a fresh random basin every run means no
+                    // basin is ever worked at twice running, so no new route can ever be carved to
+                    // one — and carving a route is the only way to reach a basin off the incised
+                    // channel. A real player picks a target and keeps at it.
+                    //
+                    // Block size must divide the run count into at least one campaign per basin.
+                    // At 50 runs over a 150-run test only basins 0-2 were ever aimed at, so the 0%
+                    // sitting against 3 and 4 measured nothing but the test's own blind spot.
+                    intendedBasin = 0;   // DIAGNOSTIC: one determined campaign at basin #0
                     int c = world.Basins.Basins[intendedBasin].Cells[0];
                     destination = world.Field.GridToWorldXZ(c % config.Size, c / config.Size);
                 }

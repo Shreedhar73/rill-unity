@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **16** · Closed this cycle: **13** (4 archived)
+Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **14** (4 archived)
 
 ---
 
@@ -62,13 +62,11 @@ miss do so by an average of 100 m, which reads more like "never left the channel
 fell short". Next step: log how far an aimed run's path deviates from the hands-off path for the
 same seed, which separates (a) from (c) directly.
 
-### L-011 · See the strata pass
-**Why** — Per-pixel strata bands, seam darkening and concavity occlusion were written to fix a
-mountain that rendered as a smooth orange bedsheet. Shaders compile. **Nobody has looked at it.**
-The design's central visual promise — "every metre of depth is legible as colour" — is unconfirmed.
-**Done when** — A screenshot shows distinct sediment bands, and a carved channel is visibly a
-channel from the idle camera.
-**Evidence needed** — Screenshot.
+### L-013 · Water rendering
+**Why** — Lakes render as flat discs with hard shorelines; the sea is a plain blue plane. Water is
+the subject of the entire game and currently looks like placeholder geometry.
+**Done when** — Lakes have a depth gradient and a soft shoreline; the sea has a shoreline
+treatment; the ribbon reads as the brightest thing in frame.
 
 ---
 
@@ -81,12 +79,6 @@ it. Every metric so far is a proxy for fun, and proxies have been wrong before.
 **Done when** — At least one person has played 20+ runs unprompted, and the reaction is recorded
 honestly — including if it is boring.
 **Evidence needed** — Written notes. Negative results are the valuable ones here.
-
-### L-013 · Water rendering
-**Why** — Lakes render as flat discs with hard shorelines; the sea is a plain blue plane. Water is
-the subject of the entire game and currently looks like placeholder geometry.
-**Done when** — Lakes have a depth gradient and a soft shoreline; the sea has a shoreline
-treatment; the ribbon reads as the brightest thing in frame.
 
 ### L-014 · Sense of speed
 **Why** — The momentum economy is the game's skill ceiling, and at 24 m/s it currently looks the
@@ -118,6 +110,19 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-011 · See the strata pass — closed 2026-07-26
+Per-pixel strata bands, seam darkening and concavity occlusion were written to fix a mountain that
+rendered as a smooth orange bedsheet, and had never been looked at by anyone — the shaders compiled
+and nothing more. Confirmed working in the editor.
+**Evidence** — Direct observation by the project owner ("l-011 is working"), after pressing Play.
+The earlier Game-view screenshot showing bare skybox was edit mode: there is nothing in the scene
+until `GameBootstrap` builds it at runtime.
+**Closed on weaker evidence than asked for.** *Done when* wanted a screenshot showing distinct
+sediment bands and a carved channel legible as a channel from the idle camera; what closed it is a
+person saying it works, with no image archived in the repo. That is a real observation and enough to
+stop calling the render path unverified, but it is not the artefact the loop asked for, and nobody
+later can check it. If a screenshot gets taken, add it to `docs/` and reference it here.
 
 ### L-029 · Basin crossing is built but has never mattered — closed 2026-07-26
 A run whose remaining volume exceeds a lake's headroom fills that lake to its spill and continues
