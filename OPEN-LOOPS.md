@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **14** · Closed this cycle: **29** (19 archived)
+Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **29** (19 archived)
 
 ---
 
@@ -106,29 +106,58 @@ visible. A tap skips it, so a returning player never sits through it.
 ## Next
 
 ### L-043 · The basin lattice is finished by run 500
-**Why** — Measured 2026-07-26 over a 500-run season, and it is the first time this game has been run
-far enough to see its own endgame. Four of five basins sit at **100%** and the fifth at 0%; runs
-stopping on open ground are `404 of 500` against `96` in a basin; and `378 of 500` reach the sea.
-The mountain has matured into a well-drained river system, which is the carve → speed → reach loop
-succeeding completely — and it means the retention mechanic the design leans on hardest, "north
-basin 87% full", has no unfinished loop left to offer.
-**Why it matters** — the design document's whole retention argument is Zeigarnik: an open loop the
-brain refuses to put down, resolved by ordinary play. At run 500 there are no open loops left on
-this mountain except one basin the player has apparently never been able to fill. Secrets are at
-`17 of 60` and still climbing, so *that* track survives; the basin track does not.
-**Done when** — There is something a 500-run mountain is still unfinished at, and it is named. Either
-the lattice regenerates (a filled tarn silts up and becomes fillable again, which the deposition
-already does to *approaches* — see L-042), or the world grows (L-023), or basins are deeper than a
-season's water.
-**Evidence needed** — The 500-run lattice line, plus the same at 1,000 runs to check whether
-anything reopens on its own before designing something that duplicates it.
-**Do not confuse this with L-042.** That loop asked whether the player can still *reach* the basins;
-the answer was yes, on momentum, always. This asks whether there is anything left to *do* when they
-get there.
-**Careful with the 0% basin.** #2 sits at 0% for 375 runs while nominally reachable. That may be a
-real gap or it may be the test bot, which picks its campaign target by largest headroom and so
-spends the whole session on the 2,038 m³ basin and only turns to the 363 m³ one at the very end.
-The bot has been the answer three times before. Check it first.
+**Why** — Measured 2026-07-26 over a 500-run season, the first time this game has been run far
+enough to see its own endgame. Four of five basins sit at **100%** and the fifth at 0%; runs stopping
+on open ground are `404 of 500` against `96` in a basin; `378 of 500` reach the sea. The mountain has
+matured into a well-drained river system, which is the carve → speed → reach loop succeeding
+completely — and it means the retention mechanic the design leans on hardest, "north basin 87%
+full", has no unfinished loop left to offer.
+**Done when** — There is something a 500-run mountain is still unfinished at, and it is named.
+**Evidence needed** — The 500-run lattice line, and the same at 1,000 runs, before designing
+anything that duplicates a recovery the world already does on its own.
+**The bot was checked first, as the loop demanded, and it was not the answer this time.** One
+sustained 500-run campaign per basin, fresh mountain each:
+
+| target | final fill | entered | delivered | basin count |
+|---|---|---|---|---|
+| #0 | **100%** | 32/147 | 7/147 | 5–5 |
+| #1 | **100%** | 34/147 | 13/147 | 5–5 |
+| #2 | **0%** | **0/147** | 0/147 | 5–5 |
+| #3 | 0% | 77/147 | 17/147 | **3–5** |
+| #4 | **100%** | 105/147 | 7/147 | 5–5 |
+
+**Three of five fill to 100% under a determined campaign**, which is the claim the progression track
+rests on and is stronger than L-027's original 85%. The other two rows are the loop's real content:
+
+- **#2 is never entered once in 147 aimed runs across 500.** Not hard to fill — never reached. It
+  also has the highest sea arrivals of any arm, so the water is going somewhere and simply not
+  there. `reach (climb 0 m)` calls it reachable, so the gap is between "a path exists" and "a run
+  can be steered down it", which is the same distinction that made `aimed miss` useless in L-030.
+- **#3 did not stay unfilled — it ceased to exist.** It took 17 deliveries and the basin count fell
+  from 5 to 3. Filling a tarn and depositing around it merges or erases the depression, so a
+  campaign can consume its own objective. See **L-044**, because that is a separate question from
+  this one and possibly a feature.
+
+### L-044 · A basin can be erased by being filled
+**Why** — Found while testing L-043: a 500-run campaign against basin #3 delivered water 17 times
+and ended with the basin **gone**, the lattice having dropped from 5 basins to 3. Water and sediment
+raise the floor and deposits build the surroundings, and at some point the depression stops being a
+depression. The player's target disappears mid-campaign.
+**This may be the best thing in the game or the worst, and the difference is entirely in the
+telling.** A tarn silting up into a meadow after a hundred runs of your water is exactly the geology
+the design promises, and it is the kind of thing players make videos about. The same event with no
+announcement is a progress bar that vanishes, and the game's whole trust contract is that the world
+honestly records what you did — L-035 was closed for announcing water it never delivered, and this
+is the inverse: delivering a change and never mentioning it.
+**Done when** — Filling a basin out of existence produces a headline, an almanac entry and a name
+for what the place became, or it is prevented and the reason is written down.
+**Evidence needed** — The basin-count line falling in a normal (non-campaign) season, plus the
+headline text. Currently `basin count 5 throughout` at 24, 150 and 500 runs of ordinary play, so
+this needs a campaign to provoke — which means it will happen to exactly the most invested players.
+**Already caused a harness bug**, which is how it was found: basin ids come from a rescan every run,
+`stop basins:` indexed a session's worth of collected ids into a list rebuilt every run, and it
+threw `ArgumentOutOfRangeException` the first time anything ran 500 runs. Fixed, and the count range
+is now printed so no index-based comparison can silently lose its meaning again.
 
 ### L-018 · Onboarding — the first 30 seconds explain nothing
 **Why** — There is no button and nothing moves on its own to suggest steering exists, so a player
