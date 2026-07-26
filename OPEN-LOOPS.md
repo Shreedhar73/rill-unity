@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **13** · Closed this cycle: **32** (22 archived)
+Last updated: **2026-07-26** · Open loops: **12** · Closed this cycle: **33** (22 archived)
 
 ---
 
@@ -105,31 +105,6 @@ visible. A tap skips it, so a returning player never sits through it.
 
 ## Next
 
-### L-045 · The island ends in a straight line
-**Why** — Visible in every archived overview render, and nobody could see it before there were
-renders: the 512 m heightfield stops at a hard square boundary, so from the idle camera the seabed
-around the island is cut off by two straight diagonal edges against the open sea. It reads as the
-edge of a map, which is the one thing a world that never resets should never look like.
-**Done when** — The overview render shows no straight edge where terrain meets sea.
-**Evidence needed** — `docs/shots/mountain_150_overview.png`, retaken.
-**Cause, found 2026-07-26** — the radial island mask is measured from the **summit, not the centre
-of the field**, and on this seed the summit sits at `(150, 126)` of 256. The distance to the `+x`
-boundary is 0.82 of the mask's radius against 1.17 to `-x`, so on one side the island never finishes
-before the field runs out.
-**Do not fix it in generation. That was tried and reverted.** A second mask keyed to the field
-boundary closes the coast on every side and no land runs off the edge — and the smoke test priced
-it at `ReachedSea 2 vs 4`, `delivered 89 vs 175 m³`, `distance 149 vs 178 m/run`, basin capacity
-`4,059 vs 4,786 m³` and `reach (climb 0 m) 2 of 5 vs 5 of 5` over 24 runs. Halving first-session sea
-arrivals is not a price worth paying for a cosmetic edge, and trimming the island pulls the basins
-inward and costs a quarter of the lattice.
-**It also did not finish the job**, which is the more useful half of the result: a faint rectangle of
-seabed tint remained at the boundary even with the coast closed. The artifact is a *shading*
-discontinuity between shelf and open ocean, not only a silhouette, so any fix has to reconcile how
-the two are lit — which is a renderer problem.
-**Fix it in the renderer.** The sea mesh already reaches `WorldExtent × 3`; the terrain is what stops.
-Do not confuse this with L-023 (region streaming): that is about the world being bigger, this is
-about it not having a visible corner.
-
 ### L-043 · The basin lattice is finished by run 500
 **Why** — Measured 2026-07-26 over a 500-run season, the first time this game has been run far
 enough to see its own endgame. Four of five basins sit at **100%** and the fifth at 0%; runs stopping
@@ -212,6 +187,37 @@ spray half alone.
 ---
 
 ## Recently closed
+
+### L-045 · The island ends in a straight line — closed 2026-07-26
+Opened the same day off the first overview render: the 512 m field stopped at a hard square
+boundary, and from the idle camera two straight diagonal lines cut the seabed off against the open
+sea. It read as the edge of a map, which is the one thing a world that never resets should never
+look like.
+**The obvious cause was real and was not the cause.** The radial island mask is measured from the
+**summit, not the centre of the field** — on this seed the summit sits at `(150, 126)` of 256, so
+the distance to the `+x` boundary is 0.82 of the mask's radius against 1.17 to `-x`, and on one side
+the island genuinely never finished before the field ran out. Adding a boundary-keyed second mask
+closed the coast on every side. **The rectangle stayed exactly where it was**, which is what
+identified the real cause.
+**The real cause was one term in `PooledWater.shader`:** `alpha = saturate(a * (0.72 + fres * 0.45))`.
+From a high camera the fresnel term is near zero, so **the sea never exceeded about 72% opacity
+anywhere, including sixteen metres down.** Inside the heightfield you saw a quarter of the real,
+mottled seabed through the water; outside it there is no terrain at all, only the clear colour. The
+boundary was a shading discontinuity, and no amount of reshaping the coast could ever have hidden it.
+Depth now closes the water — `lerp(clarity, 1.15, depth01²)` — so shallow keeps the translucency
+that makes a lake bed and a beach readable and the opacity arrives late enough to leave the shore
+soft.
+**Evidence** — `docs/shots/mountain_150_overview.png`: uniform ocean to the horizon, island in open
+water, no straight edge anywhere. Lakes are unharmed and slightly better —
+`mountain_150_life.png` still grades pale rim to deep centre with a soft shore, and the deep part is
+a richer blue for no longer showing a quarter of the mud beneath it.
+**Renderer-only, so it costs the simulation nothing**, which is the entire difference between this
+and the generation-side attempt that was measured and reverted the same day for halving
+first-session sea arrivals (`ReachedSea 2 vs 4`). The rejected experiment is what proved where the
+problem was not.
+**Left behind, and worth its own look someday** — a few pale shelves still break the surface near
+the old field edge. They now read as offshore sandbars rather than as a cut, so they are no longer
+a defect, but they are not deliberate either.
 
 ### L-016 · Prop silhouettes worth looking at — closed 2026-07-26
 Moss was a flat disc, reeds a single crossed quad, huts a bare box; conifers and canopies had been

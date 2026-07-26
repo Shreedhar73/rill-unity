@@ -81,7 +81,7 @@ Every feature named in `RILL-game-design.md`, with its real state.
 | Terrain silhouette (ridges, valleys, cliffs) | **Done** | Droplet erosion pre-pass + terracing. Summit 146 m over a 512 m base. Aerial perspective hazes distance from 90 m out. |
 | Water ribbon as hero element | **Partial** | Widened and lifted; still not confirmed to read as the brightest thing in frame. |
 | Lakes | **Done** | Level surface (ring vertices take the lake's surface level, not terrain height), depth gradient over 2.5 m, soft shore. Confirmed by screenshot. |
-| The sea | **Done** | Subdivided 96², each vertex carrying real depth. Coastline grades deep blue → shallows → pale beach band. Confirmed by screenshot. |
+| The sea | **Done** | Subdivided 96², each vertex carrying real depth. Coastline grades deep blue → shallows → pale beach band, and deep water is now genuinely opaque — it was capped near 72% everywhere, which showed the seabed through the ocean and drew the heightfield's square boundary across it (L-045). Confirmed by render. |
 | Ecosystem props | **Done** | Conifers with trunks and tiered crowns, moss cushions, reed clumps, huts with pitched roofs on flat ground. Vertex-baked vertical shading gives each internal form while staying one instanced material. Confirmed by render (L-016); canopies exist and are unused. |
 | Splash particles | **Built** | Code-built system + `Droplet.shader`. Now also driven continuously by speed, not only by plunges. Never seen — needs play mode; the capture tool cannot show per-run state. |
 | Camera (follow, report framing, idle pan) | **Done** | Retuned to 62 m back / 46 m up. |
