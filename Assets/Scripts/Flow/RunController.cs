@@ -266,6 +266,13 @@ namespace Rill.Flow
             // makes the whole class impossible: anything at the title is the player's own mountain.
             LeaveDaily();
 
+            // The title IS the home screen, so arriving here ends the launch. FinishLaunch existed,
+            // was exercised by the headless navigation test, and was called by NOTHING in the game —
+            // so the Navigator sat on Launch forever, and the first Back from the mountain fell into
+            // the panel branch of ShowScreen and stranded the player on a dead screen with no back
+            // button. The play probe caught it: "Back returns to the main screen, state=Panel".
+            if (Nav.Current == AppScreen.Launch) Nav.FinishLaunch();
+
             Current = State.Title;
             if (arriving) Cam.SetTitleArriving(Active.SummitWorld);
             else Cam.SetTitle(Active.SummitWorld);
