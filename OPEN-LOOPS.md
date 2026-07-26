@@ -113,6 +113,10 @@ against these.
 **Careful** — Still do not tune `SteerAccel` or `SteerSpeedCost` on this alone. 40% may be correct
 for a game whose whole skill ceiling is restraint; that is a feel question and L-012 answers it.
 
+---
+
+## Next
+
 ### L-018 · Onboarding — the first 30 seconds explain nothing
 **Why** — There is no button and nothing moves on its own to suggest steering exists, so a player
 can complete several runs without discovering the only verb that matters. This is the single largest
@@ -354,18 +358,5 @@ m/run**.
 **Closed on slightly weaker evidence than asked for.** *Done when* wanted sediment moved to stay
 "near 74 m³/run"; it fell to **64** (−14%). Carving is genuinely slower now, which is the intended
 trade, but the number is outside what the loop asked for and is recorded here rather than rounded.
-
-### L-026 · Sea-floor depressions were being labelled as basins — closed 2026-07-26
-`BasinSystem.LabelBasins` seeded the priority flood from the map border and then labelled every
-depression it found, including ones under the sea. On the default seed **9 of the 14 "basins" had
-floors 7–158 m below sea level**, 230–330 m from the summit, and the two largest by capacity
-(4,967 m³ and 3,523 m³) were both submarine. They could not be filled by any amount of steering,
-so they sat at 0% forever, they made the basin lattice display nine dead entries, and they poisoned
-every routing measurement that picked a target basin at random. Two lines now skip cells at or below
-`SeaLevel`. This loop did not exist while the work was done — it was found inside L-009 and is
-written up here so the reason it mattered is on the record.
-**Evidence** — `basins found 14, capacity 16,712 m³` → **`basins found 5, capacity 5,591 m³`**, and
-the lattice went from nine permanent `0%` entries to five real tarns at 11 m, 28 m, 69 m, 42 m and
-3 m elevation.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
