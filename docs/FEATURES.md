@@ -82,8 +82,8 @@ Every feature named in `RILL-game-design.md`, with its real state.
 | Water ribbon as hero element | **Partial** | Widened and lifted; still not confirmed to read as the brightest thing in frame. |
 | Lakes | **Done** | Level surface (ring vertices take the lake's surface level, not terrain height), depth gradient over 2.5 m, soft shore. Confirmed by screenshot. |
 | The sea | **Done** | Subdivided 96², each vertex carrying real depth. Coastline grades deep blue → shallows → pale beach band. Confirmed by screenshot. |
-| Ecosystem props | **Partial** | Procedural cones/discs/blades, density scaled by life. Silhouettes are placeholder. |
-| Splash particles | **Built** | Code-built system + `Droplet.shader`. Now also driven continuously by speed, not only by plunges. Never seen. |
+| Ecosystem props | **Done** | Conifers with trunks and tiered crowns, moss cushions, reed clumps, huts with pitched roofs on flat ground. Vertex-baked vertical shading gives each internal form while staying one instanced material. Confirmed by render (L-016); canopies exist and are unused. |
+| Splash particles | **Built** | Code-built system + `Droplet.shader`. Now also driven continuously by speed, not only by plunges. Never seen — needs play mode; the capture tool cannot show per-run state. |
 | Camera (follow, report framing, idle pan) | **Done** | Retuned to 62 m back / 46 m up. |
 | Sense of speed | **Built** | FOV kick (13° at 24 m/s), camera closing 22% toward the bed, ribbon widening and brightening, and spray above 12 m/s — roughly terminal speed on fresh rock, so spray means "faster than un-carved ground allows". Never seen. Plunge impact still not started. |
 | Procedural water audio | **Built** | Synthesised from run state, no audio files. **Never heard.** |

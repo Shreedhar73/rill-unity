@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **13** · Closed this cycle: **31** (21 archived)
+Last updated: **2026-07-26** · Open loops: **13** · Closed this cycle: **32** (22 archived)
 
 ---
 
@@ -105,6 +105,19 @@ visible. A tap skips it, so a returning player never sits through it.
 
 ## Next
 
+### L-045 · The island ends in a straight line
+**Why** — Visible in every archived overview render, and nobody could see it before there were
+renders: the 512 m heightfield stops at a hard square boundary, so from the idle camera the seabed
+around the island is cut off by two straight diagonal edges against the open sea. It reads as the
+edge of a map, which is the one thing a world that never resets should never look like.
+**Done when** — The overview render shows no straight edge where terrain meets sea.
+**Evidence needed** — `docs/shots/mountain_150_overview.png`, retaken.
+**Cheapest fix first** — the sea mesh already extends to `WorldExtent × 3`, so this is only about
+the *terrain* stopping. Skirting the field edge downward to well below sea level, or fading the last
+few cells to seabed depth, would hide it without touching the simulation. Do not confuse it with
+L-023 (region streaming): that is about the world being bigger, this is about it not having a visible
+corner.
+
 ### L-043 · The basin lattice is finished by run 500
 **Why** — Measured 2026-07-26 over a 500-run season, the first time this game has been run far
 enough to see its own endgame. Four of five basins sit at **100%** and the fifth at 0%; runs stopping
@@ -156,41 +169,6 @@ steer, it clears and does not return. Session-scoped, because an existing save h
 whether its owner ever learned. Says **nothing** about the mountain remembering — that discovery is
 the game.
 
-### L-016 · Prop silhouettes worth looking at
-**Why** — Promoted from Later 2026-07-26, because it is the largest thing between this mountain and
-looking finished.
-**Unblocked from measurement 2026-07-26.** Props were drawn with `Graphics.DrawMesh` from `Update`,
-which never runs outside play mode, so the capture tool rendered rock and lakes and never the life
-on them — "no trees in the picture" meant nothing at all. `EcosystemSystem.BakeStaticRenderers`
-combines each instance list into one real `MeshRenderer`, so the whole look is now checkable from a
-terminal.
-**What the first render with life in it showed** — see [`docs/shots/`](docs/shots/). A green line of
-conifers traces the channel from the summit to the sea, with clumps around every lake. **The forest
-is the record of where the player routed water.** That was always the design and it had never once
-been visible. `842 bushes, 77 reeds, 57 moss, 12 huts` at 150 runs.
-**Done since** — conifers had transform variance already (scale, height, yaw) and still read as
-stamped paper cutouts, because one material per prop type means one flat tone and a flat tone has no
-form however you rotate it. Vertex colour was the only per-vertex channel available and the prop
-shader spent nothing on it; `PropMeshes` now bakes a vertical gradient into it — deep shade under a
-conifer's skirts, full colour at the crown — and `Prop.shader` multiplies by it. Still one material,
-still instanced, no runtime cost.
-**Then all three placeholders were replaced**, because with the props on screen they read as exactly
-what they were: a decal, a stroke and a cuboid. Moss is a cushion of three overlapping domes (a flat
-disc has no thickness and lights identically to the ground, which is what a decal *is*); reeds are a
-clump of five blades on the golden angle rather than one crossed quad; a hut has walls and a pitched
-roof. Conifers were also lifted out of near-black — the base is most of a tree's visible mass and
-the baked shading darkens exactly there, so a 0.42 base and a dark tint compounded into silhouettes.
-**Evidence** — six renders in [`docs/shots/`](docs/shots/), including a third framing on the densest
-life, added because these props are one to two metres tall on a 512 m mountain and the wider shots
-can be honestly rendered while saying nothing about them. Moss cushions, reed clumps and conifers
-all read as their thing at 24 and at 150 runs, and the pair is a progression story by itself: a few
-tufts round a new tarn, against a forest tracing the channel from summit to sea.
-**Still open, and it is now a short list** — the 12 huts at 150 runs do not appear in any archived
-framing, so the pitched roof is built and unobserved. `RevelationSystem` markers are still invisible
-to the capture tool, since only the ecosystem got a bake path.
-**Done when** — Every prop type reads as its thing at the idle camera, and a render is archived that
-shows it. Four of five types are there; huts and secret markers are not.
-
 ### L-014 · Sense of speed
 **Why** — The momentum economy is the game's skill ceiling, and at 24 m/s it currently looks the
 same as 9 m/s. The player cannot feel the thing they are optimising.
@@ -222,6 +200,40 @@ spray half alone.
 ---
 
 ## Recently closed
+
+### L-016 · Prop silhouettes worth looking at — closed 2026-07-26
+Moss was a flat disc, reeds a single crossed quad, huts a bare box; conifers and canopies had been
+built the same day and never seen. Nothing here could be judged at all until props were renderable,
+which is where this loop actually went.
+**Unblocked first.** Props are issued with `Graphics.DrawMesh` from `Update`, which never runs
+outside play mode, so offscreen renders showed bare rock — "no trees in the picture" meant nothing.
+`EcosystemSystem.BakeStaticRenderers` and `RevelationSystem.BakeStaticRenderers` combine each
+instance list into one real `MeshRenderer`. The shimmering secret *hints* are deliberately **not**
+baked: their whole character is a pulse driven by `Time.time`, and a still frame of one is a static
+yellow disc, which would misrepresent rather than show it.
+**Evidence** — seven renders in [`docs/shots/`](docs/shots/) at 24 and 150 runs, from four framings.
+Every prop type now reads as its thing: conifers with trunks and tiered crowns, moss as cushions,
+reeds as clumps, a hut with a pitched roof, and a revealed secret marker standing beside it.
+**Each fix came from looking, and none of them were the ones the loop predicted.**
+- Props read as stamped paper cutouts despite already having per-instance scale, height and yaw
+  variance — because one material per type is one flat tone, and a flat tone has no form however it
+  is rotated. Vertex colour was the only per-vertex channel free and the prop shader spent nothing
+  on it; `PropMeshes` now bakes a vertical gradient and `Prop.shader` multiplies by it.
+- Moss as a flat disc *is* a decal: no thickness, lit identically to the ground beneath it.
+- **Huts were placed on any ground at all.** Props sit at one sampled height with no slope
+  adaptation — invisible for a tree, since a buried trunk still reads as a tree, and wrong for a
+  building. On a 35° face a hut was half-buried uphill and floating downhill. They now require
+  near-flat ground, which is where people build.
+- Huts were *smaller than the conifers around them* (2.3 m against 3.1 m), so a village was hidden
+  by the wood it stood in.
+**Three bugs I introduced and the render caught, none visible to the type-checker** — the no-shading
+overload passed `(0, 1)`, which for a *flat* mesh puts every vertex at the dark end, so moss and huts
+rendered **black**; conifers came out near-black because the base is most of a tree's visible mass
+and the shading darkens exactly there; and the capture camera kept landing inside the hillside. That
+last one I corrected by hand once and it came straight back, which is the tell that the constants
+were never the problem — the camera now refuses to be underground.
+**Left undone deliberately** — canopies (`PropMeshes.Canopy`) exist and are not used by anything, so
+broadleaf growth is still built and unobserved.
 
 ### L-015 · Persistent wet-channel darkening — closed 2026-07-26
 A carved channel was invisible when dry, so the player could not see their own river system between
@@ -482,26 +494,5 @@ is net displacement, not speed. And seeding the flood where the head was caught 
 side, since it is oscillating — made the search find the hollow's own floor and report no rim, so it
 fired 3 times in 24 runs instead of the ~95 those runs needed.
 **Cost, recorded rather than rounded** — see L-039. Aimed delivery into a *specific* basin fell.
-
-### L-032 · Basin crossing teleports the stream — closed 2026-07-26
-`CrossBasin` set `Head.Pos` to the outlet in a single step, drawing the ribbon as a straight line
-across open water. Correct as physics, wrong as a picture, and reported as exactly that. The head now
-swims across the *water surface* to the outlet, ignoring terrain (the bed slopes back toward the
-basin centre, which defeated every earlier "steer toward the spill" attempt) and carving nothing.
-A second defect surfaced underneath it: the traverse aimed at `SpillCell`, the saddle — flat, and at
-water level once the basin is full — so arriving there left the head with no slope and it pooled on
-the rim. `BasinSystem.OutletCell` now walks past the lip to ground 1.5 m below spill level.
-**Evidence** — confirmed in play by the project owner. Measured alongside, 150 runs:
-
-| | teleport | traverse | traverse + outlet |
-|---|---|---|---|
-| ReachedSea | 35 | 33 | **45** |
-| delivered to sea | 1,776 m³ | 1,725 m³ | **2,322 m³** |
-| crossings reaching the sea | 5 of 23 | 2 of 22 | **16 of 24** |
-| distance after crossing | 42 m | 25 m | **103 m** |
-
-The middle column is a regression I introduced and the smoke test caught: decaying drift speed by
-`0.98` per **sub-step** at 90 Hz reached `StartSpeed` within a second, so a 40 m lake ate ~27 s of
-the 75 s run clock. Fixed by separating drift speed from the exit speed banked at crossing time.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
