@@ -28,6 +28,14 @@ booting the editor or taking the project lock.
 to be wrong. When the stub disagrees with Unity, the stub is wrong — fix `tools/unity-stub/` and
 note it.
 
+> **The harness is the thing that is usually wrong.** Five separate "the simulation is broken"
+> conclusions in this project have turned out to be flaws in the test, not the game: sub-sea-level
+> basins counted as targets, a bot that could not steer, a bot that could not persist, a bot aiming
+> at basins that were already full, and — most recently — the smoke test calling `EndRun` *before*
+> `Basins.Rebuild()`, the opposite order to `RunController.FinishRun`, which silently threw away
+> every headline a rebuild raises. Before concluding a system does nothing, check that the test
+> reads it the way the game does.
+
 ### 2. Compile in Unity, headless — ~1 minute
 
 ```bash

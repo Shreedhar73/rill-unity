@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **14** · Closed this cycle: **30** (19 archived)
+Last updated: **2026-07-26** · Open loops: **14** · Closed this cycle: **30** (21 archived)
 
 ---
 
@@ -455,43 +455,5 @@ the rim. `BasinSystem.OutletCell` now walks past the lip to ground 1.5 m below s
 The middle column is a regression I introduced and the smoke test caught: decaying drift speed by
 `0.98` per **sub-step** at 90 Hz reached `StartSpeed` within a second, so a 40 m lake ate ~27 s of
 the 75 s run clock. Fixed by separating drift speed from the exit speed banked at crossing time.
-
-### L-031 · A cascade steals the player's next run — closed 2026-07-26
-Three faults, only the first of which the original report pointed at. (1) The dam break ran off the
-tap that *dismissed the report card* — a tap indistinguishable from the one that starts a run — so
-the player believed their own run had begun inside a lake. It now plays **before** the report, as a
-consequence of the run rather than as the next one. (2) It launched at `SpillCell`, the flat saddle,
-where `down * StartSpeed` is ~zero and a full basin puts the lip at water level for another
-`drag += 2.5`: the overflow stalled on the rim, which the owner described as "there is no way out".
-It now starts below the lip. (3) It was bookkept as one of the player's runs — `BeginRun` incremented
-`RunNumber` so the report read "run 12" while the world had moved to 13, and it was written into the
-almanac, confluence queue, time-lapse and autosave, and consumed a Daily run. `BeginAutomaticEvent`
-takes the same snapshot without the run number and the recording block is skipped.
-**Evidence** — confirmed in play by the project owner.
-**Worth recording** — this was reported twice before it was fixed. The first attempt addressed *when*
-the cascade happened because that is what the description pointed at, but a reordered cascade that
-still cannot move was never going to help. "No way out" was the diagnosis, and it was read as a
-symptom.
-
-### L-013 · Water rendering — closed 2026-07-26
-Three separate defects, and the first two attempts at this were wrong in ways worth recording.
-*Attempt 1* reasoned from how the shader consumes vertex colour — shore alpha ramped to zero,
-sea subdivided — and was reported back as "it's a negative". *Attempt 2* only worked because a
-screenshot showed what reasoning had missed: the water sheet was visibly **climbing the terrain at
-its edges**.
-The cause was in the mesh, not the shader. `PooledWaterMesh` set every vertex to `Height + Water`,
-which is the lake surface for a submerged cell — but the feather ring exists *because a neighbour*
-holds water, so its own depth is 0 and the vertex landed at terrain height, above the waterline by
-definition. Every lake was modelled as a flat disc walling upward into a collar. "Flat discs with
-hard shorelines" was a literal description of the geometry.
-**Evidence** — screenshots from the project owner. A lake with a visible dark-to-pale depth gradient
-dissolving softly at the shore and sitting *in* its bowl; a coastline grading from deep blue through
-shallows to a pale beach band; and the run ribbon clearly the brightest thing in frame. All three
-*Done when* clauses met.
-**Fixes** — ring vertices take the neighbouring lake's surface level so the surface is level; depth
-gradient mapped over 2.5 m rather than 6 m (basins here are only metres deep, so a 6 m range pinned
-every lake at the shallow colour); the shader blends toward sky instead of adding it, which had been
-washing the water to a grey film; and the sea is subdivided 96² so each vertex carries real depth
-instead of a 4-vertex quad that could only ever be one flat tone.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
