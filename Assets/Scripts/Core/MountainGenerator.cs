@@ -68,6 +68,7 @@ namespace Rill.Core
                     float shore = s.ShoreRadius01 + coastWarp;
                     float mask = Mathf.Clamp01(1f - Mathf.SmoothStep(shore * 0.35f, shore, d));
 
+
                     // Cone + ridged spines + fbm detail. Spines are what give first-time players
                     // a reason to steer: the obvious line down a spine is fast but goes nowhere.
                     //
