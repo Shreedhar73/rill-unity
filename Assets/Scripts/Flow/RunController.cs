@@ -112,10 +112,12 @@ namespace Rill.Flow
             Hud.ReportDismissed += OnReportDismissed;
             Hud.PanelClosed += () => { if (Current == State.Panel) Current = State.Idle; };
             Hud.BackRequested += GoBack;
-            Hud.QuitRequested += Quit;
+            Hud.EndGameRequested += EndGame;
 
-            // Apple's guidelines are explicit that an iOS app must not offer to close itself, so
-            // the affordance is absent there rather than present and inert.
+            // The hardware back key at the root closes the app on Android, which is that platform's
+            // convention and the only place an app should ever close itself. Apple's guidelines are
+            // explicit that an iOS app must not, so there the key does not exist and neither does
+            // the action.
 #if UNITY_IOS && !UNITY_EDITOR
             Nav.CanQuit = false;
 #endif
@@ -210,7 +212,7 @@ namespace Rill.Flow
                     break;
 
                 case NavAction.Quit:
-                    Quit();
+                    QuitApplication();
                     break;
             }
         }
@@ -234,7 +236,32 @@ namespace Rill.Flow
             }
         }
 
-        void Quit()
+        /// <summary>
+        /// Ends the session and goes back to the main screen. This is what "close game" means here:
+        /// the run stops, the mountain is written to disk, and the player is home. The application
+        /// keeps running — nothing in this game is worth closing an app over, and the mountain is
+        /// still there when they come back, which is the entire premise.
+        /// </summary>
+        public void EndGame()
+        {
+            if (_sim != null && _sim.Running) _sim.Abort();
+            if (Current == State.Flowing || Current == State.Settling)
+            {
+                _settleReport = null;
+                FinishRun();
+            }
+
+            if (!InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField);
+
+            _cascades.Clear();
+            _heldReport = null;
+            Hud.HideAllPanels();
+            Nav.GoHome();
+            EnterTitle();
+        }
+
+        /// <summary>Closes the application. Only ever reached by Android's hardware back at the root.</summary>
+        void QuitApplication()
         {
             if (!Nav.CanQuit) return;
             // Save first. Quitting is the one exit that does not go through OnApplicationQuit on
@@ -311,7 +338,8 @@ namespace Rill.Flow
             Nav.RunInProgress = Current == State.Flowing || Current == State.Settling;
             Hud.SetBackVisible(Nav.Current != AppScreen.Launch && Nav.Current != AppScreen.Home
                                && Current != State.Flowing);
-            Hud.SetQuitVisible(Nav.Current == AppScreen.Home && Nav.CanQuit);
+            // End game belongs where a game is in progress, not on the screen it returns you to.
+            Hud.SetEndGameVisible(Nav.Current == AppScreen.Mountain && Current != State.Flowing);
 
             switch (Current)
             {

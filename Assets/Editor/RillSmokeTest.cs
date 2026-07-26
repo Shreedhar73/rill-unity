@@ -182,8 +182,16 @@ namespace Rill.EditorTools
             nav.Push(AppScreen.Almanac);
             check(nav.Depth == 3, "pushing the screen you are already on is not two screens deep");
 
+            // "End game" is GoHome from anywhere, however deep, however mid-run. It is not a quit:
+            // the application keeps running and the mountain is still there when the player returns,
+            // which is the entire premise.
+            nav.Push(AppScreen.Mountain);
+            nav.Push(AppScreen.Almanac);
+            nav.RunInProgress = true;
             nav.GoHome();
-            check(nav.Current == AppScreen.Home && nav.Depth == 1, "GoHome drops the whole stack");
+            check(nav.Current == AppScreen.Home && nav.Depth == 1,
+                  "End game returns to the main screen from any depth, even mid-run");
+            nav.RunInProgress = false;
 
             check(nav.Back() == NavAction.Quit, "Back at the root asks to quit where that is allowed");
             nav.CanQuit = false;

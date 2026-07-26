@@ -22,15 +22,16 @@ namespace Rill.UI
         public event Action PanelClosed;
         /// <summary>The on-screen back affordance. The hardware back key raises the same action.</summary>
         public event Action BackRequested;
-        public event Action QuitRequested;
+        /// <summary>Leave the mountain and go back to the main screen. Not an app quit.</summary>
+        public event Action EndGameRequested;
 
         Canvas _canvas;
         Text _topLeft, _topRight, _hint, _reportTitle, _reportBody, _panelBody, _panelTitle;
         Image _reportCard, _panel, _speedFill;
         CanvasGroup _reportGroup, _panelGroup, _buttonsGroup, _speedGroup, _titleGroup;
         Text _titleWord, _titleTag, _titleRecord;
-        Button _startButton, _backButton, _quitButton;
-        CanvasGroup _backGroup, _quitGroup;
+        Button _startButton, _backButton, _endButton;
+        CanvasGroup _backGroup, _endGroup;
         bool _titleShown;
         float _titleFade;
         const float TitleFadeSeconds = 1.4f;
@@ -109,8 +110,9 @@ namespace Rill.UI
         /// thumb: the whole game is played with one thumb at the bottom of the screen, and a
         /// destructive-ish control under it would be pressed by accident during a run.
         ///
-        /// Quit sits on the home screen only, and only where the platform permits an app to close
-        /// itself — see Navigator.CanQuit.
+        /// End game sits on the mountain, not on the main screen: it means "I am done with this
+        /// session, take me back", which is meaningless when you are already there. It ends any run
+        /// in flight, saves, and returns home. It does NOT close the application.
         /// </summary>
         void BuildBack(Transform root)
         {
@@ -121,12 +123,12 @@ namespace Rill.UI
             _backButton.onClick.AddListener(() => { if (BackRequested != null) BackRequested(); });
             SetBackVisible(false);
 
-            _quitButton = UIFactory.MakeButton(root, "Quit", "Close game", 26);
-            UIFactory.Place(_quitButton.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                            new Vector2(0f, 90f), new Vector2(300f, 78f));
-            _quitGroup = UIFactory.Group(_quitButton.gameObject);
-            _quitButton.onClick.AddListener(() => { if (QuitRequested != null) QuitRequested(); });
-            SetQuitVisible(false);
+            _endButton = UIFactory.MakeButton(root, "EndGame", "End game", 26);
+            UIFactory.Place(_endButton.gameObject, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                            new Vector2(-150f, -160f), new Vector2(260f, 84f));
+            _endGroup = UIFactory.Group(_endButton.gameObject);
+            _endButton.onClick.AddListener(() => { if (EndGameRequested != null) EndGameRequested(); });
+            SetEndGameVisible(false);
         }
 
         public void SetBackVisible(bool visible)
@@ -137,12 +139,12 @@ namespace Rill.UI
             _backGroup.blocksRaycasts = visible;
         }
 
-        public void SetQuitVisible(bool visible)
+        public void SetEndGameVisible(bool visible)
         {
-            if (_quitGroup == null) return;
-            _quitGroup.alpha = visible ? 1f : 0f;
-            _quitGroup.interactable = visible;
-            _quitGroup.blocksRaycasts = visible;
+            if (_endGroup == null) return;
+            _endGroup.alpha = visible ? 1f : 0f;
+            _endGroup.interactable = visible;
+            _endGroup.blocksRaycasts = visible;
         }
 
         public void SetTitle(bool visible, string record, System.Action onStart)
