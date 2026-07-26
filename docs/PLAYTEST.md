@@ -48,7 +48,8 @@ are data about what the game fails to communicate.
 ## Setup
 
 1. Open `Assets/Scenes/Rill.unity` and press **Play**. Nothing exists in the scene until
-   `GameBootstrap` builds it at runtime, so the Game view is bare skybox until you do.
+   `GameBootstrap` builds it at runtime, so the Game view is bare skybox until you do. The game
+   opens on its title screen; the tester presses **Begin** themselves.
 2. Start from a **virgin mountain**. On the `GameBootstrap` component in the scene, tick
    **`Reset World On Play`** (it deletes `Save Slot` on entering Play), or point `Save Slot` at an
    unused number. The world is the save file: a mountain with 150 runs of channels already carved is

@@ -18,7 +18,7 @@ namespace Rill.Flow
     /// </summary>
     public sealed class RunController : MonoBehaviour
     {
-        public enum State { Idle, Flowing, Settling, Report, Panel, TimeLapse }
+        public enum State { Title, Idle, Flowing, Settling, Report, Panel, TimeLapse }
 
         [Header("Wiring (filled in by GameBootstrap)")]
         public GameConfig Config;
@@ -103,7 +103,9 @@ namespace Rill.Flow
             // the thing they were in the middle of rather than by an instruction.
             _projects.Refresh(home, Ecosystem, Revelation, almanac);
 
-            EnterIdle();
+            // Boot into the title, not into a playable mountain. Opening straight into the run
+            // state gave the app no front door at all — it simply appeared, mid-game.
+            EnterTitle();
         }
 
         /// <summary>Points every renderer and system at a world. Used to swap in the Daily mountain.</summary>
@@ -133,6 +135,34 @@ namespace Rill.Flow
         }
 
         // ------------------------------------------------------------------ state machine
+
+        /// <summary>
+        /// The game opens here, not in a run. The mountain drifts behind the title — the world is
+        /// the save file, so the honest splash screen for this game is the river system the player
+        /// built last time, and a returning player sees their own work before they see a button.
+        /// </summary>
+        public void EnterTitle()
+        {
+            Current = State.Title;
+            Cam.SetOverview(Active.SummitWorld);
+            Ribbon.Clear();
+            Hud.SetIdleUI(false);
+            Hud.SetHint("");
+            Hud.HideAllPanels();
+            Hud.SetTopLine("", "");
+
+            string record = Active.RunNumber > 0
+                ? string.Format("{0:n0} runs · {1:n0} m³ moved · {2:n0} m³ to the sea",
+                                Active.RunNumber, Active.LifetimeSediment, Active.LifetimeWaterToSea)
+                : "A new mountain, untouched";
+            Hud.SetTitle(true, record, StartFromTitle);
+        }
+
+        void StartFromTitle()
+        {
+            Hud.SetTitle(false, "", null);
+            EnterIdle();
+        }
 
         void EnterIdle()
         {
@@ -193,6 +223,7 @@ namespace Rill.Flow
 
             switch (Current)
             {
+                case State.Title: break;
                 case State.Idle: UpdateIdle(); break;
                 case State.Flowing: UpdateFlowing(); break;
                 case State.Settling: UpdateSettling(); break;

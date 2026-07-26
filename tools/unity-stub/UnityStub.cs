@@ -539,6 +539,7 @@ namespace UnityEngine.Events
     public class UnityEvent : UnityEventBase
     {
         public void AddListener(Action call) { }
+        public void RemoveAllListeners() { }
         public void RemoveListener(Action call) { }
         public void Invoke() { }
     }

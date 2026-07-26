@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **14** · Closed this cycle: **22** (10 archived)
+Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **22** (10 archived)
 
 ---
 
@@ -43,6 +43,23 @@ Every loop has:
 ---
 
 ## Now
+
+### L-037 · The app has no front door
+**Why** — Requested 2026-07-26: the game opened straight into a playable mountain. There was no
+title, no moment of arrival, no deliberate act of starting — the app simply appeared, mid-game. A
+player has no idea what they are looking at or that they are already able to play it, and there is
+nowhere for the game to state its own name.
+**Done when** — Opening the app shows a title with the game's name and a Begin button; play starts
+only when the player chooses it.
+**Evidence needed** — Someone opens the app cold and knows what it is before they touch anything.
+**Implemented 2026-07-26, unobserved.** A `Title` state that boots first. Deliberately shows **the
+player's own mountain** drifting behind the title rather than any art — the world is the save file,
+so the most honest splash screen this game can have is the river system they built last time. Under
+the name sits their record, read off the world rather than awarded: `47 runs · 12,805 m³ moved ·
+2,322 m³ to the sea`, or "A new mountain, untouched" on a fresh save.
+**Not done, and deliberately not guessed at** — "nice graphics" was part of the request and this is
+typography over a live mountain, nothing more. Whether that is enough, or whether it wants a logo
+treatment, a vignette, or a scripted camera move over the terrain, is a look-at-it question.
 
 ### L-036 · The run ends without a beat
 **Why** — Observed in play 2026-07-26: "the closing is also too sudden." The report card appeared on

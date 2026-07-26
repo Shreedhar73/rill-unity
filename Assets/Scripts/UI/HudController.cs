@@ -24,7 +24,9 @@ namespace Rill.UI
         Canvas _canvas;
         Text _topLeft, _topRight, _hint, _reportTitle, _reportBody, _panelBody, _panelTitle;
         Image _reportCard, _panel, _speedFill;
-        CanvasGroup _reportGroup, _panelGroup, _buttonsGroup, _speedGroup;
+        CanvasGroup _reportGroup, _panelGroup, _buttonsGroup, _speedGroup, _titleGroup;
+        Text _titleWord, _titleTag, _titleRecord;
+        Button _startButton;
         RectTransform _buttons;
 
         public bool ReportVisible { get; private set; }
@@ -45,6 +47,7 @@ namespace Rill.UI
             _hint = UIFactory.MakeText(root, "Hint", "", 34, TextAnchor.LowerCenter, UIFactory.InkDim);
             UIFactory.Place(_hint.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 250f), new Vector2(900f, 90f));
 
+            BuildTitle(root);
             BuildSpeedMeter(root);
             BuildButtons(root);
             BuildReportCard(root);
@@ -53,6 +56,62 @@ namespace Rill.UI
             SetReportVisible(false);
             SetPanelVisible(false);
         }
+
+        /// <summary>
+        /// The title. It deliberately shows the player's own mountain drifting behind it rather
+        /// than any art: the world is the save file, so the most honest splash screen this game can
+        /// have is the thing they made last time. A returning player sees their own river system
+        /// before they see a button.
+        /// </summary>
+        void BuildTitle(Transform root)
+        {
+            var holder = new GameObject("Title", typeof(RectTransform));
+            holder.transform.SetParent(root, false);
+            var hrt = UIFactory.Rect(holder);
+            hrt.anchorMin = Vector2.zero; hrt.anchorMax = Vector2.one;
+            hrt.offsetMin = Vector2.zero; hrt.offsetMax = Vector2.zero;
+
+            // A wash rather than a slab, so the mountain stays readable underneath.
+            var wash = UIFactory.MakePanel(holder.transform, "Wash", new Color(0.05f, 0.06f, 0.08f, 0.42f));
+            var wrt = UIFactory.Rect(wash.gameObject);
+            wrt.anchorMin = Vector2.zero; wrt.anchorMax = Vector2.one;
+            wrt.offsetMin = Vector2.zero; wrt.offsetMax = Vector2.zero;
+            wash.raycastTarget = false;
+
+            _titleWord = UIFactory.MakeText(holder.transform, "Word", "RILL", 150, TextAnchor.MiddleCenter, UIFactory.Ink);
+            UIFactory.Place(_titleWord.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 210f), new Vector2(1000f, 190f));
+            _titleWord.raycastTarget = false;
+
+            _titleTag = UIFactory.MakeText(holder.transform, "Tag", "Steer the water. The mountain remembers.",
+                                           34, TextAnchor.MiddleCenter, UIFactory.InkDim);
+            UIFactory.Place(_titleTag.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 96f), new Vector2(1100f, 60f));
+            _titleTag.raycastTarget = false;
+
+            _titleRecord = UIFactory.MakeText(holder.transform, "Record", "", 30, TextAnchor.MiddleCenter, UIFactory.InkDim);
+            UIFactory.Place(_titleRecord.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -150f), new Vector2(1100f, 56f));
+            _titleRecord.raycastTarget = false;
+
+            _startButton = UIFactory.MakeButton(holder.transform, "Start", "Begin", 40);
+            UIFactory.Place(_startButton.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -50f), new Vector2(420f, 108f));
+
+            _titleGroup = UIFactory.Group(holder);
+        }
+
+        public void SetTitle(bool visible, string record, System.Action onStart)
+        {
+            if (_titleGroup == null) return;
+            _titleGroup.alpha = visible ? 1f : 0f;
+            _titleGroup.blocksRaycasts = visible;
+            _titleGroup.interactable = visible;
+            if (_titleRecord != null) _titleRecord.text = record ?? "";
+            if (_startButton != null)
+            {
+                _startButton.onClick.RemoveAllListeners();
+                if (onStart != null) _startButton.onClick.AddListener(() => onStart());
+            }
+        }
+
+        public bool TitleVisible => _titleGroup != null && _titleGroup.blocksRaycasts;
 
         void BuildSpeedMeter(Transform root)
         {
