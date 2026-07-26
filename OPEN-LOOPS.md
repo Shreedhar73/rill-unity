@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **13** · Closed this cycle: **22** (10 archived)
+Last updated: **2026-07-26** · Open loops: **14** · Closed this cycle: **22** (10 archived)
 
 ---
 
@@ -44,6 +44,18 @@ Every loop has:
 
 ## Now
 
+### L-036 · The run ends without a beat
+**Why** — Observed in play 2026-07-26: "the closing is also too sudden." The report card appeared on
+the same frame the water stopped, so the player never saw what they had just carved — the camera
+frames the deepest cut and the carve overlay comes up, and both were immediately covered by a UI
+panel. The run's *result* is the whole reward loop, and it was being skipped past.
+**Done when** — The end of a run reads as an ending: the stream settles, the carve is visible for a
+moment, then the card arrives. A player who wants to skip it can.
+**Evidence needed** — Someone plays and does not describe the ending as abrupt.
+**Implemented 2026-07-26, unobserved.** New `Settling` state holds for 1.1 s between the run ending
+and the card, fading the ribbon at 0.6× speed while the already-framed camera and carve overlay are
+visible. A tap skips it, so a returning player never sits through it.
+
 ### L-030 · An aimed run arrives about 40% of the time
 **Why** — L-027 established that a player who commits a campaign to a basin can fill it. What it also
 measured is that individual aimed runs are unreliable, and the ones that miss get within an average
@@ -77,13 +89,15 @@ boring for a reason that has nothing to do with the game.
 **Done when** — A first-time player discovers both verbs (tap to release, hold-drag to lean) inside
 their first two runs without being told by a person.
 **Evidence needed** — Watch someone start cold. Their questions are the measurement.
-**Implemented 2026-07-26, unobserved.** Runs 1–2 idle line reads "Tap to let the water go", runs 3–5
-"Hold and drag while it runs to lean the water", and during the very first run a hint appears if two
-seconds pass untouched. Deliberately says **nothing** about the mountain remembering, basins, or
-goals — that discovery is the game, and naming it replaces it with a chore. It names only what the
-thumb does.
-**Risk to watch** — this now overrides the projects/idle line for the first five runs, so a player
-never sees a project prompt early. That is probably right, but it is a real trade and not measured.
+**Attempt 1 failed — reported 2026-07-26 as "onboarding is not here".** It was gated on
+`Active.RunNumber < 6`, so it could never appear on an existing mountain — which is every mountain
+except a brand new one. It compiled, it committed, and it was structurally incapable of being seen.
+**Attempt 2, unobserved.** Now gated on whether the player has actually steered, which is the thing
+being taught: "Tap to let the water go" before their first run, "Hold and drag while it runs to lean
+the water" on idle afterwards, and a mid-run prompt if two seconds pass untouched. The moment they
+steer, it clears and does not return. Session-scoped, because an existing save has no record of
+whether its owner ever learned. Says **nothing** about the mountain remembering — that discovery is
+the game.
 
 ### L-012 · Hand playtest against the kill criterion
 **Why** — The design document sets an explicit M3 kill criterion: if playtesting does not produce

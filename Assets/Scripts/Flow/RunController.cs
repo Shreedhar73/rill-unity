@@ -18,7 +18,7 @@ namespace Rill.Flow
     /// </summary>
     public sealed class RunController : MonoBehaviour
     {
-        public enum State { Idle, Flowing, Report, Panel, TimeLapse }
+        public enum State { Idle, Flowing, Settling, Report, Panel, TimeLapse }
 
         [Header("Wiring (filled in by GameBootstrap)")]
         public GameConfig Config;
@@ -63,6 +63,11 @@ namespace Rill.Flow
         CarveReport _heldReport;
         // Session-scoped: an existing save has no record of whether its owner ever learned to steer.
         bool _hasSteered;
+
+        // The pause between the run ending and the report card.
+        const float SettleSeconds = 1.1f;
+        CarveReport _settleReport;
+        float _settleTimer;
         bool _autoRun;
         Vector2 _lastThumbPos;
 
@@ -190,6 +195,7 @@ namespace Rill.Flow
             {
                 case State.Idle: UpdateIdle(); break;
                 case State.Flowing: UpdateFlowing(); break;
+                case State.Settling: UpdateSettling(); break;
                 case State.Report: break;
                 case State.Panel: break;
                 case State.TimeLapse: UpdateTimeLapse(); break;
@@ -395,8 +401,7 @@ namespace Rill.Flow
                     var held = _heldReport;
                     _heldReport = null;
                     if (Config.ShowCarveOverlay) Terrain.ShowCarveOverlay(_beforeHeights);
-                    Current = State.Report;
-                    Hud.ShowReport(held, Revelation.RevealedCount(), Active.Secrets.Count);
+                    BeginSettle(held);
                     return;
                 }
 
@@ -416,6 +421,32 @@ namespace Rill.Flow
                 return;
             }
 
+            BeginSettle(report);
+        }
+
+        /// <summary>
+        /// A beat between the water stopping and the card arriving. The report used to appear on the
+        /// same frame the run ended, which gave the player no moment to look at what they had just
+        /// carved — reported as the ending being too sudden. The camera has already framed the
+        /// deepest cut and the overlay is already up; this simply lets them be seen.
+        /// </summary>
+        void BeginSettle(CarveReport report)
+        {
+            _settleReport = report;
+            _settleTimer = SettleSeconds;
+            Current = State.Settling;
+        }
+
+        void UpdateSettling()
+        {
+            Ribbon.FadeOut(Time.deltaTime * 0.6f);   // the stream thins out rather than vanishing
+            _settleTimer -= Time.deltaTime;
+
+            // A tap skips the wait: never make a returning player sit through it.
+            if (_settleTimer > 0f && !Thumb.WasTap()) return;
+
+            var report = _settleReport;
+            _settleReport = null;
             Current = State.Report;
             Hud.ShowReport(report, Revelation.RevealedCount(), Active.Secrets.Count);
         }
