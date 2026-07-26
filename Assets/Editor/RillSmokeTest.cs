@@ -132,6 +132,7 @@ namespace Rill.EditorTools
         public class Summary
         {
             public int Sea, TimedOut, Pooled, AimedRuns, AimedDelivered, StoppedInBasin, AimedEntered;
+            public int BasinCountMin, BasinCountMax, BasinCountEnd;
             public float DistancePerRun, Descent, SedimentPerRun, ToSea, AimedMiss, AimedClosest, HollowVolume, HeldWater;
             public float TargetFill, TargetVolume;
         }
@@ -226,6 +227,32 @@ namespace Rill.EditorTools
             Debug.Log(log.ToString());
         }
 
+        /// <summary>
+        /// One sustained campaign per basin, over a season. At run 500 four basins sit at 100% and
+        /// one at 0%, which reads as a hole in the progression track — but the bot picks its target
+        /// by largest headroom, so it spends almost the whole session on the 2,038 m³ basin and only
+        /// turns to the 363 m³ one at the very end. That is exactly the shape of the three previous
+        /// occasions where the harness was the answer, so it gets tested before anything is
+        /// designed. (L-043)
+        /// </summary>
+        [MenuItem("RILL/Run Headless Campaign — every basin", false, 69)]
+        public static void RunHeadlessCampaignEachBasin()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== one sustained 500-run campaign per basin, fresh mountain each time ===");
+            log.AppendLine("  target   final fill   held        entered  delivered   sea   dist/run   basins min-max (end)");
+            for (int b = 0; b < 5; b++)
+            {
+                var sum = new Summary();
+                PlayBiome(500, Biome.Sandstone, null, sum, b);
+                log.AppendFormat("  #{0}     {1,7:0.0}%  {2,7:n0} m3  {3,6}/{4}  {5,6}/{4}  {6,4}  {7,7:0} m   {8}-{9} ({10})\n",
+                    b, sum.TargetFill * 100f, sum.TargetVolume, sum.AimedEntered, sum.AimedRuns,
+                    sum.AimedDelivered, sum.Sea, sum.DistancePerRun,
+                    sum.BasinCountMin, sum.BasinCountMax, sum.BasinCountEnd);
+            }
+            Debug.Log(log.ToString());
+        }
+
         static void SweepSteering(int runs, float[] arms)
         {
             var log = new StringBuilder();
@@ -314,6 +341,7 @@ namespace Rill.EditorTools
             int crossingRuns = 0, crossingToSea = 0, aimedDelivered = 0, aimedEntered = 0, aimedPassedThrough = 0;
             int aimedWithRoom = 0, aimedEnteredWithRoom = 0;
             int campaignBasin = -1;
+            int basinCountMin = int.MaxValue, basinCountMax = 0;
             float waterToBasins = 0f;
             float aimedClosest = 0f;
             float distanceAfterCrossing = 0f;
@@ -349,6 +377,9 @@ namespace Rill.EditorTools
                 // away from the sea — which depressed sea arrivals on its own and made "water
                 // reaches the sea sometimes" unmeasurable. The mix has to be neutral between the
                 // two endings the loop is judged on.
+                if (world.Basins.Basins.Count < basinCountMin) basinCountMin = world.Basins.Basins.Count;
+                if (world.Basins.Basins.Count > basinCountMax) basinCountMax = world.Basins.Basins.Count;
+
                 float intent = rng.Next01();
                 bool aimBasin = world.Basins.Basins.Count > 0 && intent < 0.34f;
                 bool aimSea = !aimBasin && intent < 0.67f;
@@ -378,7 +409,14 @@ namespace Rill.EditorTools
                     // the harness choosing impossible targets, and it silently got worse over a
                     // session precisely *because* the game was working. A player picks somewhere
                     // that still has room. (L-039)
-                    if (forcedCampaignBasin >= 0) campaignBasin = forcedCampaignBasin;
+                    // Basin ids come from a rescan every run, and the count is NOT stable: terrain
+                    // moves, depressions merge and split, and a 500-run season can end with fewer
+                    // basins than it started with. An index-based campaign target therefore has to
+                    // be range-checked every run — it threw ArgumentOutOfRangeException the first
+                    // time this was run over a season — and any index-based comparison in this file
+                    // is only meaningful while basinCountMin == basinCountMax.
+                    if (forcedCampaignBasin >= 0)
+                        campaignBasin = Mathf.Min(forcedCampaignBasin, world.Basins.Basins.Count - 1);
                     else if (campaignBasin < 0 || (run - 1) % 50 == 0)
                     {
                         campaignBasin = 0;
@@ -618,6 +656,9 @@ namespace Rill.EditorTools
                 summary.AimedClosest = aimedRuns > 0 ? aimedClosest / aimedRuns : 0f;
                 summary.HollowVolume = hollowVolume;
                 summary.AimedEntered = aimedEntered;
+                summary.BasinCountMin = basinCountMin;
+                summary.BasinCountMax = basinCountMax;
+                summary.BasinCountEnd = world.Basins.Basins.Count;
                 summary.HeldWater = world.Basins.TotalWater();
                 if (forcedCampaignBasin >= 0 && forcedCampaignBasin < world.Basins.Basins.Count)
                 {
@@ -723,12 +764,24 @@ namespace Rill.EditorTools
                 log.Append("  stop basins:    ");
                 foreach (var kv in stopBasinHits)
                 {
+                    // Ids were collected across the whole session against a list that is rebuilt
+                    // every run, and the count is not stable — it threw here on the first 500-run
+                    // season. An id that no longer exists is reported as such rather than dropped,
+                    // because a basin disappearing mid-session is a fact worth seeing.
+                    if (kv.Key >= world.Basins.Basins.Count)
+                    {
+                        log.AppendFormat("#{0} (gone) x{1}  ", kv.Key, kv.Value);
+                        continue;
+                    }
                     var b = world.Basins.Basins[kv.Key];
                     log.AppendFormat("#{0} \"{1}\" x{2} ({3:0}% full)  ", kv.Key, b.Name, kv.Value, b.FillFraction * 100f);
                 }
                 log.AppendLine();
             }
             log.AppendFormat("  water held       {0:n0} m³ across {1} basins\n", world.Basins.TotalWater(), world.Basins.Basins.Count);
+            log.AppendFormat("  basin count      {0}{1}\n", basinCountMin,
+                basinCountMin == basinCountMax ? " throughout — index-based comparisons are sound"
+                                               : "-" + basinCountMax + " — IT MOVED, every index-based number above is suspect");
             log.AppendFormat("  dam breaks       {0} overflows, {1:n0} m³ over the lip\n", overflows, overflowVolume);
             log.AppendFormat("  fullest basin    {0:0.0}%\n", FullestBasin(world) * 100f);
             log.AppendFormat("  polished cells   {0} ({1:0.0}% of field)\n", PolishedCells(world), PolishedCells(world) * 100f / world.Field.Count);
