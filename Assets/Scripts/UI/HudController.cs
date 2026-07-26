@@ -133,8 +133,12 @@ namespace Rill.UI
             _startButton = UIFactory.MakeButton(holder.transform, "Start", "Begin", 40);
             UIFactory.Place(_startButton.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -50f), new Vector2(420f, 108f));
 
-            // One row per mountain, stacked under the name. Built once and re-labelled, because a
+            // One row per mountain, stacked BELOW Begin. Built once and re-labelled, because a
             // menu that destroys and rebuilds its own buttons is a menu that loses a click.
+            //
+            // The rows do not replace Begin. They did for one build, and the report was immediate:
+            // "the start button is gone". Three stat lines are a place to switch mountains, not an
+            // obvious way to start the game — the primary verb keeps a primary button.
             _slotButtons = new Button[MountainRoster.Slots];
             _slotLabels = new Text[MountainRoster.Slots];
             for (int i = 0; i < MountainRoster.Slots; i++)
@@ -142,7 +146,7 @@ namespace Rill.UI
                 Text label;
                 var b = UIFactory.MakeButton(holder.transform, "Slot" + i, "", 26, out label);
                 UIFactory.Place(b.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                                new Vector2(0f, 40f - i * 112f), new Vector2(880f, 96f));
+                                new Vector2(0f, -210f - i * 112f), new Vector2(880f, 96f));
                 _slotButtons[i] = b;
                 _slotLabels[i] = label;
                 int index = i;
@@ -175,8 +179,6 @@ namespace Rill.UI
                 _slotButtons[i].gameObject.SetActive(has);
                 if (has && _slotLabels[i] != null) _slotLabels[i].text = rows[i];
             }
-            // The three rows replace the single Begin button once there is a choice to make.
-            if (_startButton != null) _startButton.gameObject.SetActive(false);
         }
 
         public void SetMountainsVisible(bool visible)
