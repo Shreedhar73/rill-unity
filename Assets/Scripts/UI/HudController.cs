@@ -20,13 +20,17 @@ namespace Rill.UI
         public event Action ShareRequested;
         public event Action ReportDismissed;
         public event Action PanelClosed;
+        /// <summary>The on-screen back affordance. The hardware back key raises the same action.</summary>
+        public event Action BackRequested;
+        public event Action QuitRequested;
 
         Canvas _canvas;
         Text _topLeft, _topRight, _hint, _reportTitle, _reportBody, _panelBody, _panelTitle;
         Image _reportCard, _panel, _speedFill;
         CanvasGroup _reportGroup, _panelGroup, _buttonsGroup, _speedGroup, _titleGroup;
         Text _titleWord, _titleTag, _titleRecord;
-        Button _startButton;
+        Button _startButton, _backButton, _quitButton;
+        CanvasGroup _backGroup, _quitGroup;
         bool _titleShown;
         float _titleFade;
         const float TitleFadeSeconds = 1.4f;
@@ -51,6 +55,7 @@ namespace Rill.UI
             UIFactory.Place(_hint.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 250f), new Vector2(900f, 90f));
 
             BuildTitle(root);
+            BuildBack(root);
             BuildSpeedMeter(root);
             BuildButtons(root);
             BuildReportCard(root);
@@ -97,6 +102,47 @@ namespace Rill.UI
             UIFactory.Place(_startButton.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -50f), new Vector2(420f, 108f));
 
             _titleGroup = UIFactory.Group(holder);
+        }
+
+        /// <summary>
+        /// The one affordance that has to exist on every screen. Placed top-left, away from the
+        /// thumb: the whole game is played with one thumb at the bottom of the screen, and a
+        /// destructive-ish control under it would be pressed by accident during a run.
+        ///
+        /// Quit sits on the home screen only, and only where the platform permits an app to close
+        /// itself — see Navigator.CanQuit.
+        /// </summary>
+        void BuildBack(Transform root)
+        {
+            _backButton = UIFactory.MakeButton(root, "Back", "‹  Back", 30);
+            UIFactory.Place(_backButton.gameObject, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                            new Vector2(150f, -160f), new Vector2(220f, 84f));
+            _backGroup = UIFactory.Group(_backButton.gameObject);
+            _backButton.onClick.AddListener(() => { if (BackRequested != null) BackRequested(); });
+            SetBackVisible(false);
+
+            _quitButton = UIFactory.MakeButton(root, "Quit", "Close game", 26);
+            UIFactory.Place(_quitButton.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                            new Vector2(0f, 90f), new Vector2(300f, 78f));
+            _quitGroup = UIFactory.Group(_quitButton.gameObject);
+            _quitButton.onClick.AddListener(() => { if (QuitRequested != null) QuitRequested(); });
+            SetQuitVisible(false);
+        }
+
+        public void SetBackVisible(bool visible)
+        {
+            if (_backGroup == null) return;
+            _backGroup.alpha = visible ? 1f : 0f;
+            _backGroup.interactable = visible;
+            _backGroup.blocksRaycasts = visible;
+        }
+
+        public void SetQuitVisible(bool visible)
+        {
+            if (_quitGroup == null) return;
+            _quitGroup.alpha = visible ? 1f : 0f;
+            _quitGroup.interactable = visible;
+            _quitGroup.blocksRaycasts = visible;
         }
 
         public void SetTitle(bool visible, string record, System.Action onStart)

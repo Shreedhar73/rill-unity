@@ -42,6 +42,13 @@ namespace Rill.Flow
         [HideInInspector] public float PendingBonusVolume;
 
         public State Current { get; private set; } = State.Idle;
+
+        /// <summary>
+        /// Where the player is in the app, above the run loop. Owned here for now because
+        /// RunController is still the only thing with a Update(); it moves up to a shell when
+        /// there is more than one mountain to choose between (L-047).
+        /// </summary>
+        public readonly Navigator Nav = new Navigator();
         public RillWorld Home { get; private set; }
         public RillWorld Active { get; private set; }
         public bool InDaily { get; private set; }
@@ -104,6 +111,14 @@ namespace Rill.Flow
             Hud.ShareRequested += OnShare;
             Hud.ReportDismissed += OnReportDismissed;
             Hud.PanelClosed += () => { if (Current == State.Panel) Current = State.Idle; };
+            Hud.BackRequested += GoBack;
+            Hud.QuitRequested += Quit;
+
+            // Apple's guidelines are explicit that an iOS app must not offer to close itself, so
+            // the affordance is absent there rather than present and inert.
+#if UNITY_IOS && !UNITY_EDITOR
+            Nav.CanQuit = false;
+#endif
 
             // Surface projects before the first idle frame, so a returning player is greeted by
             // the thing they were in the middle of rather than by an instruction.
@@ -167,7 +182,69 @@ namespace Rill.Flow
         void StartFromTitle()
         {
             Hud.SetTitle(false, "", null);
+            Nav.Push(AppScreen.Mountain);
             EnterIdle();
+        }
+
+        /// <summary>
+        /// One back action, whatever raised it — the on-screen button or the hardware key.
+        ///
+        /// A run in flight is not interrupted silently: the Navigator refuses to move and asks for
+        /// the run to be abandoned first, so the water in the head gets left on the mountain
+        /// instead of deleted. Abandoning then falls through to the same Back again.
+        /// </summary>
+        public void GoBack()
+        {
+            switch (Nav.Back())
+            {
+                case NavAction.AbandonRun:
+                    if (_sim != null && _sim.Running) _sim.Abort();
+                    _settleReport = null;
+                    FinishRun();
+                    Hud.HideAllPanels();
+                    ShowScreen();
+                    break;
+
+                case NavAction.Changed:
+                    ShowScreen();
+                    break;
+
+                case NavAction.Quit:
+                    Quit();
+                    break;
+            }
+        }
+
+        /// <summary>Puts the game where the Navigator now says it is.</summary>
+        void ShowScreen()
+        {
+            Hud.HideAllPanels();
+            switch (Nav.Current)
+            {
+                case AppScreen.Home:
+                    EnterTitle();
+                    break;
+                case AppScreen.Mountain:
+                    if (Current != State.Idle) EnterIdle();
+                    break;
+                default:
+                    // Panels are their own screens; the run loop just stops driving the mountain.
+                    Current = State.Panel;
+                    break;
+            }
+        }
+
+        void Quit()
+        {
+            if (!Nav.CanQuit) return;
+            // Save first. Quitting is the one exit that does not go through OnApplicationQuit on
+            // every platform, and this game's entire premise is that the world remembers.
+            if (!InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField);
+
+            // No UnityEditor branch here on purpose: a runtime assembly that references UnityEditor
+            // compiles in the editor and breaks the player build, guarded or not. Application.Quit
+            // is simply a no-op in play mode, which is the correct amount of nothing.
+            Application.Quit();
         }
 
         void EnterIdle()
@@ -226,6 +303,15 @@ namespace Rill.Flow
         void Update()
         {
             if (Thumb == null || Active == null) return;
+
+            // Android's hardware back must do what the on-screen back does, or the OS wins and the
+            // app closes out from under a run in progress.
+            if (Input.GetKeyDown(KeyCode.Escape)) GoBack();
+
+            Nav.RunInProgress = Current == State.Flowing || Current == State.Settling;
+            Hud.SetBackVisible(Nav.Current != AppScreen.Launch && Nav.Current != AppScreen.Home
+                               && Current != State.Flowing);
+            Hud.SetQuitVisible(Nav.Current == AppScreen.Home && Nav.CanQuit);
 
             switch (Current)
             {

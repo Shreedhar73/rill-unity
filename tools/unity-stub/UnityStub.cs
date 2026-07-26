@@ -276,6 +276,8 @@ namespace UnityEngine
         public static RenderTexture active { get; set; }
     }
 
+    public enum KeyCode { None = 0, Escape = 27 }
+
     public static class SystemInfo
     {
         public static UnityEngine.Rendering.GraphicsDeviceType graphicsDeviceType
@@ -392,6 +394,8 @@ namespace UnityEngine
         public static Vector3 mousePosition { get { return new Vector3(); } }
         public static int touchCount { get { return 0; } }
         public static Touch GetTouch(int i) { return new Touch(); }
+        // Android maps its hardware back key to Escape, which is how the shell hears it.
+        public static bool GetKeyDown(KeyCode k) { return false; }
     }
 
     public static class Debug
@@ -421,6 +425,7 @@ namespace UnityEngine
         public static string dataPath { get { return ""; } }
         public static int targetFrameRate { get; set; }
         public static bool isEditor { get { return false; } }
+        public static void Quit() { }
     }
 
     public static class QualitySettings
