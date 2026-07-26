@@ -97,8 +97,8 @@ namespace Rill.EditorTools
                             sim.SetSteer(rng.Next01() < 0.45f, sim.Head.Pos + new Vector2(rng.Range(-25f, 25f), rng.Range(-25f, 25f)));
                         sim.Advance(config.SimStep);
                     }
-                    world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
                     world.Basins.Rebuild();
+                    world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
                     world.ApplyBetweenRunDrift();
                     Rill.World.BiomeRules.BetweenRuns(world, weather, headlines);
                 }
@@ -196,8 +196,8 @@ namespace Rill.EditorTools
         public static void RunHeadlessCampaign()
         {
             var log = new StringBuilder();
-            log.AppendLine("=== one sustained campaign against basin #0, 150 runs ===");
-            log.Append(PlayBiome(150, Biome.Sandstone, null, null, 0));
+            log.AppendLine("=== one sustained campaign against basin #3, 500 runs ===");
+            log.Append(PlayBiome(500, Biome.Sandstone, null, null, 3));
             Debug.Log(log.ToString());
         }
 
@@ -326,6 +326,11 @@ namespace Rill.EditorTools
             // is a question this test can answer and never has. (L-019)
             int overflows = 0; float overflowVolume = 0f;
             world.BasinOverflowed += (b, excess) => { overflows++; overflowVolume += excess; };
+            // Counted off the event as well as off the headline, because those are two different
+            // claims: one says the world raised it, the other says the player would have been told.
+            int lostEvents = 0, mergeEvents = 0, latticeShown = 0;
+            world.Basins.Lost += (name, vol) => lostEvents++;
+            world.Basins.Merged += (oldNames, survivor) => mergeEvents++;
             var endings = new Dictionary<RunEnding, int>();
             var dailyPaths = new List<List<Vector3>>();
             var dailySea = new List<bool>();
@@ -351,6 +356,7 @@ namespace Rill.EditorTools
             float hollowVolume = 0f;
             var stopBasinHits = new Dictionary<int, int>();
             var biomeHeadlineCounts = new Dictionary<string, int>();
+            var worldHeadlines = new Dictionary<string, int>();
             // A "Pooled" ending covers three different failures — sat down in a lake, sank into a
             // pit it dug, or seized up on a slope the terminal-speed identity says should still
             // carry it at ~6 m/s — and they need opposite fixes. Split the ending by what the
@@ -565,14 +571,40 @@ namespace Rill.EditorTools
                     if (sim.Ending == RunEnding.ReachedSea) seaHits++;
                 }
 
-                var rep = world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+                // Rebuild BEFORE EndRun, which is the order RunController.FinishRun uses. The test
+                // had them the other way round, and it silently threw away every headline the
+                // rebuild raises: they land in the world's pending list and the next BeginRun
+                // clears it before anything reads it. That is why "basins silted up 0" was printed
+                // for a season in which the lattice demonstrably went from 5 basins to 3 — the
+                // detection was fine and the harness was reading it a run too early.
+                //
+                // Terrain moved during the run, so the depression map is stale until this runs;
+                // rebuilding first is also what makes the report's basin fill percentages true.
                 world.Basins.Rebuild();
+                var rep = world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
                 world.ApplyBetweenRunDrift();
                 biomeHeadlines.Clear();
                 Rill.World.BiomeRules.BetweenRuns(world, weather, biomeHeadlines);
                 for (int h = 0; h < biomeHeadlines.Count; h++)
                     if (!biomeHeadlineCounts.ContainsKey(biomeHeadlines[h])) biomeHeadlineCounts[biomeHeadlines[h]] = 1;
                     else biomeHeadlineCounts[biomeHeadlines[h]]++;
+
+                // Headlines the world itself raised, as opposed to the biome rules. Overflows and
+                // basins silting out of existence come through here, and neither had ever been
+                // counted — a basin can vanish under a campaign and nothing said so. (L-044)
+                // The headline existing is not the same claim as the player being told. Summary()
+                // is the card's title — the one sentence they cannot miss — and it did not surface
+                // a lattice change at all until this was checked. HudController also lists every
+                // entry in rep.Headlines in the card body, so a change that loses the title to a
+                // dam break is still on screen; this counts the stronger claim.
+                if (!string.IsNullOrEmpty(rep.LatticeChange) && rep.Summary() == rep.LatticeChange) latticeShown++;
+
+                for (int h = 0; h < rep.Headlines.Count; h++)
+                {
+                    string key = rep.Headlines[h];
+                    if (!worldHeadlines.ContainsKey(key)) worldHeadlines[key] = 1;
+                    else worldHeadlines[key]++;
+                }
 
                 if (!endings.ContainsKey(sim.Ending)) endings[sim.Ending] = 0;
                 endings[sim.Ending]++;
@@ -783,6 +815,19 @@ namespace Rill.EditorTools
                 basinCountMin == basinCountMax ? " throughout — index-based comparisons are sound"
                                                : "-" + basinCountMax + " — IT MOVED, every index-based number above is suspect");
             log.AppendFormat("  dam breaks       {0} overflows, {1:n0} m³ over the lip\n", overflows, overflowVolume);
+            {
+                int silted = 0, merged = 0;
+                foreach (var kv in worldHeadlines)
+                {
+                    if (kv.Key.Contains("silted up")) silted += kv.Value;
+                    if (kv.Key.Contains("one lake now")) merged += kv.Value;
+                }
+                log.AppendFormat("  lattice changes  {0} silted out of existence, {1} merges — raised by the world: {2} and {3}; as the card's title {4} (all appear in its body)\n",
+                    silted, merged, lostEvents, mergeEvents, latticeShown);
+                foreach (var kv in worldHeadlines)
+                    if (kv.Key.Contains("silted up") || kv.Key.Contains("one lake now"))
+                        log.AppendFormat("      \"{0}\" x{1}\n", kv.Key, kv.Value);
+            }
             log.AppendFormat("  fullest basin    {0:0.0}%\n", FullestBasin(world) * 100f);
             log.AppendFormat("  polished cells   {0} ({1:0.0}% of field)\n", PolishedCells(world), PolishedCells(world) * 100f / world.Field.Count);
             {

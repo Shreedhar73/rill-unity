@@ -48,6 +48,34 @@ namespace Rill.Core
         /// <summary>Raised when a basin's water passes its spill level. The dam break.</summary>
         public event System.Action<Basin, float> Overflowed;
 
+        /// <summary>
+        /// Raised when a depression that existed before this rebuild no longer does: its deepest
+        /// point is not inside any basin any more. Filling a tarn raises its floor and depositing
+        /// around it raises the ground, and at some point it stops being a hollow at all.
+        ///
+        /// Measured: a 500-run campaign against one basin delivered water to it 17 times and ended
+        /// with the lattice down from 5 basins to 3. The player's target disappeared mid-campaign
+        /// and nothing anywhere said so — and this game's trust contract is that the world honestly
+        /// records what you did to it, which has to include the things you finished.
+        /// </summary>
+        public event System.Action<string, float> Lost;
+
+        /// <summary>
+        /// Raised when two or more depressions that were separate before this rebuild now share
+        /// one. Arguments are the joined old names and the name of the basin that swallowed them.
+        ///
+        /// This is the event that actually happens, and finding that out cost a wrong diagnosis
+        /// worth recording: a 500-run campaign drops the lattice from 5 basins to 3, which looked
+        /// like tarns being filled out of existence. It is not — the erasure check fired ZERO
+        /// times over that season. Rising floors and deposits raise the ground *between* two
+        /// neighbouring tarns until they share a spill level, and LabelBasins unifies them. Two
+        /// lakes become one lake, which is a better thing than either guess.
+        /// </summary>
+        public event System.Action<string, string> Merged;
+
+        struct Remembered { public int Cell; public string Name; public float Volume; }
+        readonly List<Remembered> _before = new List<Remembered>(16);
+
         public BasinSystem(HeightField field)
         {
             _f = field;
@@ -107,10 +135,55 @@ namespace Rill.Core
 
         public void Rebuild()
         {
+            // Identify each basin by its deepest cell rather than by its id. Ids are assigned by
+            // scan order on every rebuild and are not stable across one — which is a fact worth
+            // stating loudly, because a session's worth of collected ids indexed into a rebuilt
+            // list is exactly the bug this discovery started as.
+            _before.Clear();
+            for (int i = 0; i < _basins.Count; i++)
+            {
+                var b = _basins[i];
+                if (b.Cells.Length == 0) continue;
+                _before.Add(new Remembered { Cell = b.Cells[0], Name = b.Name, Volume = b.Volume });
+            }
+
             PriorityFlood();
             LabelBasins();
             GatherExistingWater();
             SolveLevels(raiseOverflow: false);
+
+            if (Lost == null && Merged == null) return;
+
+            // Map every basin that existed before onto whatever now owns its deepest point.
+            // Unlabelled means the hollow is gone. Two or more landing on the same new basin means
+            // they have become one lake.
+            var landedIn = new Dictionary<int, List<int>>();
+            for (int i = 0; i < _before.Count; i++)
+            {
+                int now = _basinOf[_before[i].Cell];
+                if (now < 0)
+                {
+                    if (Lost != null) Lost(_before[i].Name, _before[i].Volume);
+                    continue;
+                }
+                List<int> group;
+                if (!landedIn.TryGetValue(now, out group)) landedIn[now] = group = new List<int>(2);
+                group.Add(i);
+            }
+
+            if (Merged == null) return;
+            foreach (var kv in landedIn)
+            {
+                if (kv.Value.Count < 2) continue;
+                var names = new List<string>(kv.Value.Count);
+                for (int k = 0; k < kv.Value.Count; k++)
+                {
+                    string n = _before[kv.Value[k]].Name;
+                    if (!names.Contains(n)) names.Add(n);
+                }
+                if (names.Count < 2) continue;   // two lobes of one place that shared a name
+                Merged(string.Join(" and ", names.ToArray()), _basins[kv.Key].Name);
+            }
         }
 
         void PriorityFlood()

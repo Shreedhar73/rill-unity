@@ -36,6 +36,7 @@ namespace Rill.App
         float[] _preRunHeight;
         float[] _preRunBasinFill;
         readonly List<string> _pendingHeadlines = new List<string>();
+        string _pendingLatticeChange;
 
         public static RillWorld Create(GameConfig config, uint seed, Biome biome)
         {
@@ -87,6 +88,25 @@ namespace Rill.App
             {
                 _pendingHeadlines.Add(b.Name + " broke its banks");
                 if (BasinOverflowed != null) BasinOverflowed(b, excess);
+            };
+            Basins.Lost += (name, volume) =>
+            {
+                // The water is not gone — GatherExistingWater routes anything left outside a
+                // depression downhill until it finds one — so say where it went, not just that
+                // something vanished. A silted-up tarn is the mountain finishing a thing the
+                // player spent a hundred runs on, and it deserves to be told as an ending.
+                _pendingLatticeChange = volume >= 1f
+                    ? string.Format("{0} silted up for good — its {1:n0} m³ moved on downhill", name, volume)
+                    : string.Format("{0} silted up for good", name);
+                _pendingHeadlines.Add(_pendingLatticeChange);
+            };
+            Basins.Merged += (oldNames, survivor) =>
+            {
+                // The lattice shrinking is the mountain finishing something, and the player spent
+                // runs on it. Two tarns whose dividing ground your silt raised until they share a
+                // surface are now one lake, and that is worth a sentence.
+                _pendingLatticeChange = string.Format("{0} are one lake now", oldNames);
+                _pendingHeadlines.Add(_pendingLatticeChange);
             };
             Basins.Rebuild();
             Field.MarkAllDirty();
@@ -143,6 +163,7 @@ namespace Rill.App
         {
             Field.CopyHeightTo(_preRunHeight);
             _pendingHeadlines.Clear();
+            _pendingLatticeChange = null;
 
             int n = Basins.Basins.Count;
             if (_preRunBasinFill == null || _preRunBasinFill.Length < n) _preRunBasinFill = new float[Mathf.Max(n, 8)];
@@ -221,7 +242,9 @@ namespace Rill.App
                     rep.OverflowBasin = _pendingHeadlines[i].Replace(" broke its banks", "");
                 }
             }
+            rep.LatticeChange = _pendingLatticeChange;
             _pendingHeadlines.Clear();
+            _pendingLatticeChange = null;
 
             LifetimeSediment += moved;
             LifetimeWaterToSea += waterToSea;

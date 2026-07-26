@@ -32,6 +32,13 @@ namespace Rill.Flow
         public float NewChannelMetres;    // length of channel that crossed the "is a channel now" line
 
         public readonly List<string> Headlines = new List<string>();
+
+        /// <summary>
+        /// Set when the basin lattice itself changed shape this run — a tarn silted out of
+        /// existence, or two became one. Held as its own field rather than fished back out of
+        /// Headlines by matching prose, which is how the overflow case does it and is fragile.
+        /// </summary>
+        public string LatticeChange;
         public readonly List<SecretSite> Revealed = new List<SecretSite>();
         public readonly List<BasinDelta> BasinChanges = new List<BasinDelta>();
         public readonly List<string> LifeArrivals = new List<string>();
@@ -70,6 +77,9 @@ namespace Rill.Flow
         public string Summary()
         {
             if (Overflowed) return OverflowBasin + " broke its banks";
+            // A lake ceasing to exist outranks a secret or a fill percentage: it is the end of
+            // something the player spent runs on, and it can only be said once.
+            if (!string.IsNullOrEmpty(LatticeChange)) return LatticeChange;
             if (Revealed.Count > 0) return Revealed[0].DisplayName + " uncovered";
             if (BasinChanges.Count > 0)
             {
