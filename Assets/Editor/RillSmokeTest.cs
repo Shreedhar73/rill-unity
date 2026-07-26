@@ -57,6 +57,8 @@ namespace Rill.EditorTools
             // Can a player who wants to fill a particular basin actually fill it? The whole basin
             // lattice as a progression track assumes yes, and nothing has ever tested it.
             int aimedRuns = 0, aimedHits = 0, seaRuns = 0, seaHits = 0;
+            int crossingRuns = 0, crossingToSea = 0;
+            float distanceAfterCrossing = 0f;
             float aimedMissDistance = 0f;
             float strandedVolume = 0f, totalDescent = 0f, totalStopSlope = 0f;
             var stopBasinHits = new Dictionary<int, int>();
@@ -121,6 +123,12 @@ namespace Rill.EditorTools
                 strandedVolume += sim.VolumeAtEnd;
                 inWater += sim.InWaterSteps;
                 throughFlow += sim.ThroughFlowSteps;
+                if (sim.CrossedAnyBasin)
+                {
+                    crossingRuns++;
+                    distanceAfterCrossing += sim.DistanceAfterCrossing;
+                    if (sim.Ending == RunEnding.ReachedSea) crossingToSea++;
+                }
                 if (stopBasin != null)
                 {
                     stoppedInBasin++;
@@ -176,6 +184,8 @@ namespace Rill.EditorTools
                 totalDescent / Runs, world.SummitWorld.y - world.Field.SeaLevel);
             log.AppendFormat("  slope at stop    avg {0:0.000} (tan)\n", totalStopSlope / Runs);
             log.AppendFormat("  steps in water   {0:n0}, of which through-flow {1:n0}\n", inWater, throughFlow);
+            log.AppendFormat("  basin crossings  {0} runs crossed a full lake; {1} of those reached the sea; avg {2:0} m travelled after crossing\n",
+                crossingRuns, crossingToSea, crossingRuns > 0 ? distanceAfterCrossing / crossingRuns : 0f);
             log.AppendFormat("  aimed at a basin {0} runs, reached it {1} ({2:0}%), avg miss {3:0} m\n",
                 aimedRuns, aimedHits, aimedRuns > 0 ? aimedHits * 100f / aimedRuns : 0f,
                 aimedRuns > aimedHits ? aimedMissDistance / (aimedRuns - aimedHits) : 0f);

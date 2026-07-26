@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **19** · Closed this cycle: **10**
+Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **12** (4 archived)
 
 ---
 
@@ -62,16 +62,18 @@ miss do so by an average of 100 m, which reads more like "never left the channel
 fell short". Next step: log how far an aimed run's path deviates from the hands-off path for the
 same seed, which separates (a) from (c) directly.
 
-### L-010 · Make secrets findable
-**Why** — `secrets revealed 0 of 60` after 24 runs. Revelation is one of the four progression tracks
-in the design document and it is currently invisible over any realistic session. A run polishes
-~1.6% of the field, so 60 sites yields roughly one hit per 24 runs at best.
-**Done when** — A 24-run smoke test reveals 2–5 secrets, and none of them is reachable without
-routing water over the spot.
-**Evidence needed** — `secrets revealed N of M` from the smoke test, N ≥ 2.
-**Approach** — In preference order: lock placement to the drainage network rather than biasing
-toward it; reveal on proximity to sufficient erosion rather than the exact cell; shallower burial
-for common kinds; more sites.
+### L-029 · Basin crossing is built but has never mattered
+**Why** — A run whose remaining volume exceeds a lake's headroom now fills that lake to its spill and
+continues from the outlet. It replaced a version that provably never worked (a 0.35g nudge toward
+the spill cell, which loses to terrain gravity on the rim it has to climb — 1,187 sub-steps across
+24 runs, zero runs carried out). The replacement is *physically* right and fires ~23 times in 150
+runs, which is too rare to have been observed doing anything. It is Built, not Done.
+**Done when** — Someone has watched a run cross a full lake and leave by the outlet, or a test
+attributes a measurable share of sea arrivals to crossings.
+**Evidence needed** — The new `basin crossings N runs … M reached the sea … avg X m travelled after
+crossing` line, or a screenshot. Note the count alone is not evidence: a counter proves the branch
+executed, not that it carried the run anywhere, which is why the distance-after-crossing figure
+exists.
 
 ### L-011 · See the strata pass
 **Why** — Per-pixel strata bands, seam darkening and concavity occlusion were written to fix a
@@ -84,17 +86,6 @@ channel from the idle camera.
 ---
 
 ## Next
-
-### L-029 · Basin crossing is built but has never mattered
-**Why** — A run whose remaining volume exceeds a lake's headroom now fills that lake to its spill and
-continues from the outlet. It replaced a version that provably never worked (a 0.35g nudge toward
-the spill cell, which loses to terrain gravity on the rim it has to climb — 1,187 sub-steps across
-24 runs, zero runs carried out). The replacement is *physically* right and fires 17 times in 150
-runs, which is too rare to have been observed doing anything. It is Built, not Done.
-**Done when** — Someone has watched a run cross a full lake and leave by the outlet, or a test
-attributes a measurable share of sea arrivals to crossings.
-**Evidence needed** — `steps in water … of which through-flow` alongside a per-crossing outcome, or
-a screenshot.
 
 ### L-012 · Hand playtest against the kill criterion
 **Why** — The design document sets an explicit M3 kill criterion: if playtesting does not produce
@@ -140,6 +131,26 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-010 · Make secrets findable — closed 2026-07-26
+Three compounding causes, and the first two fixes each looked like progress while the track stayed
+dead. (1) Placement was only *biased* toward channels — any concave cell qualified and off-route
+cells were accepted 20% of the time anyway. (2) Revelation required the buried cell *itself* to be
+cut to depth, but a channel is metres wide and wanders, so hitting one specific 2 m cell repeatedly
+is a coincidence rather than a skill. (3) The real one, only visible once measured: flow
+accumulation describes drainage across the whole mountain, but every run starts at one summit
+spring and converges into a single corridor — **45 of 51 sites had received no erosion at all after
+150 runs**. Sites are now split half on a summit-traced corridor (240 descent walks) and half on the
+wider network, sampled from candidate lists directly rather than by rejection sampling, which had
+been silently placing 20 sites where 60 were asked for.
+**Evidence** — `secrets placed 60`, **`secrets revealed 3 of 60`** after 24 runs (*Done when* asked
+2–5), rising to `12 of 60` at 150 — a curve, not an exhausted track. Site contact went `3 of 51
+touched` → `18 of 60`, average best cut 0.03 m → 0.18 m against 1.41 m needed.
+**On the second clause** — "none reachable without routing water over the spot" is argued
+structurally, not measured per secret: revelation now tests `Virgin[c] - Height[c] >= depth`, which
+is erosion, and erosion only happens where water flowed. That is worth stating plainly because an
+intermediate version compared *elevation* instead and revealed 37 of 51 without anyone playing —
+caught only because it reported the same 37 after 24 runs and after 150.
 
 ### L-028 · The convergence point drills itself into a pit — closed 2026-07-26
 Runs converge on one line, that line carves, the carve attracts the next run. Rule 2 working as
@@ -210,31 +221,5 @@ emptying lakes between runs. Both now route the water downhill to low ground.
 never pass on terraced ground. Replaced with deterministic best-site scoring, which cannot fail to
 place N. The tell was a capacity number that did not change across a code edit.
 **Evidence** — `[RILL] Carved 7 basins into the eroded mountain.` and basin count 9 → 16.
-
-### L-004 · Mountain silhouette — closed 2026-07-26
-Noise alone produced lumps. Added a 60k-droplet hydraulic erosion pre-pass (dendritic valleys, sharp
-ridgelines), domain-warped ridge noise, strata-keyed terracing so hard bands become cliffs, and
-summit normalisation.
-**Evidence** — Summit 74 m → **146 m** over a 512 m base; run distance 60 m → **225 m**.
-
-### L-003 · Runs no longer stall at the spawn — closed 2026-07-26
-Three compounding faults: a summit "dish" that trapped every run within 3 m of spawn, talus not
-scaled to cell size (capping slopes at 17°, a pillow), and a drag/gravity ratio giving 2.5 m/s
-terminal speed against a 0.75 m/s pool threshold.
-**Evidence** — Run duration 0.8 s → 12–40 s; distance 3 m → 100–250 m; sediment ~0 → 80–100 m³/run.
-
-### L-002 · Verification harness — closed 2026-07-26
-Built signature-only Unity API stubs plus `typecheck.sh` (whole codebase, three build configs, ~2 s,
-no editor), and `RillSmokeTest` — 24 unattended headless runs reporting endings, sediment, basin
-lattice, secrets, save round-trip and the Daily glyph.
-**Evidence** — Every real bug found since (L-003 … L-007) was found by this harness. None were
-visible by reading the code.
-
-### L-001 · Project compiles and runs in Unity — closed 2026-07-26
-Scaffolded the project, aligned it to Unity 6000.5.5f1, fixed the one real compile error
-(`CompressionLevel` is ambiguous between `UnityEngine` and `System.IO.Compression`).
-**Evidence** — Batch compile clean, zero errors and zero warnings at `-warn:4`; Game view renders.
-
----
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*

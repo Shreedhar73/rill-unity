@@ -131,7 +131,7 @@ namespace Rill.Core
             field.MarkAllDirty();
 
             summitCell = new Vector2Int(Mathf.RoundToInt(summit.x), Mathf.RoundToInt(summit.y));
-            secrets = PlaceSecrets(field, bands, s, ref rng);
+            secrets = PlaceSecrets(field, bands, s, summitCell, ref rng);
             return field;
         }
 
@@ -484,7 +484,61 @@ namespace Rill.Core
             return acc;
         }
 
-        static List<SecretSite> PlaceSecrets(HeightField f, StrataBand[] bands, Settings s, ref Rng rng)
+        /// <summary>
+        /// Where runs actually go: descent paths traced from the summit, the way a real run starts.
+        /// Returns visit counts per cell.
+        ///
+        /// Flow accumulation alone was not enough. It describes drainage over the whole mountain,
+        /// but every run begins at one summit spring and converges into a single corridor — only
+        /// 2.4% of the field is polished after 150 runs. Sites spread across the drainage network
+        /// therefore sat untouched: measured, 45 of 51 had received *no* erosion at all after 150
+        /// runs, with an average best cut of 0.15 m against 1.74 m needed.
+        /// </summary>
+        static int[] SummitCorridor(HeightField f, Vector2Int summit, ref Rng rng)
+        {
+            int n = f.Size;
+            var visits = new int[f.Count];
+
+            for (int walk = 0; walk < 240; walk++)
+            {
+                int x = Mathf.Clamp(summit.x + rng.Range(-2, 3), 1, n - 2);
+                int z = Mathf.Clamp(summit.y + rng.Range(-2, 3), 1, n - 2);
+
+                for (int step = 0; step < 4096; step++)
+                {
+                    // Mark a small disc, because a channel is wider than one cell.
+                    for (int dz = -1; dz <= 1; dz++)
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            int px = x + dx, pz = z + dz;
+                            if (px < 0 || pz < 0 || px >= n || pz >= n) continue;
+                            visits[pz * n + px]++;
+                        }
+
+                    int c = z * n + x;
+                    if (f.Height[c] <= f.SeaLevel) break;
+
+                    // Steepest descent, with an occasional lateral wobble so the corridor has the
+                    // width that steering gives a real run rather than being one hairline.
+                    int best = -1;
+                    float bestDrop = 0f;
+                    for (int q = 0; q < 8; q++)
+                    {
+                        int nx = x + (q == 0 || q == 4 || q == 5 ? 1 : q == 1 || q == 6 || q == 7 ? -1 : 0);
+                        int nz = z + (q == 2 || q == 4 || q == 6 ? 1 : q == 3 || q == 5 || q == 7 ? -1 : 0);
+                        if (nx < 0 || nz < 0 || nx >= n || nz >= n) continue;
+                        float drop = f.Height[c] - f.Height[nz * n + nx];
+                        if (rng.Next01() < 0.15f) drop *= rng.Range(0.5f, 1.5f);
+                        if (drop > bestDrop) { bestDrop = drop; best = nz * n + nx; }
+                    }
+                    if (best < 0) break;      // a pit; a real run would pool here
+                    x = best % n; z = best / n;
+                }
+            }
+            return visits;
+        }
+
+        static List<SecretSite> PlaceSecrets(HeightField f, StrataBand[] bands, Settings s, Vector2Int summit, ref Rng rng)
         {
             // Placement is locked to the drainage network, not biased toward it. The old rule
             // accepted any concave cell, and accepted non-route cells 20% of the time anyway, so
@@ -497,16 +551,40 @@ namespace Rill.Core
             // Top 2% of cells by drainage area. On a 256² field that is ~1,300 cells of channel.
             float channelThreshold = sorted[(int)(sorted.Length * 0.98f)];
 
+            var corridor = SummitCorridor(f, summit, ref rng);
+
+            // Half the sites go on the corridor runs actually take, so the revelation track is
+            // felt inside a session; the rest go on the wider drainage network, so there is
+            // something left for a player who deliberately routes water somewhere new. All of them
+            // on the corridor would be found at once and the track would be over in a week.
+            int corridorQuota = s.SecretCount / 2;
+
+            // Sample from the eligible cells directly rather than throwing darts at the whole grid
+            // and hoping. The corridor is a couple of cells wide over a few hundred cells of path,
+            // so rejection sampling exhausted its guard and quietly placed 20 sites where 60 were
+            // asked for — the kind of silent shortfall that looks exactly like a working system.
+            var corridorCells = new List<int>(4096);
+            var networkCells = new List<int>(4096);
+            for (int c = 0; c < f.Count; c++)
+            {
+                int cx = c % f.Size, cz = c / f.Size;
+                if (cx < 8 || cz < 8 || cx >= f.Size - 8 || cz >= f.Size - 8) continue;
+                if (f.Height[c] < 6f) continue;          // not under the sea
+                if (corridor[c] >= 4) corridorCells.Add(c);
+                else if (acc[c] >= channelThreshold) networkCells.Add(c);
+            }
+
             var list = new List<SecretSite>(s.SecretCount);
             int guard = 0;
             while (list.Count < s.SecretCount && guard++ < s.SecretCount * 400)
             {
-                int x = rng.Range(8, f.Size - 8);
-                int z = rng.Range(8, f.Size - 8);
-                int i = z * f.Size + x;
+                bool wantCorridor = list.Count < corridorQuota && corridorCells.Count > 0;
+                var pool = wantCorridor ? corridorCells : networkCells;
+                if (pool.Count == 0) break;
+
+                int i = pool[rng.Range(0, pool.Count)];
+                int x = i % f.Size, z = i / f.Size;
                 float h = f.Height[i];
-                if (h < 6f) continue;                    // not under the sea
-                if (acc[i] < channelThreshold) continue; // not on a channel: nothing would ever find it
 
                 SecretKind kind;
                 float roll = rng.Next01();
@@ -524,17 +602,19 @@ namespace Rill.Core
                 switch (kind)
                 {
                     case SecretKind.Fossil:
-                    case SecretKind.Geode: depth = rng.Range(0.35f, 1.6f); break;
+                    case SecretKind.Geode: depth = rng.Range(0.3f, 1.2f); break;
                     case SecretKind.Ruin: depth = rng.Range(1.2f, 3.0f); break;
                     default: depth = rng.Range(3.5f, 6.5f); break;
                 }
 
+                // 4 cells apart, not 6: along a corridor two cells wide, 6-cell spacing alone
+                // capped how many sites could physically fit.
                 bool tooClose = false;
                 for (int k = 0; k < list.Count; k++)
                 {
                     int c = list[k].Cell;
                     int ox = c % f.Size, oz = c / f.Size;
-                    if ((ox - x) * (ox - x) + (oz - z) * (oz - z) < 36) { tooClose = true; break; }
+                    if ((ox - x) * (ox - x) + (oz - z) * (oz - z) < 16) { tooClose = true; break; }
                 }
                 if (tooClose) continue;
 

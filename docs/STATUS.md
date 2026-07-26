@@ -91,12 +91,14 @@ depressions *below sea level*, including the two largest. The real mountain has 
 5,591 m³. Any tuning judgement made before 2026-07-26 was made against a capacity number three times
 too large.
 
-### 3. Secrets are effectively unfindable
-`secrets revealed 0 of 60` after 24 runs. A channel polishes ~1.6% of the field, so the chance any
-of 60 buried sites sits under it is roughly one per 24 runs at best. The "Revelation" progression
-track is therefore invisible over any realistic session. Needs either far more sites, shallower
-burial, wider reveal tolerance, or placement locked to the drainage network rather than biased
-toward it.
+### 3. Secrets are findable (L-010 closed 2026-07-26)
+`secrets revealed 3 of 60` after 24 runs, `12 of 60` after 150. The blocker was not burial depth but
+placement: flow accumulation describes drainage across the whole mountain, while every run starts at
+one summit spring and converges into a single corridor, so **45 of 51 sites had received no erosion
+at all after 150 runs**. Sites are now split half on a summit-traced corridor and half on the wider
+network. Revelation tests erosion within 4 m rather than the exact cell — but it must compare
+`Virgin - Height`, not elevation: an elevation comparison is satisfied by slope alone and revealed
+37 of 51 before anyone played.
 
 ### 4. Visual presentation is not the design
 The document promises legible sediment bands where "every metre of depth is legible as colour".
@@ -119,7 +121,7 @@ look like something at a glance.
 ### Immediate — decides whether this is a game
 1. **Make the other three basins reachable** (L-027). The retune itself is confirmed; what is not is
    that a player who wants to fill a particular basin can.
-2. **Fix secret discovery rate** so the revelation track is felt within a session.
+2. **Verify basin crossing does something** (L-029) — it is Built, not Done.
 3. **Playtest by hand.** 20 runs, watching for whether the carve → speed → reach loop compels.
    Everything else is secondary to this.
 
