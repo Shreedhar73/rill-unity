@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace Rill.InputSystem
 {
@@ -81,8 +82,44 @@ namespace Rill.InputSystem
             return true;
         }
 
+        /// <summary>
+        /// True when the press that just ended began over a button.
+        ///
+        /// This class reads raw touches and never consulted the event system, so every tap on a
+        /// button was ALSO a tap on the world: pressing Begin released the water at the same time,
+        /// and pressing Almanac while idle started a run behind the panel. The press is judged at
+        /// the moment it starts rather than when it ends, because a drag that begins on a button and
+        /// finishes over the mountain is still not a steer.
+        /// </summary>
+        public bool StartedOverUI { get; private set; }
+
+        /// <summary>
+        /// Latched on press and cleared on the frame AFTER release, so WasTap — which is read by
+        /// several callers during the release frame — sees the same answer for all of them.
+        /// </summary>
+        void LateUpdate()
+        {
+            if (_clearOverUI) { StartedOverUI = false; _clearOverUI = false; }
+            if (PressedThisFrame) StartedOverUI = OverUI();
+            if (ReleasedThisFrame) _clearOverUI = true;
+        }
+
+        bool _clearOverUI;
+
+        static bool OverUI()
+        {
+            var es = EventSystem.current;
+            if (es == null) return false;
+#if UNITY_EDITOR || UNITY_STANDALONE
+            return es.IsPointerOverGameObject();
+#else
+            return Input.touchCount > 0 && es.IsPointerOverGameObject(Input.GetTouch(0).fingerId);
+#endif
+        }
+
         public bool WasTap(float maxPixels = 24f, float maxSeconds = 0.4f)
         {
+            if (StartedOverUI) return false;
             return ReleasedThisFrame && DragDistance <= maxPixels && HoldDuration <= maxSeconds;
         }
     }

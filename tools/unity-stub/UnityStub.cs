@@ -6,6 +6,17 @@ using System.Collections.Generic;
 
 namespace UnityEngine
 {
+    public enum RenderMode { ScreenSpaceOverlay, ScreenSpaceCamera, WorldSpace }
+
+    public class Canvas : Behaviour
+    {
+        public RenderMode renderMode { get; set; }
+        public int sortingOrder { get; set; }
+        public Camera worldCamera { get; set; }
+        public static void ForceUpdateCanvases() { }
+        public float planeDistance { get; set; }
+    }
+
     public struct Vector2
     {
         public float x, y;
@@ -280,6 +291,15 @@ namespace UnityEngine
 
     public enum KeyCode { None = 0, Escape = 27 }
 
+    public enum SpriteMeshType { FullRect, Tight }
+
+    public class Sprite : Object
+    {
+        public static Sprite Create(Texture2D tex, Rect rect, Vector2 pivot, float pixelsPerUnit,
+                                    uint extrude, SpriteMeshType meshType, Vector4 border)
+        { return null; }
+    }
+
     public static class SystemInfo
     {
         public static UnityEngine.Rendering.GraphicsDeviceType graphicsDeviceType
@@ -418,6 +438,7 @@ namespace UnityEngine
 
     public static class Screen
     {
+        public static Rect safeArea { get { return new Rect(); } }
         public static int sleepTimeout { get; set; }
         public static int width { get { return 0; } }
         public static int height { get { return 0; } }
@@ -604,7 +625,9 @@ namespace UnityEngine.Events
 namespace UnityEngine.EventSystems
 {
     public class UIBehaviour : MonoBehaviour { }
-    public class EventSystem : UIBehaviour { public static EventSystem current { get { return null; } } }
+    public class EventSystem : UIBehaviour {
+        public bool IsPointerOverGameObject() { return false; }
+        public bool IsPointerOverGameObject(int pointerId) { return false; } public static EventSystem current { get { return null; } } }
     public class BaseInputModule : UIBehaviour { }
     public class StandaloneInputModule : BaseInputModule { }
 }
@@ -613,14 +636,8 @@ namespace UnityEngine.UI
 {
     using UnityEngine.Events;
 
-    public enum RenderMode { ScreenSpaceOverlay, ScreenSpaceCamera, WorldSpace }
     public enum TextAnchor2 { }
 
-    public class Canvas : Behaviour
-    {
-        public RenderMode renderMode { get; set; }
-        public int sortingOrder { get; set; }
-    }
 
     public class CanvasScaler : Behaviour
     {
@@ -640,7 +657,10 @@ namespace UnityEngine.UI
         public bool raycastTarget { get; set; }
     }
 
-    public class Image : Graphic { }
+    public class Image : Graphic {
+        public Sprite sprite { get; set; }
+        public enum Type { Simple, Sliced, Tiled, Filled }
+        public Type type { get; set; } }
 
     public class Text : Graphic
     {
@@ -671,6 +691,7 @@ namespace UnityEngine.UI
 
     public class Button : Selectable
     {
+        public Graphic targetGraphic { get; set; }
         public class ButtonClickedEvent : UnityEvent { }
         public ButtonClickedEvent onClick { get { return null; } }
     }

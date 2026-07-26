@@ -5,6 +5,7 @@ using Rill.App;
 using Rill.Core;
 using Rill.Flow;
 using Rill.Render;
+using Rill.UI;
 using Rill.World;
 
 namespace Rill.EditorTools
@@ -47,6 +48,143 @@ namespace Rill.EditorTools
 
         [MenuItem("RILL/Capture Mountain PNG (150 runs)", false, 42)]
         public static void CaptureLong() { Shoot(150); }
+
+        /// <summary>
+        /// Photographs the interface over a real mountain.
+        ///
+        /// Every piece of UI in this project has shipped unlooked-at, because a screen-space-overlay
+        /// canvas is composited after everything and never appears in a Camera.Render — so the
+        /// capture tool could show the world and never the thing sitting on top of it. That is how a
+        /// back button ended up as a labelled slab floating in the middle of the sky. The HUD is
+        /// pointed through the capture camera instead, and the result is a picture of the actual
+        /// composition.
+        /// </summary>
+        [MenuItem("RILL/Capture Interface PNG", false, 43)]
+        public static void CaptureInterface()
+        {
+            Debug.Log("[RILL] capture: graphics device is " + SystemInfo.graphicsDeviceType);
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+            {
+                Debug.LogError("[RILL] capture: no graphics device — run WITHOUT -nographics.");
+                return;
+            }
+
+            var config = new GameConfig();
+            var world = RillWorld.Create(config, config.Seed, config.Biome);
+            var root = new GameObject("RillCaptureUI");
+            try
+            {
+                var terrainMat = Load("Shaders/Strata");
+                var waterMat = Load("Shaders/PooledWater");
+                var propMat = Load("Shaders/Prop");
+
+                var ecoGo = new GameObject("Life");
+                ecoGo.transform.SetParent(root.transform, false);
+                var eco = ecoGo.AddComponent<EcosystemSystem>();
+                eco.Initialise(world, propMat);
+                Play(world, config, 60, eco);
+
+                var terrainGo = new GameObject("Terrain");
+                terrainGo.transform.SetParent(root.transform, false);
+                terrainGo.AddComponent<TerrainMeshBuilder>().Initialise(world.Field, world.Bands, terrainMat);
+
+                var waterGo = new GameObject("Lakes");
+                waterGo.transform.SetParent(root.transform, false);
+                var lakes = waterGo.AddComponent<PooledWaterMesh>();
+                lakes.Initialise(world.Field, waterMat);
+                lakes.BuildNow();
+
+                eco.BakeStaticRenderers(ecoGo.transform);
+                BuildSea(root.transform, world, waterMat);
+                var sun = BuildSun(root.transform);
+                _skyColor = ApplyHour(sun, 13f);
+
+                var hudGo = new GameObject("Hud");
+                hudGo.transform.SetParent(root.transform, false);
+                var hud = hudGo.AddComponent<HudController>();
+                hud.Build();
+
+                string dir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "docs", "shots"));
+                Directory.CreateDirectory(dir);
+
+                // The main screen: title, record line, three mountains, back in the corner.
+                var roster = new MountainRoster();
+                var rows = new string[MountainRoster.Slots];
+                for (int i = 0; i < MountainRoster.Slots; i++)
+                    rows[i] = (i == 0 && roster.Occupied(i) ? "▸  " : "    ") + roster.Describe(i);
+                hud.SetMountains(rows);
+                hud.SetTitle(true, "60 runs · 4,900 m³ moved · 780 m³ to the sea", null);
+                hud.SettleTitle();
+                hud.SetBackVisible(false);
+                hud.SetIdleUI(false);
+                RenderUI(world, hud, Path.Combine(dir, "ui_home.png"));
+
+                // On the mountain: idle row along the bottom, back glyph in the corner, stat lines.
+                // Exactly what Begin does: hide the title, then show the mountain UI. Reported as
+                // "after Begin is pressed, the main screen doesn't go away", so it gets photographed
+                // rather than reasoned about.
+                hud.SetTitle(false, "", null);
+                hud.SettleTitle();
+                hud.SetIdleUI(true);
+                hud.SetBackVisible(true);
+                hud.SetTopLine("Run 61 · Clear", "4,900 m³ moved · 1,204 m³ held");
+                hud.SetHint("Tap to release the water");
+                RenderUI(world, hud, Path.Combine(dir, "ui_mountain.png"));
+
+                Debug.Log("[RILL] capture: interface PNGs in " + dir);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        static void RenderUI(RillWorld world, HudController hud, string path)
+        {
+            var camGo = new GameObject("UICamera");
+            var cam = camGo.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = _skyColor;
+            cam.fieldOfView = 48f;
+            cam.nearClipPlane = 0.3f;
+            cam.farClipPlane = 2000f;
+            cam.allowHDR = false;
+
+            Vector3 target = world.SummitWorld;
+            float extent = world.Field.WorldExtent;
+            Vector3 back = Quaternion.Euler(0f, 30f, 0f) * new Vector3(0f, 0f, -1f);
+            Vector3 pos = target + back * (extent * 0.5f) + Vector3.up * (extent * 0.34f);
+            camGo.transform.position = pos;
+            camGo.transform.rotation = Quaternion.LookRotation((target - pos).normalized, Vector3.up);
+
+            hud.RenderThroughCamera(cam);
+
+            // Portrait, because that is the shape of the device this is played on and a 16:9
+            // landscape frame would flatter a layout that has to survive a phone.
+            const int W = 900, H = 1600;
+            var rt = new RenderTexture(W, H, 24, RenderTextureFormat.ARGB32) { antiAliasing = 4 };
+            var tex = new Texture2D(W, H, TextureFormat.RGB24, false);
+            try
+            {
+                cam.targetTexture = rt;
+                UnityEngine.Canvas.ForceUpdateCanvases();
+                cam.Render();
+                RenderTexture.active = rt;
+                tex.ReadPixels(new Rect(0, 0, W, H), 0, 0);
+                tex.Apply();
+                File.WriteAllBytes(path, tex.EncodeToPNG());
+                Debug.Log("[RILL] capture: " + Path.GetFileName(path));
+            }
+            finally
+            {
+                RenderTexture.active = null;
+                cam.targetTexture = null;
+                Object.DestroyImmediate(tex);
+                rt.Release();
+                Object.DestroyImmediate(rt);
+                Object.DestroyImmediate(camGo);
+            }
+        }
 
         static void Shoot(int runs)
         {

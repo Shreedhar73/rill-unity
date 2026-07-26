@@ -461,11 +461,16 @@ namespace Rill.Flow
             // app closes out from under a run in progress.
             if (Input.GetKeyDown(KeyCode.Escape)) GoBack();
 
+            // The main screen is visible when, and only when, the game is on it. This used to be
+            // hidden by the Begin handler alone, so any other route into play left it on screen over
+            // a live run — reported exactly that way.
+            Hud.SetTitleShown(Current == State.Title);
+
             Nav.RunInProgress = Current == State.Flowing || Current == State.Settling;
             Hud.SetBackVisible(Nav.Current != AppScreen.Launch && Nav.Current != AppScreen.Home
                                && Current != State.Flowing);
-            // End game belongs where a game is in progress, not on the screen it returns you to.
-            Hud.SetEndGameVisible(Nav.Current == AppScreen.Mountain && Current != State.Flowing);
+            // End game rides in the idle button row, which SetIdleUI already shows and hides, so
+            // there is nothing to drive per frame any more.
 
             switch (Current)
             {

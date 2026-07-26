@@ -33,14 +33,29 @@ namespace Rill.UI
         Image _reportCard, _panel, _speedFill;
         CanvasGroup _reportGroup, _panelGroup, _buttonsGroup, _speedGroup, _titleGroup;
         Text _titleWord, _titleTag, _titleRecord;
-        Button _startButton, _backButton, _endButton;
+        Button _startButton, _backButton;
         Button[] _slotButtons;
         Text[] _slotLabels;
-        CanvasGroup _backGroup, _endGroup;
+        CanvasGroup _backGroup;
         bool _titleShown;
         float _titleFade;
         const float TitleFadeSeconds = 1.4f;
         RectTransform _buttons;
+
+        /// <summary>
+        /// Draws the interface through a specific camera instead of straight to the screen.
+        ///
+        /// Screen-space-overlay canvases are composited after everything and never appear in a
+        /// Camera.Render, which is why every piece of UI in this project has shipped unlooked-at.
+        /// This is the seam that lets the offscreen capture tool photograph the HUD.
+        /// </summary>
+        public void RenderThroughCamera(Camera cam)
+        {
+            if (_canvas == null || cam == null) return;
+            _canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            _canvas.worldCamera = cam;
+            _canvas.planeDistance = 1f;
+        }
 
         public bool ReportVisible { get; private set; }
         public bool PanelVisible { get; private set; }
@@ -49,10 +64,20 @@ namespace Rill.UI
         {
             _canvas = UIFactory.CreateCanvas("RillCanvas");
             _canvas.transform.SetParent(transform, false);
-            var root = _canvas.transform;
+
+            // Everything hangs off a safe-area frame rather than the raw canvas. Corner controls are
+            // exactly what this protects: a button pinned to the true corner of a modern phone is
+            // pinned under its camera cutout or its home indicator.
+            var safe = new GameObject("SafeArea", typeof(RectTransform));
+            safe.transform.SetParent(_canvas.transform, false);
+            var safeRect = UIFactory.Rect(safe);
+            UIFactory.ApplySafeArea(safeRect);
+            var root = safe.transform;
 
             _topLeft = UIFactory.MakeText(root, "TopLeft", "", 32, TextAnchor.UpperLeft, UIFactory.Ink);
-            UIFactory.Place(_topLeft.gameObject, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(46f, -52f), new Vector2(680f, 90f));
+            // Starts clear of the back glyph in the corner, so the two never overlap on any device.
+            UIFactory.Place(_topLeft.gameObject, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                            new Vector2(Edge + IconSize + 24f, -52f), new Vector2(620f, 90f));
 
             _topRight = UIFactory.MakeText(root, "TopRight", "", 28, TextAnchor.UpperRight, UIFactory.InkDim);
             UIFactory.Place(_topRight.gameObject, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-46f, -52f), new Vector2(460f, 90f));
@@ -92,12 +117,12 @@ namespace Rill.UI
                                    new Color(0.03f, 0.04f, 0.06f, 0.80f));
 
             _titleWord = UIFactory.MakeText(holder.transform, "Word", "RILL", 150, TextAnchor.MiddleCenter, UIFactory.Ink);
-            UIFactory.Place(_titleWord.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 210f), new Vector2(1000f, 190f));
+            UIFactory.Place(_titleWord.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 300f), new Vector2(1000f, 190f));
             _titleWord.raycastTarget = false;
 
             _titleTag = UIFactory.MakeText(holder.transform, "Tag", "Steer the water. The mountain remembers.",
                                            34, TextAnchor.MiddleCenter, UIFactory.InkDim);
-            UIFactory.Place(_titleTag.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 96f), new Vector2(1100f, 60f));
+            UIFactory.Place(_titleTag.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 190f), new Vector2(1100f, 60f));
             _titleTag.raycastTarget = false;
 
             _titleRecord = UIFactory.MakeText(holder.transform, "Record", "", 30, TextAnchor.MiddleCenter, UIFactory.InkDim);
@@ -116,7 +141,7 @@ namespace Rill.UI
                 Text label;
                 var b = UIFactory.MakeButton(holder.transform, "Slot" + i, "", 26, out label);
                 UIFactory.Place(b.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                                new Vector2(0f, -60f - i * 104f), new Vector2(900f, 92f));
+                                new Vector2(0f, 40f - i * 112f), new Vector2(880f, 96f));
                 _slotButtons[i] = b;
                 _slotLabels[i] = label;
                 int index = i;
@@ -139,6 +164,10 @@ namespace Rill.UI
         public void SetMountains(string[] rows)
         {
             if (_slotButtons == null) return;
+
+            // The aggregate record line is redundant the moment each row carries its own, and it
+            // sat right on top of the second one. Rendered, seen, removed.
+            if (_titleRecord != null) _titleRecord.gameObject.SetActive(false);
             for (int i = 0; i < _slotButtons.Length; i++)
             {
                 bool has = rows != null && i < rows.Length && !string.IsNullOrEmpty(rows[i]);
@@ -167,20 +196,25 @@ namespace Rill.UI
         /// </summary>
         void BuildBack(Transform root)
         {
-            _backButton = UIFactory.MakeButton(root, "Back", "‹  Back", 30);
+            // Hard into the top-left corner, as a square glyph rather than a labelled slab.
+            //
+            // It used to be a 220x84 button reading "‹ Back" floating at (150, -160) — which is not
+            // a corner, it is the middle of the sky above the mountain, and at that size it was a
+            // piece of furniture sitting on the picture. A chrome control should be findable and
+            // otherwise invisible: the game is the mountain, and every pixel this takes is one the
+            // mountain does not get.
+            _backButton = UIFactory.MakeIconButton(root, "Back", "‹", 52);
             UIFactory.Place(_backButton.gameObject, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                            new Vector2(150f, -160f), new Vector2(220f, 84f));
+                            new Vector2(Edge + IconSize * 0.5f, -(Edge + IconSize * 0.5f)),
+                            new Vector2(IconSize, IconSize));
             _backGroup = UIFactory.Group(_backButton.gameObject);
             _backButton.onClick.AddListener(() => { if (BackRequested != null) BackRequested(); });
             SetBackVisible(false);
-
-            _endButton = UIFactory.MakeButton(root, "EndGame", "End game", 26);
-            UIFactory.Place(_endButton.gameObject, new Vector2(1f, 1f), new Vector2(1f, 1f),
-                            new Vector2(-150f, -160f), new Vector2(260f, 84f));
-            _endGroup = UIFactory.Group(_endButton.gameObject);
-            _endButton.onClick.AddListener(() => { if (EndGameRequested != null) EndGameRequested(); });
-            SetEndGameVisible(false);
         }
+
+        /// <summary>Corner inset, and the size of a corner control. One thumb-width, no smaller.</summary>
+        const float Edge = 34f;
+        const float IconSize = 92f;
 
         public void SetBackVisible(bool visible)
         {
@@ -190,12 +224,27 @@ namespace Rill.UI
             _backGroup.blocksRaycasts = visible;
         }
 
-        public void SetEndGameVisible(bool visible)
+        /// <summary>End game now lives in the idle row, which SetIdleUI already shows and hides.</summary>
+        public void SetEndGameVisible(bool visible) { }
+
+        /// <summary>
+        /// Shows or hides the main screen. Driven from the run loop's state every frame rather than
+        /// called once at the moment of leaving it.
+        ///
+        /// Reported as "after Begin is pressed, the main screen doesn't go away". Hiding it used to
+        /// be the responsibility of exactly one call site — whoever handled the Begin button — so
+        /// any other route into play left the title sitting at full opacity on top of a live run.
+        /// A screen that is visible because somebody remembered to hide the other one is a screen
+        /// that will eventually be visible when they did not.
+        /// </summary>
+        public void SetTitleShown(bool visible)
         {
-            if (_endGroup == null) return;
-            _endGroup.alpha = visible ? 1f : 0f;
-            _endGroup.interactable = visible;
-            _endGroup.blocksRaycasts = visible;
+            if (_titleGroup == null || _titleShown == visible) return;
+            _titleShown = visible;
+            if (visible) _titleFade = 0f;
+            _titleGroup.alpha = 0f;
+            _titleGroup.blocksRaycasts = visible;
+            _titleGroup.interactable = visible;
         }
 
         public void SetTitle(bool visible, string record, System.Action onStart)
@@ -217,6 +266,18 @@ namespace Rill.UI
         }
 
         public bool TitleVisible => _titleGroup != null && _titleGroup.blocksRaycasts;
+
+        /// <summary>
+        /// Completes the title's fade immediately. Only the capture tool uses it: the fade is driven
+        /// by Update, which does not run in an editor script, so without this the main screen
+        /// photographs as a blank sky and the one screen nobody could check stays uncheckable.
+        /// </summary>
+        public void SettleTitle()
+        {
+            if (_titleGroup == null) return;
+            _titleFade = 1f;
+            _titleGroup.alpha = _titleShown ? 1f : 0f;
+        }
 
         void Update()
         {
@@ -240,11 +301,12 @@ namespace Rill.UI
 
         void BuildSpeedMeter(Transform root)
         {
-            var back = UIFactory.MakePanel(root, "SpeedTrack", new Color(1f, 1f, 1f, 0.10f));
+            // Square: an 8 px bar with a 28 px corner radius is a lozenge with nothing left of it.
+            var back = UIFactory.MakePanel(root, "SpeedTrack", new Color(1f, 1f, 1f, 0.10f), false);
             UIFactory.Place(back.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 170f), new Vector2(560f, 8f));
             back.raycastTarget = false;
 
-            _speedFill = UIFactory.MakePanel(back.transform, "SpeedFill", UIFactory.Accent);
+            _speedFill = UIFactory.MakePanel(back.transform, "SpeedFill", UIFactory.Accent, false);
             var rt = UIFactory.Rect(_speedFill.gameObject);
             rt.anchorMin = new Vector2(0f, 0f);
             rt.anchorMax = new Vector2(0f, 1f);
@@ -270,16 +332,21 @@ namespace Rill.UI
             _buttons.sizeDelta = new Vector2(1000f, 110f);
             _buttonsGroup = UIFactory.Group(holder);
 
-            string[] labels = { "Almanac", "Time-lapse", "Daily Rill", "Share" };
+            // End game belongs in this row, not floating in the corner of the play area. The row
+            // only exists while the mountain is idle, which is exactly when leaving it makes sense,
+            // and a control that ends the session should sit with the other deliberate choices
+            // rather than hovering over the water.
+            string[] labels = { "Almanac", "Time-lapse", "Daily Rill", "Share", "End game" };
             Action[] actions =
             {
                 () => { if (AlmanacRequested != null) AlmanacRequested(); },
                 () => { if (TimeLapseRequested != null) TimeLapseRequested(); },
                 () => { if (DailyRequested != null) DailyRequested(); },
-                () => { if (ShareRequested != null) ShareRequested(); }
+                () => { if (ShareRequested != null) ShareRequested(); },
+                () => { if (EndGameRequested != null) EndGameRequested(); }
             };
 
-            float w = 230f, gap = 14f;
+            float w = 196f, gap = 12f;
             float total = labels.Length * w + (labels.Length - 1) * gap;
             for (int i = 0; i < labels.Length; i++)
             {
