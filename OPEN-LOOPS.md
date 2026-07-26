@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **14** · Closed this cycle: **27** (17 archived)
+Last updated: **2026-07-26** · Open loops: **13** · Closed this cycle: **28** (17 archived)
 
 ---
 
@@ -155,7 +155,6 @@ term saturating at 2 m.
 | L-016 | Prop silhouettes worth looking at | Cones and discs. Cosmetic until the loop is proven fun. |
 | L-017 | UI pass — legacy `Text`, hand-placed rects | Placeholder is survivable; the loop is not. |
 | L-019 | Cascade / dam-break spectacle | **Counted 2026-07-26: 4 overflows and 207 m³ over the lip per 150 runs, and *zero* per 24.** The mechanism works; a first-session player still never sees one. Nobody has watched one. |
-| L-020 | Daily glyph legibility — currently near-empty | Viral spine, but pointless before retention exists. |
 | L-022 | Device performance pass | Never run on a phone. No profiling of any kind, ever. |
 | L-023 | Region streaming beyond one 512 m field | Scope question, not a bug. |
 | L-024 | Confluence backend, visits, paper boats | Deliberately out of scope while offline-first. |
@@ -164,6 +163,37 @@ term saturating at 2 m.
 ---
 
 ## Recently closed
+
+### L-020 · Daily glyph legibility — closed 2026-07-26
+The share unit was a scatter of marks on a void, and the cause was a count rather than a matter of
+taste: a day's seven runs all leave the same summit and converge on the same corridor, so they touch
+**8 of the glyph's 49 cells** and the other 41 were drawn as `⬛ nothing happened here`. The grid was
+framed on a 512 m map and asked to describe a 250 m river.
+The background is now the day's mountain — land and ocean — so every cell carries information, which
+is what makes a Wordle grid readable at a glance. It stays comparable between players because
+everyone on a Daily seed has the identical coastline underneath, which is the entire point of a
+shared grid. Water is drawn over it in white, the brightest thing in the frame, the same as in the
+game.
+**Evidence** — the glyph is printed by the smoke test and is reproducible from the log:
+
+```
+🟦🟦🟦🟦🟫🟦🟦
+🟦🟦🟫🟫🟫🟫🟦
+🟦🟫🟫🟧⬜🟫🟦
+🟦🟩⬜⬜🟪🟫🟫
+🟦🟫🟫🟧⬜🟫🟫
+🟦🟦🟫🟫🟫🟫🟫
+🟦🟦🟦🟫🟫🟫🟦
+```
+
+An island, a river down the middle, an amber square where a run stopped and a green one on the west
+coast where one reached the sea. Terrain cells went `0 of 49 → 49 of 49`.
+**The test was also lying about what a share looks like**, and that is the more useful half. It
+rendered a glyph from *every run of the session* — 24 or 150 of them — which is not the unit anybody
+ever sends. It now prints the last `RunsPerDay` runs as the real case, and reports how many cells
+carry water in each, because "reads as empty" is a number.
+**Not closed on a person's reaction.** Nobody has pasted one into a chat and watched what happens,
+which is the only test that matters for a viral mechanic.
 
 ### L-041 · Deposition builds an 8.9 m mound and nobody has looked at it — closed 2026-07-26
 Opened the same day, on the observation that `terrain delta max` had gone `+1.31 m → +8.87 m` once
