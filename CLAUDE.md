@@ -50,6 +50,19 @@ secrets, save round-trip and the Daily glyph. **Every real bug in this project s
 it, and none were visible by reading the code.** Run it after any change to simulation, generation
 or persistence.
 
+And after any change to how the game *looks*, render it — note the missing `-nographics`:
+
+```bash
+/Applications/Unity/Unity-6000.5.5f1/Unity.app/Contents/MacOS/Unity \
+  -batchmode -quit -projectPath . \
+  -executeMethod Rill.EditorTools.RillCapture.Capture -logFile /tmp/cap.log
+```
+
+Writes `docs/shots/*.png` using the game's own shaders and mesh builders. **With `-nographics`,
+`Camera.Render` produces nothing and reports no error** — the tool checks for a graphics device and
+refuses rather than writing a blank image. Props, the ribbon and spray are absent by construction
+(`Graphics.DrawMesh` from `Update` never runs outside play mode), so their absence proves nothing.
+
 ### The failure mode this project keeps hitting
 
 **A system that silently does nothing looks exactly like a system that works.** `CarveBasins` placed
