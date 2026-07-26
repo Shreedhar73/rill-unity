@@ -112,11 +112,23 @@ around the island is cut off by two straight diagonal edges against the open sea
 edge of a map, which is the one thing a world that never resets should never look like.
 **Done when** — The overview render shows no straight edge where terrain meets sea.
 **Evidence needed** — `docs/shots/mountain_150_overview.png`, retaken.
-**Cheapest fix first** — the sea mesh already extends to `WorldExtent × 3`, so this is only about
-the *terrain* stopping. Skirting the field edge downward to well below sea level, or fading the last
-few cells to seabed depth, would hide it without touching the simulation. Do not confuse it with
-L-023 (region streaming): that is about the world being bigger, this is about it not having a visible
-corner.
+**Cause, found 2026-07-26** — the radial island mask is measured from the **summit, not the centre
+of the field**, and on this seed the summit sits at `(150, 126)` of 256. The distance to the `+x`
+boundary is 0.82 of the mask's radius against 1.17 to `-x`, so on one side the island never finishes
+before the field runs out.
+**Do not fix it in generation. That was tried and reverted.** A second mask keyed to the field
+boundary closes the coast on every side and no land runs off the edge — and the smoke test priced
+it at `ReachedSea 2 vs 4`, `delivered 89 vs 175 m³`, `distance 149 vs 178 m/run`, basin capacity
+`4,059 vs 4,786 m³` and `reach (climb 0 m) 2 of 5 vs 5 of 5` over 24 runs. Halving first-session sea
+arrivals is not a price worth paying for a cosmetic edge, and trimming the island pulls the basins
+inward and costs a quarter of the lattice.
+**It also did not finish the job**, which is the more useful half of the result: a faint rectangle of
+seabed tint remained at the boundary even with the coast closed. The artifact is a *shading*
+discontinuity between shelf and open ocean, not only a silhouette, so any fix has to reconcile how
+the two are lit — which is a renderer problem.
+**Fix it in the renderer.** The sea mesh already reaches `WorldExtent × 3`; the terrain is what stops.
+Do not confuse this with L-023 (region streaming): that is about the world being bigger, this is
+about it not having a visible corner.
 
 ### L-043 · The basin lattice is finished by run 500
 **Why** — Measured 2026-07-26 over a 500-run season, the first time this game has been run far
