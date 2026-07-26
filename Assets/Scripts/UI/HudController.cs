@@ -34,6 +34,7 @@ namespace Rill.UI
         CanvasGroup _reportGroup, _panelGroup, _buttonsGroup, _speedGroup, _titleGroup;
         Text _titleWord, _titleTag, _titleRecord;
         Button _startButton, _backButton;
+        GameObject _titleHolder;
         Button[] _slotButtons;
         Text[] _slotLabels;
         CanvasGroup _backGroup;
@@ -104,7 +105,7 @@ namespace Rill.UI
         /// </summary>
         void BuildTitle(Transform root)
         {
-            var holder = new GameObject("Title", typeof(RectTransform));
+            var holder = _titleHolder = new GameObject("Title", typeof(RectTransform));
             holder.transform.SetParent(root, false);
             var hrt = UIFactory.Rect(holder);
             hrt.anchorMin = Vector2.zero; hrt.anchorMax = Vector2.one;
@@ -239,24 +240,38 @@ namespace Rill.UI
         /// </summary>
         public void SetTitleShown(bool visible)
         {
-            if (_titleGroup == null || _titleShown == visible) return;
+            if (_titleHolder == null || _titleGroup == null) return;
+
+            // Guard on REALITY, never on a cached flag. The previous version returned early when
+            // _titleShown already matched, which meant that if the flag and the pixels ever
+            // disagreed — for any reason, in any order, once — nothing could ever put them back.
+            // That is precisely how a title screen survives on top of a running game: something
+            // said "already hidden" while it was plainly on screen.
+            //
+            // Hiding also DISABLES the object rather than only zeroing a CanvasGroup. A disabled
+            // GameObject cannot draw under any circumstance, whatever else has been done to alphas
+            // or sibling order further down the tree.
+            if (_titleHolder.activeSelf != visible)
+            {
+                _titleHolder.SetActive(visible);
+                if (visible) _titleFade = 0f;
+            }
             _titleShown = visible;
-            if (visible) _titleFade = 0f;
-            _titleGroup.alpha = 0f;
-            _titleGroup.blocksRaycasts = visible;
-            _titleGroup.interactable = visible;
+
+            float target = visible ? _titleGroup.alpha : 0f;
+            if (_titleGroup.alpha != target) _titleGroup.alpha = target;
+            if (_titleGroup.blocksRaycasts != visible) _titleGroup.blocksRaycasts = visible;
+            if (_titleGroup.interactable != visible) _titleGroup.interactable = visible;
         }
 
+        /// <summary>Sets the main screen's content. Visibility is owned by SetTitleShown.</summary>
         public void SetTitle(bool visible, string record, System.Action onStart)
         {
             if (_titleGroup == null) return;
-            _titleShown = visible;
+            SetTitleShown(visible);
             // Fade up from nothing rather than appearing on frame one, so the mountain is on screen
             // a beat before the words land on it.
             if (visible) { _titleFade = 0f; _titleGroup.alpha = 0f; }
-            else _titleGroup.alpha = 0f;
-            _titleGroup.blocksRaycasts = visible;
-            _titleGroup.interactable = visible;
             if (_titleRecord != null) _titleRecord.text = record ?? "";
             if (_startButton != null)
             {
@@ -278,6 +293,13 @@ namespace Rill.UI
             _titleFade = 1f;
             _titleGroup.alpha = _titleShown ? 1f : 0f;
         }
+
+        /// <summary>
+        /// What is actually on screen, read from the objects rather than from a flag — so a caller
+        /// checking this cannot be told the same lie the flag was telling.
+        /// </summary>
+        public bool TitleOnScreen => _titleHolder != null && _titleHolder.activeSelf
+                                     && _titleGroup != null && _titleGroup.alpha > 0.001f;
 
         void Update()
         {

@@ -126,6 +126,24 @@ namespace Rill.EditorTools
                 hud.SetTitle(false, "", null);
                 hud.SettleTitle();
                 hud.SetIdleUI(true);
+
+                // Asserted rather than eyeballed. This has been reported twice, and both times the
+                // pixels disagreed with what the code believed, so the check reads the objects.
+                if (hud.TitleOnScreen)
+                    Debug.LogError("[RILL] capture: FAIL — the main screen is still on top after being hidden");
+                else
+                    Debug.Log("[RILL] capture: ok — the main screen is gone once hidden");
+
+                // And again through the state-driven path the run loop actually uses, which is what
+                // hides it when a run begins.
+                hud.SetTitleShown(true);
+                hud.SettleTitle();
+                bool cameBack = hud.TitleOnScreen;
+                hud.SetTitleShown(false);
+                if (!cameBack || hud.TitleOnScreen)
+                    Debug.LogError("[RILL] capture: FAIL — SetTitleShown does not round-trip");
+                else
+                    Debug.Log("[RILL] capture: ok — SetTitleShown round-trips show/hide");
                 hud.SetBackVisible(true);
                 hud.SetTopLine("Run 61 · Clear", "4,900 m³ moved · 1,204 m³ held");
                 hud.SetHint("Tap to release the water");
