@@ -234,6 +234,19 @@ namespace Rill.EditorTools
             Debug.Log(log.ToString());
         }
 
+        /// <summary>Glyph cells showing water rather than background. "Reads as empty" is a count.</summary>
+        static int RunCells(string glyph)
+        {
+            int n = 0;
+            var water = new[] { "⬜", "🟪", "🟩", "🟧" };
+            foreach (var w in water)
+            {
+                int at = 0;
+                while ((at = glyph.IndexOf(w, at, System.StringComparison.Ordinal)) >= 0) { n++; at += w.Length; }
+            }
+            return n;
+        }
+
         static float SlopeAt(RillWorld w, Vector2 xz)
         {
             float slope;
@@ -794,8 +807,23 @@ namespace Rill.EditorTools
                 reloaded != null ? reloaded.LifetimeSediment : 0f);
             SaveSystem.DeleteSlot(99);
 
-            string glyph = GlyphGenerator.Render(dailyPaths, dailySea, world.Field.WorldExtent);
-            log.AppendLine("  daily glyph:");
+            // A Daily is three runs, not the whole session, so the glyph rendered from every run
+            // of a 150-run test is not the share unit anybody will ever see. Print both: the real
+            // case first, and the density of each, because "reads as empty" is a count.
+            var lastThree = new List<List<Vector3>>();
+            var lastThreeSea = new List<bool>();
+            for (int i = Mathf.Max(0, dailyPaths.Count - DailyRill.RunsPerDay); i < dailyPaths.Count; i++)
+            {
+                lastThree.Add(dailyPaths[i]);
+                lastThreeSea.Add(dailySea[i]);
+            }
+            string daily = GlyphGenerator.Render(lastThree, lastThreeSea, world.Field.WorldExtent, world.Field);
+            string glyph = GlyphGenerator.Render(dailyPaths, dailySea, world.Field.WorldExtent, world.Field);
+            log.AppendFormat("  daily glyph ({0} runs, the real share unit) — {1} of {2} cells carry a run:\n",
+                lastThree.Count, RunCells(daily), GlyphGenerator.Grid * GlyphGenerator.Grid);
+            log.AppendLine(daily);
+            log.AppendFormat("  whole session ({0} runs) — {1} of {2}:\n",
+                dailyPaths.Count, RunCells(glyph), GlyphGenerator.Grid * GlyphGenerator.Grid);
             log.AppendLine(glyph);
 
             return log;

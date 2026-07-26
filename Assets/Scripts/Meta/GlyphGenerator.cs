@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
+using Rill.Core;
 
 namespace Rill.Meta
 {
@@ -13,17 +14,34 @@ namespace Rill.Meta
     {
         public const int Grid = 7;
 
-        const string Empty = "⬛";
-        const string Trace = "🟦";
+        // The background is the day's mountain, not blank space.
+        //
+        // A Wordle grid reads at a glance because every cell carries information. This one did not.
+        // Measured: a day's seven runs all leave the same summit and converge on the same corridor,
+        // so they touch 8 of the 49 cells and the other 41 were drawn as "⬛ nothing happened here".
+        // The share unit was a scatter of marks on a void.
+        //
+        // Land and sea cost nothing to draw, are identical for everyone playing the same Daily seed
+        // — so glyphs stay comparable, which is the entire point of a shared grid — and turn the
+        // picture into a river crossing a coastline instead of a few dots in the dark.
+        const string Land = "🟫";
+        const string Ocean = "🟦";
+        const string Empty = "⬛";   // only when no terrain was supplied
+
+        // The water is the brightest thing in the frame, the same as it is in the game.
+        const string Trace = "⬜";
         const string Deep = "🟪";
         const string Sea = "🟩";
-        const string Pool = "⬜";
+        const string Pool = "🟧";
 
         /// <summary>
-        /// Rasterises the paths of a day's runs onto one grid. Cells the water crossed often
-        /// read as "deep", the arrival cell reads as sea, a pooled ending reads as a pale square.
+        /// Rasterises the paths of a day's runs onto one grid. Cells the water crossed often read
+        /// as "deep", a run that made the sea marks its arrival green, one that stopped marks it
+        /// amber. Pass <paramref name="field"/> to draw the mountain underneath; without it the
+        /// background is blank, which is what the glyph used to be everywhere.
         /// </summary>
-        public static string Render(List<List<Vector3>> runPaths, List<bool> reachedSea, float worldExtent)
+        public static string Render(List<List<Vector3>> runPaths, List<bool> reachedSea, float worldExtent,
+                                    HeightField field = null)
         {
             var counts = new int[Grid * Grid];
             var flags = new byte[Grid * Grid]; // 1 = sea arrival, 2 = pooled end
@@ -45,6 +63,8 @@ namespace Rill.Meta
                 }
             }
 
+            string[] background = Background(field);
+
             int max = 1;
             for (int i = 0; i < counts.Length; i++) if (counts[i] > max) max = counts[i];
 
@@ -56,13 +76,48 @@ namespace Rill.Meta
                     int i = z * Grid + x;
                     if (flags[i] == 1) sb.Append(Sea);
                     else if (flags[i] == 2) sb.Append(Pool);
-                    else if (counts[i] == 0) sb.Append(Empty);
+                    else if (counts[i] == 0) sb.Append(background[i]);
                     else if (counts[i] > max * 0.5f) sb.Append(Deep);
                     else sb.Append(Trace);
                 }
                 if (z > 0) sb.Append('\n');
             }
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Land or ocean per glyph cell, by majority of the terrain samples inside it. A majority
+        /// rather than a mean: a cell that is half a 100 m peak and half open sea has an average
+        /// elevation that describes neither, and the glyph is asking a yes/no question.
+        /// </summary>
+        static string[] Background(HeightField f)
+        {
+            var bg = new string[Grid * Grid];
+            if (f == null)
+            {
+                for (int i = 0; i < bg.Length; i++) bg[i] = Empty;
+                return bg;
+            }
+
+            int step = Mathf.Max(1, f.Size / (Grid * 8));   // ~8 samples per glyph cell per axis
+            var land = new int[Grid * Grid];
+            var total = new int[Grid * Grid];
+
+            for (int z = 0; z < f.Size; z += step)
+            {
+                int gz = z * Grid / f.Size;
+                for (int x = 0; x < f.Size; x += step)
+                {
+                    int gx = x * Grid / f.Size;
+                    int gi = gz * Grid + gx;
+                    total[gi]++;
+                    if (f.Height[z * f.Size + x] > f.SeaLevel) land[gi]++;
+                }
+            }
+
+            for (int i = 0; i < bg.Length; i++)
+                bg[i] = total[i] > 0 && land[i] * 2 >= total[i] ? Land : Ocean;
+            return bg;
         }
 
         static int CellOf(Vector3 world, float worldExtent)

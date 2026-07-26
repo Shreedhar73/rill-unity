@@ -436,7 +436,7 @@ namespace Rill.Flow
             }
             else if (InDaily)
             {
-                _daily.RecordRun(_sim.Path, _sim.Ending == RunEnding.ReachedSea, _sim.WaterToSea, field.WorldExtent);
+                _daily.RecordRun(_sim.Path, _sim.Ending == RunEnding.ReachedSea, _sim.WaterToSea, field.WorldExtent, field);
             }
             else
             {
@@ -639,13 +639,13 @@ namespace Rill.Flow
             string text;
             if (InDaily)
             {
-                text = _daily.ShareText(Active.Field.WorldExtent);
+                text = _daily.ShareText(Active.Field.WorldExtent, Active.Field);
             }
             else
             {
                 var paths = new List<List<Vector3>> { new List<Vector3>(_lastPath) };
                 var seas = new List<bool> { _lastReport != null && _lastReport.Ending == RunEnding.ReachedSea };
-                string glyph = GlyphGenerator.Render(paths, seas, Active.Field.WorldExtent);
+                string glyph = GlyphGenerator.Render(paths, seas, Active.Field.WorldExtent, Active.Field);
                 text = string.Format("RILL — my mountain, run {0}\n{1}\n{2:n0} m³ moved · {3} uncovered\n#RILL",
                     Active.RunNumber, glyph, Active.LifetimeSediment, Revelation.RevealedCount());
             }

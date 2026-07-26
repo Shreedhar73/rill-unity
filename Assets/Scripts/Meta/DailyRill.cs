@@ -88,7 +88,8 @@ namespace Rill.Meta
         }
 
         /// <summary>Call once per completed daily run.</summary>
-        public void RecordRun(List<Vector3> path, bool reachedSea, float waterDelivered, float worldExtent)
+        public void RecordRun(List<Vector3> path, bool reachedSea, float waterDelivered, float worldExtent,
+                              Rill.Core.HeightField field = null)
         {
             if (_file.Complete) return;
             _file.RunsUsed++;
@@ -97,25 +98,25 @@ namespace Rill.Meta
             Paths.Add(new List<Vector3>(path));
             ReachedSea.Add(reachedSea);
 
-            _file.FinalGlyph = GlyphGenerator.Render(Paths, ReachedSea, worldExtent);
+            _file.FinalGlyph = GlyphGenerator.Render(Paths, ReachedSea, worldExtent, field);
             if (_file.RunsUsed >= RunsPerDay) _file.Complete = true;
             Save();
         }
 
         public string Glyph => string.IsNullOrEmpty(_file.FinalGlyph) ? "" : _file.FinalGlyph;
 
-        public string ShareText(float worldExtent)
+        public string ShareText(float worldExtent, Rill.Core.HeightField field = null)
         {
             string glyph = string.IsNullOrEmpty(_file.FinalGlyph)
-                ? GlyphGenerator.Render(Paths, ReachedSea, worldExtent)
+                ? GlyphGenerator.Render(Paths, ReachedSea, worldExtent, field)
                 : _file.FinalGlyph;
             return GlyphGenerator.ShareText(_file.DateKey, _file.RunsUsed, RunsPerDay, _file.WaterToSea, glyph);
         }
 
         /// <summary>Copies the share block to the system clipboard. One tap, no dialog, no account.</summary>
-        public void CopyShareToClipboard(float worldExtent)
+        public void CopyShareToClipboard(float worldExtent, Rill.Core.HeightField field = null)
         {
-            GUIUtility.systemCopyBuffer = ShareText(worldExtent);
+            GUIUtility.systemCopyBuffer = ShareText(worldExtent, field);
         }
     }
 }
