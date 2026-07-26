@@ -179,6 +179,7 @@ namespace UnityEngine
         public string name;
         public static void Destroy(Object o) { }
         public static void DestroyImmediate(Object o) { }
+        public static T FindFirstObjectByType<T>() where T : Object { return null; }
         public static bool operator ==(Object a, object b) { return false; }
         public static bool operator !=(Object a, object b) { return false; }
         public override bool Equals(object o) { return false; }
@@ -191,6 +192,7 @@ namespace UnityEngine
         public GameObject gameObject { get { return null; } }
         public T GetComponent<T>() where T : Component { return null; }
         public T AddComponent<T>() where T : Component, new() { return null; }
+        public T[] GetComponentsInChildren<T>(bool includeInactive) { return null; }
     }
 
     public class Behaviour : Component { public bool enabled; }
@@ -208,6 +210,7 @@ namespace UnityEngine
         public Vector3 localPosition { get; set; }
         public void SetParent(Transform p, bool worldPositionStays) { }
         public void SetParent(Transform p) { }
+        public Transform parent { get { return null; } }
     }
 
     public class RectTransform : Transform
@@ -234,6 +237,7 @@ namespace UnityEngine
         public T GetComponent<T>() where T : Component { return null; }
         public void SetActive(bool v) { }
         public bool activeSelf { get { return false; } }
+        public bool activeInHierarchy { get { return false; } }
     }
 
     public enum LightType { Directional, Point, Spot, Area }
@@ -395,6 +399,7 @@ namespace UnityEngine
 
     public static class Time
     {
+        public static float timeScale { get; set; }
         public static float deltaTime { get { return 0f; } }
         public static float unscaledDeltaTime { get { return 0f; } }
         public static float time { get { return 0f; } }
@@ -444,6 +449,8 @@ namespace UnityEngine
         public static int height { get { return 0; } }
     }
 
+    public enum LogType { Error, Assert, Warning, Log, Exception }
+
     public static class Application
     {
         public static string persistentDataPath { get { return ""; } }
@@ -451,6 +458,9 @@ namespace UnityEngine
         public static int targetFrameRate { get; set; }
         public static bool isEditor { get { return false; } }
         public static void Quit() { }
+        public delegate void LogCallback(string condition, string stackTrace, LogType type);
+        public static event LogCallback logMessageReceived;
+        internal static void Never() { if (logMessageReceived != null) logMessageReceived("", "", LogType.Log); }
     }
 
     public static class QualitySettings
@@ -523,11 +533,14 @@ namespace UnityEngine
     }
 
     public enum ParticleSystemSimulationSpace { Local, World, Custom }
+    public enum ParticleSystemStopBehavior { StopEmittingAndClear, StopEmitting }
     public enum ParticleSystemShapeType { Sphere, Hemisphere, Cone, Box, Circle }
     public enum ParticleSystemRenderMode { Billboard, Stretch, HorizontalBillboard, VerticalBillboard, Mesh }
 
     public class ParticleSystem : Component
     {
+        public void Stop(bool withChildren, ParticleSystemStopBehavior stopBehavior) { }
+
         public struct MinMaxCurve
         {
             public MinMaxCurve(float constant) { }

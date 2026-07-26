@@ -15,6 +15,27 @@ namespace UnityEditor
         public int priority;
     }
 
+    [AttributeUsage(AttributeTargets.Method)]
+    public sealed class InitializeOnLoadMethod : Attribute { }
+
+    public static class EditorApplication
+    {
+        public static event Action update;
+        public static bool isPlaying { get { return false; } }
+        public static void EnterPlaymode() { }
+        public static void Exit(int returnValue) { }
+        // Referenced so the compiler believes the event is used; the stub never runs.
+        internal static void Never() { if (update != null) update(); }
+    }
+
+    public static class SessionState
+    {
+        public static bool GetBool(string key, bool defaultValue) { return defaultValue; }
+        public static void SetBool(string key, bool value) { }
+        public static int GetInt(string key, int defaultValue) { return defaultValue; }
+        public static void SetInt(string key, int value) { }
+    }
+
     public class EditorBuildSettingsScene
     {
         public EditorBuildSettingsScene(string path, bool enabled) { }
@@ -63,5 +84,6 @@ namespace UnityEditor.SceneManagement
         public static Scene NewScene(NewSceneSetup setup, NewSceneMode mode) { return new Scene(); }
         public static bool SaveScene(Scene scene, string path) { return false; }
         public static bool SaveScene(Scene scene) { return false; }
+        public static Scene OpenScene(string scenePath) { return new Scene(); }
     }
 }
