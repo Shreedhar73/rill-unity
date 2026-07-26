@@ -31,7 +31,7 @@ Every feature named in `RILL-game-design.md`, with its real state.
 | Depth track (channels deepen) | **Done** | Measured run over run. |
 | Volume track (basins fill, overflow) | **Partial** | Basins fill and report percentages; overflow now fires in measured runs (`North basin broke its banks`). But only **2 of 5 basins ever receive water** across 150 runs — the other three sit at 0%. See L-027. |
 | Basin crossing (full lake acts as river) | **Done** | 150 runs: **69 runs crossed a full lake, 54 of those reached the sea**, avg 107 m travelled after crossing. A basin with room now also drinks from a stream passing over it — 2,388 m³ per 150 runs left in lakes in passing. |
-| Life track (moss → village) | **Built** | Tier logic and instanced props exist. Never observed past the first tier. |
+| Life track (moss → village) | **Built** | Tier logic and instanced props exist. Submerged cells now drown (>0.25 m of standing water) and shore cells beside a lake count as fully moist, so a filled basin grows a visible waterline ring instead of sinking the forest out of sight (L-056, confirmed by render at 24 runs). Never observed past the first tier in play. |
 | Revelation track (buried secrets) | **Done** | `3 of 60` revealed in 24 runs, `12 of 60` in 150. Placement is half on a summit-traced corridor, half on the wider drainage network; revelation tests erosion (`Virgin - Height`) within 4 m, so a find always means water was routed there. |
 | No XP / levels / currencies | **Done** | None exist anywhere in the codebase. |
 | Progression screen *is* the world | **Done** | Camera pull-back; no stats screen was ever built. |

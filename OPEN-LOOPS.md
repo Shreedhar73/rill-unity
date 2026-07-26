@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **37** (26 archived)
+Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **41** (28 archived)
 
 ---
 
@@ -258,6 +258,56 @@ spray half alone.
 
 ## Recently closed
 
+### L-053 · The start button vanished from the main screen — closed 2026-07-26
+Reported that evening, verbatim: "the start button is gone." `SetMountains` hid the Begin button the
+moment the three slot rows existed, on the theory that the rows replace it. They do not — three stat
+lines are a place to switch mountains, not an obvious way to start the game. Begin is back as the
+primary control, the rows sit below it.
+**Evidence** — `docs/shots/ui_home.png`: Begin above the three rows, no overlap, both capture
+asserts still passing.
+
+### L-054 · Backing out of the Daily could save it over a mountain — closed 2026-07-26
+Found while investigating the same evening's reports, not reported itself, and the worst of the
+batch. Back and End game both returned to the main screen with `InDaily` still set and `Active`
+still the borrowed daily world; `SwitchToMountain` then cleared the flag *before* its save guard
+read it, so picking a mountain after backing out of the Daily wrote the throwaway daily world over
+the player's slot — invariant 1, one tap sequence away. It had not happened to the real save
+(verified: slot 0's seed and record are the player's own), but nothing prevented it.
+`LeaveDaily()` is now the only way off the daily world and runs at the title's door, so anything on
+the main screen is the player's own mountain by construction. Also: world and almanac now save
+together on pause and quit — the real slot 0 carries five phantom runs (178–182, world at 182,
+almanac ending at 177) from mid-run editor stops that saved one and not the other.
+**Closed on the code path, said plainly** — the sequence spans three MonoBehaviour handlers and
+cannot be driven headlessly. 18/18 navigation and 16/16 mountains assertions still pass.
+
+### L-055 · The dam break stole the run's ending — closed 2026-07-26
+Reported as: "previously the whole path it took was shown before the dialog." The L-036 settle beat
+still ran, but on a mature mountain the North basin overflows every couple of runs, and the
+cascade-before-report ordering let the dam break re-aim the camera at its own deepest cut and
+overwrite the ribbon with its own path — so the beat built to show the player their run showed them
+the mountain's instead. The player's own slot is exactly such a mountain; its almanac logs overflow
+after overflow, which is why *every* ending looked wrong to them.
+When the held report is handed back, the ribbon is restored to the player's path and the camera
+re-framed on their deepest cut. Cascade-first ordering stays: consequence, then the card.
+**Unobserved in play**, like all UI here.
+
+### L-056 · A full basin drowned the entire visible forest — closed 2026-07-26
+Reported as: "the trees are gone." Forensics on the real save found them: **128 living cells in the
+whole world, every one at tier 6.0, every one under the brim-full North basin** — the life indices
+match the standing-water indices exactly. The moisture rule counted submerged cells as maximally
+wet, so growth concentrated inside the basin; `RebuildInstances` rightly refuses to draw props
+underwater; the basin filling to the brim (almanac: runs 169, 173, 176) sank everything visible in
+one evening, while land life elsewhere had starved as the channels dried between runs.
+Now: cells under more than 0.25 m of standing water lose life — a filled tarn drowns what grew in
+it — and cells *adjacent* to standing water count as fully moist with the lake bonus, so the growth
+goes to a ring at the waterline the player can actually see.
+**Evidence** — measured at 24 runs, same seed, before → after: visible props up (moss 110→120,
+reeds 103→109) while living cells fall 1,496→1,338, which is the drowned invisible cells dying and
+the shore replacing them. `docs/shots/mountain_24_life.png` shows the ring: a conifer stand and
+reeds on the lake edge. On the damaged save the shoreline regrows from the next run played — moss
+in ~2 runs, trees in ~11. The sunken tier-6 grove is left to drown honestly rather than restored by
+hand.
+
 ### L-049 · The app appears rather than opens — closed 2026-07-26
 L-037 gave the game a title screen; it still had no launch. The title faded up over an already-built
 mountain, which is a screen rather than an arrival.
@@ -493,71 +543,5 @@ the place became". The headline says the tarn silted up and where its water went
 the successor landform. Nothing in the world currently knows whether a filled tarn became meadow,
 gravel flat or bog — the ecosystem tracks moisture but not history — so naming it would be a
 fabrication, which is the exact failure L-035 was closed for. Left undone deliberately.
-
-### L-042 · The mountain silts up its own approaches — closed 2026-07-26
-Opened the same day on one end-of-test number: the lattice was `5 of 5` reachable downhill at
-generation and `4 of 5` after 150 runs. The fear was a slow death — a game meant to be played for
-months whose basin lattice quietly closes, which is the "boring local minimum by week 6" the design
-document names as a top-three risk. L-028 fixed the incision half of that; this was the deposition
-half.
-**Evidence — 500 runs, sampled every 25.** The mountain does do this to itself: the virgin-rock
-control reads `5 of 5` at every single sample, so generation is correct and it is the river
-reorganising.
-
-```
-run    1   downhill 5/5, on momentum 5/5, on virgin rock 5/5   no downhill route: none
-run   50   downhill 2/5, on momentum 5/5, on virgin rock 5/5   #0 0%  #3 5%  #4 100%   <- 2 still had room
-run  100   downhill 2/5, on momentum 5/5, on virgin rock 5/5   #1 84%  #3 32%  #4 100% <- 2 still had room
-run  125   downhill 4/5, on momentum 5/5, on virgin rock 5/5   #1 100%
-run  500   downhill 4/5, on momentum 5/5, on virgin rock 5/5   #1 100%
-```
-
-**Three findings, and the last one is the answer.**
-1. It is not a decay. Strict downhill access collapses to `2 of 5` by run 50 and **reopens to
-   `4 of 5` by run 125**, then holds flat for the remaining 375 runs. Something reopens what silts
-   closed, which the loop asked for as an alternative to stability and which turns out to be both.
-2. In the steady state the single basin with no downhill route is **the one at 100% full**. The
-   mountain closes the door on lakes it has finished with. Every basin that still had room was
-   reachable at every sample from run 125 to run 500.
-3. **On momentum the answer is `5 of 5` at every sample, without exception.** Strictly-downhill was
-   always a lower bound the simulation does not obey — water here tops 25 m/s and `v²/2g` at that
-   speed is tens of metres of climb. The player never loses a basin at all.
-**The real cost, recorded rather than rounded away** — between runs 50 and 100 there is a window
-where two *unfinished* basins have no downhill route and can only be reached on momentum. That is a
-harder game for fifty runs, not a broken one, and it is arguably the design working: the river
-reorganises and the player has to carve a new way in. Nobody has played through that window, so
-whether it reads as the mountain changing or as the mountain cheating is unknown.
-**Nothing was clamped**, which the loop asked for explicitly. Deposition is still free to build.
-
-### L-020 · Daily glyph legibility — closed 2026-07-26
-The share unit was a scatter of marks on a void, and the cause was a count rather than a matter of
-taste: a day's seven runs all leave the same summit and converge on the same corridor, so they touch
-**8 of the glyph's 49 cells** and the other 41 were drawn as `⬛ nothing happened here`. The grid was
-framed on a 512 m map and asked to describe a 250 m river.
-The background is now the day's mountain — land and ocean — so every cell carries information, which
-is what makes a Wordle grid readable at a glance. It stays comparable between players because
-everyone on a Daily seed has the identical coastline underneath, which is the entire point of a
-shared grid. Water is drawn over it in white, the brightest thing in the frame, the same as in the
-game.
-**Evidence** — the glyph is printed by the smoke test and is reproducible from the log:
-
-```
-🟦🟦🟦🟦🟫🟦🟦
-🟦🟦🟫🟫🟫🟫🟦
-🟦🟫🟫🟧⬜🟫🟦
-🟦🟩⬜⬜🟪🟫🟫
-🟦🟫🟫🟧⬜🟫🟫
-🟦🟦🟫🟫🟫🟫🟫
-🟦🟦🟦🟫🟫🟫🟦
-```
-
-An island, a river down the middle, an amber square where a run stopped and a green one on the west
-coast where one reached the sea. Terrain cells went `0 of 49 → 49 of 49`.
-**The test was also lying about what a share looks like**, and that is the more useful half. It
-rendered a glyph from *every run of the session* — 24 or 150 of them — which is not the unit anybody
-ever sends. It now prints the last `RunsPerDay` runs as the real case, and reports how many cells
-carry water in each, because "reads as empty" is a number.
-**Not closed on a person's reaction.** Nobody has pasted one into a chat and watched what happens,
-which is the only test that matters for a viral mechanic.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
