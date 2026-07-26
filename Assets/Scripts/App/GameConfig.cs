@@ -1,0 +1,88 @@
+using System;
+using UnityEngine;
+using Rill.Core;
+
+namespace Rill.App
+{
+    /// <summary>
+    /// Every tuning number in RILL, in one place. The whole design lives or dies on the
+    /// carve -> speed -> reach loop, so those constants are grouped and commented first.
+    /// </summary>
+    [Serializable]
+    public class GameConfig
+    {
+        [Header("World")]
+        public int Size = 256;
+        public float CellSize = 2.0f;
+        public float PeakHeight = 150f;
+        public Biome Biome = Biome.Sandstone;
+        public uint Seed = 20260726u;
+
+        [Header("Flow — the momentum economy")]
+        // Terminal speed on a slope is Gravity * sin(theta) / drag. These numbers are chosen from
+        // that identity, not by feel: on a 30° face fresh rock settles near 9 m/s and a fully
+        // polished channel near 24 m/s. That ~2.6x gap IS the game — it is what a carved channel
+        // buys you, and it has to be large enough to feel like a different vehicle.
+        [Tooltip("Downhill acceleration per unit slope. Higher = the mountain feels steeper than it looks.")]
+        public float Gravity = 30f;
+        [Tooltip("Drag on fresh rock. This is the tax the player is paying off, run after run.")]
+        public float DragFresh = 1.65f;
+        [Tooltip("Drag inside a fully polished channel. The reward for having carved.")]
+        public float DragPolished = 0.42f;
+        public float MaxSpeed = 28f;
+        public float StartSpeed = 1.5f;
+        [Tooltip("Simulation step. Fixed so runs are reproducible for time-lapse and Daily Rill.")]
+        public float SimStep = 1f / 90f;
+
+        [Header("Steering — restraint is the skill ceiling")]
+        [Tooltip("Lateral acceleration at full thumb offset.")]
+        public float SteerAccel = 20f;
+        [Tooltip("Thumb offset (metres) at which steering saturates. Close = fine, far = hard lean.")]
+        public float SteerRange = 22f;
+        [Tooltip("Fraction of speed bled per second at full steer. Fighting gravity must cost.")]
+        public float SteerSpeedCost = 0.55f;
+
+        [Header("Carving")]
+        public float CarveRate = 0.055f;         // metres per second at reference speed/volume
+        public float CarveReferenceSpeed = 12f;
+        public float DepositRate = 2.2f;         // sediment settling rate when slow
+        public float SedimentCapacity = 0.22f;   // per unit speed*volume
+        public float BrushRadiusCells = 1.35f;
+        public float BrushRadiusPerVolume = 0.9f;
+        public float PolishRate = 0.55f;         // per second of fast flow
+        public float MaxCarvePerStep = 0.05f;    // safety clamp; no spikes, ever
+
+        [Header("Volume")]
+        public float StartVolume = 60f;          // m^3 of water in a normal run
+        public float StormVolumeMultiplier = 2f;
+        public float InfiltrationRate = 1.6f;    // m^3/s lost into dry ground
+        public float MinVolume = 2f;             // run ends below this
+
+        [Header("Run end")]
+        [Tooltip("Below this speed the water is considered to have stopped. Must sit well under " +
+                 "terminal speed on the gentlest slope worth flowing down, or runs end in the first seconds.")]
+        public float PoolSpeedThreshold = 0.5f;
+        [Tooltip("How long it must stay stopped. Long enough to survive snagging on one rough cell.")]
+        public float PoolDwellTime = 0.9f;
+        public float MaxRunSeconds = 75f;
+        public float SeaMargin = 0.4f;           // metres above sea level that still counts as arrival
+
+        [Header("World memory")]
+        [Tooltip("Metres of silt an abandoned channel recovers per run. Geology's respawn: gentle, thematic, slow.")]
+        public float HealingPerRun = 0.006f;
+        public float WetDecayPerRun = 0.04f;
+        public float PolishDecayPerRun = 0.012f;
+
+        [Header("Ecosystem")]
+        public float LifeMoistureThreshold = 0.35f;
+        public int LifeTierRunSpacing = 6;
+
+        [Header("Presentation")]
+        public float CameraHeight = 46f;   // follow height above the stream
+        public float CameraDistance = 62f; // follow distance behind it
+        public float CameraPitch = 42f;
+        public bool ShowCarveOverlay = true;
+
+        public float WorldExtent => Size * CellSize;
+    }
+}

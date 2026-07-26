@@ -1,0 +1,35 @@
+# Unity generated — never commit. These are build caches and machine-local state;
+# tracking them churns every diff and bloated the previous repo's history.
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Never ignore .meta files for tracked assets — Unity needs them.
+!/[Aa]ssets/**/*.meta
+
+# IDE / OS
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.unityproj
+*.sln
+*.user
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+.DS_Store
+
+# Crash reports
+sysinfo.txt
+crashlytics-build.properties
