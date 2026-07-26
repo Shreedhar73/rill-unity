@@ -36,6 +36,30 @@ note it.
 > every headline a rebuild raises. Before concluding a system does nothing, check that the test
 > reads it the way the game does.
 
+### 4. Look at it — ~40 seconds, and it needs a graphics device
+
+```bash
+/Applications/Unity/Unity-6000.5.5f1/Unity.app/Contents/MacOS/Unity \
+  -batchmode -quit -projectPath . \
+  -executeMethod Rill.EditorTools.RillCapture.Capture -logFile /tmp/cap.log
+```
+
+**Note the absence of `-nographics`.** With it, `Camera.Render` writes nothing and reports no error
+whatsoever — the tool checks `SystemInfo.graphicsDeviceType` first and refuses, because a silently
+blank PNG is exactly the failure mode this project keeps hitting.
+
+Writes the idle overview and a close pass on the deepest cut to `docs/shots/`, using the game's own
+shaders, materials, lighting and mesh builders, after playing N runs. This is the only thing here
+that can check the *look* without a person pressing Play, and it earned its place immediately: the
+first image it produced showed the main channel rendering as a near-black stripe from four
+darkening terms multiplying, a regression that had been committed hours earlier and type-checked
+clean.
+
+**What it cannot show, so absence is not evidence:** ecosystem props, revealed secrets and
+collectibles are drawn with `Graphics.DrawMesh` from `Update`, which never runs outside play mode.
+Nor are the ribbon, spray or carve overlay, which are per-run state. It shows the mountain between
+runs.
+
 ### 2. Compile in Unity, headless — ~1 minute
 
 ```bash

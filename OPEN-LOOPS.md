@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **14** · Closed this cycle: **30** (21 archived)
+Last updated: **2026-07-26** · Open loops: **13** · Closed this cycle: **31** (21 archived)
 
 ---
 
@@ -156,6 +156,16 @@ steer, it clears and does not return. Session-scoped, because an existing save h
 whether its owner ever learned. Says **nothing** about the mountain remembering — that discovery is
 the game.
 
+### L-016 · Prop silhouettes worth looking at
+**Why** — Promoted from Later 2026-07-26, because it is now the largest thing between this mountain
+and looking finished. Conifers and canopies were built the same day; moss, reeds and huts are still
+cones and discs.
+**Blocked from measurement, in a specific and fixable way** — props are drawn with
+`Graphics.DrawMesh` from `Update`, which never runs outside play mode, so `RILL/Capture Mountain
+PNG` cannot show them. Every other part of the look can now be checked from a terminal and this
+cannot. Making `EcosystemSystem` and `RevelationSystem` able to emit real `MeshRenderer`s (or
+having the capture tool call their draw code directly) unblocks it.
+
 ### L-014 · Sense of speed
 **Why** — The momentum economy is the game's skill ceiling, and at 24 m/s it currently looks the
 same as 9 m/s. The player cannot feel the thing they are optimising.
@@ -171,27 +181,12 @@ rather than proportional from zero, because spray that is always on is weather a
 has. Whether that reads as impact is a look-at-it question, and the loop should not close on the
 spray half alone.
 
-### L-015 · Persistent wet-channel darkening
-**Why** — A carved channel is invisible when dry, so the player cannot see their own river system
-between runs — which is most of the time they spend looking at the mountain.
-**Done when** — Old channels read as channels from the idle camera with no water in them.
-**Implemented 2026-07-26, unobserved. Two causes, both measured rather than guessed.** The concavity
-occlusion normalised surrounding rock over **4 m**, and over 150 runs only 191 cells are cut deeper
-than 1.5 m against 613 deeper than 0.5 m — so a real channel produced an occlusion of ~0.93, a 7%
-darkening before `_AOStrength` scaled it down further. It now normalises over 1.6 m, the depth this
-mountain actually reaches. And **nothing drew the cut at all**: polish decays at `PolishDecayPerRun`
-and wetness faster, so a channel abandoned twenty runs ago has neither left and is still a channel —
-the rock is gone. That made the oldest work on the mountain the least visible, which is backwards
-for a game whose premise is that nothing ever resets. Terrain colour now carries a `Virgin - Height`
-term saturating at 2 m.
-
 ---
 
 ## Later
 
 | ID | Loop | Why it waits |
 |---|---|---|
-| L-016 | Prop silhouettes worth looking at | Cones and discs. Cosmetic until the loop is proven fun. |
 | L-017 | UI pass — legacy `Text`, hand-placed rects | Placeholder is survivable; the loop is not. |
 | L-019 | Cascade / dam-break spectacle | **Counted 2026-07-26: 4 overflows and 207 m³ over the lip per 150 runs, and *zero* per 24.** The mechanism works; a first-session player still never sees one. Nobody has watched one. |
 | L-022 | Device performance pass | Never run on a phone. No profiling of any kind, ever. |
@@ -202,6 +197,34 @@ term saturating at 2 m.
 ---
 
 ## Recently closed
+
+### L-015 · Persistent wet-channel darkening — closed 2026-07-26
+A carved channel was invisible when dry, so the player could not see their own river system between
+runs — which is most of the time they spend looking at the mountain.
+**Closed with images archived**, which is what this project has never had:
+[`docs/shots/`](docs/shots/) holds the mountain at 24 and 150 runs, from the idle overview and from
+a close pass on the deepest cut, rendered from batch mode by `RILL/Capture Mountain PNG`. At 150
+runs (`terrain −10.39 m to +4.68 m vs virgin`) the channel reads as a carved valley with the strata
+bands **bending into it**, and four lakes are visible from the idle camera — the basin lattice
+filling is now something you can see rather than a percentage in a log.
+**The fix was the opposite of what the loop assumed, and the first render is what said so.** The
+loop asked for *darkening*. Darkening was already happening four times over — a polish tint, a CPU
+wet blend, the shader's occlusion term and the shader's own wet darkening, multiplying to about
+**0.25 of the surrounding rock** — and the result was a black stripe down the mountain that painted
+over the deeper strata band the cut had just exposed. That defeats "every metre of depth is legible
+as colour", the design's central visual promise, precisely where the player has done the most work.
+So: the incision-colour term added earlier the same day was removed outright, occlusion floored at
+0.55, polish made a tint rather than a darkener, and the wet term halved on both sides.
+**What actually makes an old channel legible is geometry, not paint.** The cell sits lower, so it
+takes a lower band's colour; and it is inside something, so occlusion shades it. Both survive
+`PolishDecayPerRun` taking polish to zero, which is exactly the "old channel" case the loop was
+about.
+**Weaker than asked in one respect, and it is a physical limit rather than a bug.** From the *full*
+idle overview — 435 m back on a 512 m mountain — a 2–4 m channel is a couple of pixels and reads as
+a faint line. It is unmistakable at any closer framing. Worth noting alongside: `GameBootstrap` sets
+`OverviewDistance` to `extent × 0.85` = 435 m, which is outside the 45–320 m range
+`RillCamera.Zoom` will clamp to, so the default idle camera sits further out than the player can
+ever zoom back to.
 
 ### L-044 · A basin can be erased by being filled — closed 2026-07-26
 A 500-run campaign against one basin ends with the lattice down from 5 to 3. The player's target
