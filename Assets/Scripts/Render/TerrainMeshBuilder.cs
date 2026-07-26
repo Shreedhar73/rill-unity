@@ -144,36 +144,41 @@ namespace Rill.Render
 
                     Color col = StrataPalette.ColorAt(_bands, hgt);
 
-                    // A polished bed is darker and cooler: your channels read as channels from orbit.
+                    // A polished bed is cooler and a little darker: your channels read as channels
+                    // from orbit. sqrt() lifts modest polish (a real channel sits near 0.3-0.5)
+                    // into visible range.
                     //
-                    // This existed and was simply too faint to see. At polish = 1 it darkened by
-                    // 28%, and a real channel sits nearer 0.3-0.5, so the actual effect was ~10% —
-                    // invisible against the strata banding, which is why a dry channel could not be
-                    // made out from the idle camera at all. sqrt() lifts modest polish into visible
-                    // range, and the target colour is darker and bluer so a channel reads as damp
-                    // rock rather than as slightly-different rock.
+                    // Mostly a TINT, not a darkener, and that distinction was learned the hard way.
+                    // Four separate things darken a channel cell — this, the wet blend below, the
+                    // shader's occlusion term and the shader's own wet darkening — and they
+                    // multiply. At the old values a channel came out at roughly 0.25 of the
+                    // surrounding rock before seam and cliff darkening, which rendered as a black
+                    // stripe down the mountain and hid the deeper strata band the cut had exposed.
+                    // Revealing strata is the reward; nothing may paint over it.
                     float polish = _f.Polish[gi];
                     if (polish > 0.001f)
                     {
-                        float k = Mathf.Sqrt(Mathf.Clamp01(polish));
-                        var dampRock = col * 0.52f + new Color(0.03f, 0.06f, 0.09f);
+                        float k = Mathf.Sqrt(Mathf.Clamp01(polish)) * 0.85f;
+                        var dampRock = col * 0.78f + new Color(0.02f, 0.045f, 0.075f);
                         col = Color.Lerp(col, dampRock, k);
                     }
 
-                    // The cut itself, which is the only permanent record the mountain keeps.
-                    // Polish decays at PolishDecayPerRun and wetness faster still, so a channel
-                    // the player abandoned twenty runs ago has neither left and is *still a
-                    // channel* — the rock is gone. Nothing was drawing that, so the oldest work
-                    // on the mountain was the least visible, which is exactly backwards for a
-                    // game whose whole premise is that nothing ever resets.
-                    float cut = _f.Virgin[gi] - hgt;
-                    if (cut > 0.05f)
-                    {
-                        float k = Mathf.Clamp01(cut / 2.0f);
-                        col = Color.Lerp(col, col * 0.60f + new Color(0.02f, 0.04f, 0.07f), k * 0.55f);
-                    }
+                    // NO third darkening term for the cut itself. There was one, and the first
+                    // rendered image of this mountain showed why it was wrong: stacked on top of
+                    // the polish tint and the concavity shading it turned the main channel into a
+                    // near-black stripe, and — worse — it overrode the deeper strata band that the
+                    // cut had just revealed. "Every metre of depth is legible as colour" is the
+                    // design's central visual promise, and painting depth as *darkness* defeats it
+                    // exactly where the player has done the most work.
+                    //
+                    // The cut is already drawn twice over, correctly: the cell sits lower so it
+                    // takes a lower band's colour, and Occlusion() shades it because it is inside
+                    // something. Both are geometry, so both survive polish decaying to nothing,
+                    // which is what L-015 actually needed.
 
-                    if (wet > 0.001f) col = Color.Lerp(col, StrataPalette.WetColor, wet * 0.30f);
+                    // Light: the shader darkens by wetness too, and doing it twice was
+                    // half the reason a channel went black.
+                    if (wet > 0.001f) col = Color.Lerp(col, StrataPalette.WetColor, wet * 0.12f);
 
                     // Dye is a mineral stain, not paint: it tints the rock it soaked into and
                     // never replaces it. An earlier pass blended at 0.85 and looked like a bruise.
@@ -192,8 +197,12 @@ namespace Rill.Render
             }
         }
 
+        /// <summary>Darkest a hollow may be shaded. Shading says "inside something"; it must never
+        /// take the strata colour away, because revealing strata IS the reward.</summary>
+        const float MinOcclusion = 0.55f;
+
         /// <summary>
-        /// 1 = open ground, 0 = deep inside a hollow. Compares the cell against a ring of
+        /// 1 = open ground, 0.45 = deep inside a hollow. Compares the cell against a ring of
         /// neighbours a few cells out, so it catches channel walls rather than pixel noise.
         /// </summary>
         float Occlusion(int x, int z, float h)
@@ -218,14 +227,21 @@ namespace Rill.Render
             // Metres of surrounding rock standing above this point, normalised to the depth of
             // channel worth shading.
             //
-            // 4 m was a guess and it was calibrated for channels this game does not make. Measured
-            // over 150 runs: 613 cells are cut more than 0.5 m below virgin and only 191 more than
-            // 1.5 m. Against a 4 m normaliser a real channel produced an occlusion of about 0.93,
-            // i.e. a 7% darkening before _AOStrength scaled it down further — which is why a dry
-            // channel could not be made out from the idle camera. 1.6 m is the depth the mountain
-            // actually reaches, so the shading covers the range that exists.
+            // 4 m was a guess calibrated for channels this game does not make: measured over 150
+            // runs, 613 cells are cut more than 0.5 m below virgin and only 191 more than 1.5 m, so
+            // a real channel produced an occlusion of about 0.93 — a 7% darkening before
+            // _AOStrength scaled it down further, which is why a dry channel could not be made out
+            // at all.
+            //
+            // 1.6 m then overcorrected badly, and it took rendering the mountain to see it: a
+            // 2 m-deep channel drove the term to zero and the whole feature went black. Shading is
+            // supposed to say "this is inside something", not delete it.
+            //
+            // 2.5 m with a floor. The floor is the important half — occlusion may darken a hollow
+            // by at most 55%, so no amount of depth can crush the strata colour that the cut
+            // exposed, which is the thing the player is actually being shown.
             float mean = above / samples;
-            return Mathf.Clamp01(1f - mean / 1.6f);
+            return Mathf.Clamp01(Mathf.Max(MinOcclusion, 1f - mean / 2.5f));
         }
 
         public void MarkAll()

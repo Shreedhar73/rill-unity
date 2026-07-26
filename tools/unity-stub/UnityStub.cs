@@ -248,6 +248,33 @@ namespace UnityEngine
         public Ray ScreenPointToRay(Vector3 p) { return new Ray(); }
         public Ray ScreenPointToRay(Vector2 p) { return new Ray(); }
         public static Camera main { get { return null; } }
+        public RenderTexture targetTexture { get; set; }
+        public void Render() { }
+    }
+
+    public struct Rect
+    {
+        public float x, y, width, height;
+        public Rect(float x, float y, float w, float h) { this.x = x; this.y = y; width = w; height = h; }
+    }
+
+    public enum RenderTextureFormat { ARGB32, Default }
+
+    public class RenderTexture : Texture
+    {
+        public int antiAliasing { get; set; }
+        public RenderTexture(int w, int h, int depth) { }
+        public RenderTexture(int w, int h, int depth, RenderTextureFormat f) { }
+        public void Release() { }
+        public static RenderTexture active { get; set; }
+    }
+
+    public static class SystemInfo
+    {
+        public static UnityEngine.Rendering.GraphicsDeviceType graphicsDeviceType
+        {
+            get { return UnityEngine.Rendering.GraphicsDeviceType.Null; }
+        }
     }
 
     public class Shader : Object
@@ -283,6 +310,8 @@ namespace UnityEngine
         public void SetPixels(Color[] px) { }
         public void Apply() { }
         public byte[] EncodeToPNG() { return null; }
+        public Texture2D(int w, int h, TextureFormat f, bool mips, bool linear) { }
+        public void ReadPixels(Rect source, int destX, int destY) { }
     }
 
     public class MaterialPropertyBlock { }
@@ -538,6 +567,9 @@ namespace UnityEngine.Rendering
     public enum ShadowCastingMode { Off, On, TwoSided, ShadowsOnly }
     public enum IndexFormat { UInt16, UInt32 }
     public enum AmbientMode { Skybox, Trilight, Flat, Custom }
+    // Null is the value batchmode reports when -nographics is passed. The capture tool checks for
+    // it explicitly, because Camera.Render then writes nothing and reports no error at all.
+    public enum GraphicsDeviceType { Null, Metal, Direct3D11, Vulkan, OpenGLCore }
 }
 
 namespace UnityEngine.Events

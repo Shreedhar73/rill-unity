@@ -49,6 +49,13 @@ namespace Rill.Render
             if (_dirty) Rebuild();
         }
 
+        /// <summary>
+        /// Builds the lake surface immediately instead of waiting for the next LateUpdate. Needed
+        /// by the offscreen capture tool, which renders a frame from an editor script where no
+        /// Unity callbacks run at all.
+        /// </summary>
+        public void BuildNow() => Rebuild();
+
         void Rebuild()
         {
             _dirty = false;

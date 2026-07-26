@@ -19,7 +19,7 @@ Shader "Rill/Strata"
         _SeamWidth    ("Seam width", Range(0.01, 0.5)) = 0.07
 
         _AOStrength   ("Occlusion strength", Range(0, 1)) = 0.75
-        _WetDarken    ("Wet darkening", Range(0, 1)) = 0.28
+        _WetDarken    ("Wet darkening", Range(0, 1)) = 0.16
         _CliffDarken  ("Cliff darkening", Range(0, 1)) = 0.30
 
         _RimColor     ("Rim", Color) = (0.85, 0.92, 1.0, 1)
