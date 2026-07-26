@@ -90,6 +90,12 @@ for modes to be chosen rather than toggled.
    expedition is how you meet a mountain before you commit to keeping it, and walking away breaks no
    invariant because it was never yours.
 **Done when** — Each mode is reachable from the home screen, named, and explains itself in one line.
+**Started 2026-07-26.** `MountainRoster.Adopt` exists and is tested: it writes a world that already
+exists in memory into an **empty** slot, refusing an occupied one by the same no-overwrite rule as
+`Create`, and refusing a null world rather than writing a corrupt slot. That is the load-bearing half
+— keeping an expedition is a new path into the one class that can destroy six months of play.
+**Still to do** — the expedition itself (a run-limited visit to an unsaved world), and putting the
+three modes on the home screen as named choices rather than a HUD toggle.
 **Rejected, and why, so they are not re-proposed** — a score-attack mode (the design has no score to
 attack), a mode where terrain resets between runs (invariant 1), and anything asynchronously
 multiplayer (L-024, deliberately out of scope while offline-first).
