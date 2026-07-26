@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **18** · Closed this cycle: **33** (23 archived)
+Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **34** (23 archived)
 
 ---
 
@@ -45,7 +45,8 @@ Every loop has:
 ## Now
 
 **Order for this batch, and the reasoning.** L-046 first because it is the container: back, quit,
-three mountains and three modes all need a level above the run loop that does not exist yet. Then
+three mountains and three modes all need a level above the run loop that does not exist yet.
+**Closed 2026-07-26.** Then
 L-047, because the mountains are the substance and the save plumbing is already there unused. Then
 L-050 out of turn, because it is the **only item in the batch that can be verified from a terminal** —
 the capture tool renders lighting, and everything else here is UI that needs a person pressing Play.
@@ -58,24 +59,6 @@ building outward if the core does not compel. The core loop is measurably much s
 this morning — 378 of 500 runs reach the sea, no run fails to end — but nobody has still ever wanted
 one more run in front of a witness. If the playtest goes badly, this batch is the work most likely to
 be wasted. Recorded here so that is a known bet rather than a surprise.
-
-### L-046 · The app is one screen with no way out of it
-**Why** — Requested 2026-07-26. Everything the game can do hangs off a single `RunController` state
-machine that boots into a title and then never leaves the mountain. There is no home, no back, no
-way to close the game, and no level above the run loop for a second mountain or a second mode to
-live in. Every other loop below is blocked on this one existing, which is why it is first.
-**Done when** — From any screen there is one obvious way back, the chain ends at a home screen, and
-the home screen can be left deliberately.
-**Approach, and it matters** — the navigation state machine goes in a **MonoBehaviour-free class**
-alongside `Rill.Core`, not in the UI. UI cannot be verified from a terminal; a state machine can, and
-L-018 is the cautionary tale — onboarding "compiled, committed, and was structurally incapable of
-being seen" because nothing tested the gate. The smoke test will drive back/forward transitions
-directly.
-**Two platform decisions, made rather than deferred**
-- Android's hardware **back** must map to the same action as the on-screen back, or the OS one wins
-  and the app closes mid-run.
-- **Quit is Android/desktop only.** Apple's guidelines say an iOS app must not offer to close itself,
-  so a "close game" button ships everywhere except iOS rather than being cut or being wrong.
 
 ### L-047 · One mountain, forever, and no way to have another
 **Why** — Requested 2026-07-26 as "three mountains". `SaveSystem` has taken a `slot` argument since
@@ -297,6 +280,38 @@ spray half alone.
 ---
 
 ## Recently closed
+
+### L-046 · The app is one screen with no way out of it — closed 2026-07-26
+Everything hung off `RunController`, which booted into a title and then never left the mountain: no
+home, no back, no quit, and no level above the run loop for a second mountain or a second mode.
+**Evidence — 18 assertions, run headlessly** (`RILL/Run Headless Navigation Test`). The state machine
+is a plain class with no Unity types in it, which is the point rather than tidiness: UI cannot be
+checked from a terminal, and L-018 is what happens when the only thing that could catch a broken gate
+is a person pressing Play. Navigation has more ways to strand a player than onboarding did — the
+launch is *replaced* rather than pushed so no Back can re-enter it, Back from a panel opened on a
+mountain returns to the mountain rather than Home, pushing the screen you are already on is not two
+screens deep, and Back at the root asks to quit only where the platform allows it.
+**It found a real bug on the way, which is why the mid-run case was worth modelling.** Back must not
+unwind the screen out from under a live simulation, so `Navigator` refuses to move and asks for the
+run to be abandoned first. Following that: `FlowSimulation.Abort()` called
+`Finish(Abandoned, deliverVolume: false)`, and `Finish` only routed water for `Pooled` and
+`TimedOut`. **Abandoned fell through both branches and zeroed `Head.Volume`** — invariant 6, the one
+this project has already broken twice. It survived because `Abort()` had *no callers at all*; a back
+button is the first thing that would ever have called it. Proven fixed: `56.2 m³` in the head,
+basins `0 → 56 m³` held.
+**Two platform decisions, made rather than deferred** — Android's hardware back raises the same
+action as the button (without it the OS wins and closes the app mid-run), and **Close game ships
+everywhere except iOS**, whose guidelines are explicit that an app must not offer to close itself.
+Absent there rather than present and inert.
+**Also caught by the toolchain, and worth recording** — the screen enum was called `Screen`, which
+shadows `UnityEngine.Screen` for every file in `Rill.App`; `GameBootstrap.Screen.sleepTimeout`
+stopped compiling immediately. That is the *good* version of that mistake. And the quit path has no
+`UnityEditor` branch on purpose: a runtime assembly referencing `UnityEditor` compiles in the editor
+and breaks the player build, guarded or not — the stub toolchain compiles runtime with
+`UNITY_EDITOR` defined and no `UnityEditor` reference, which is exactly a player build's shape.
+**The UI half is unobserved**, as all UI here is. The state machine is tested; whether the back
+button is in the right place on a phone is a look-at-it question. The home screen is currently the
+existing title screen; giving it something to choose between is L-047.
 
 ### L-045 · The island ends in a straight line — closed 2026-07-26
 Opened the same day off the first overview render: the 512 m field stopped at a hard square
