@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **18** · Closed this cycle: **34** (23 archived)
+Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **35** (23 archived)
 
 ---
 
@@ -75,23 +75,6 @@ building outward if the core does not compel. The core loop is measurably much s
 this morning — 378 of 500 runs reach the sea, no run fails to end — but nobody has still ever wanted
 one more run in front of a witness. If the playtest goes badly, this batch is the work most likely to
 be wasted. Recorded here so that is a known bet rather than a surprise.
-
-### L-047 · One mountain, forever, and no way to have another
-**Why** — Requested 2026-07-26 as "three mountains". `SaveSystem` has taken a `slot` argument since
-it was written and nothing has ever passed anything but 0 — the almanac, the time-lapse archive and
-the confluence queue are all per-slot already. The plumbing exists and there is no way to reach it.
-**What three mountains buys, beyond quantity** — the biomes are genuinely different games and three
-of the four have been measured as such: Glacier is fast and grudging (`+11%` distance, `+13%` top
-speed, and ice armours the rock against carving), Volcanic grows terrain an order of magnitude
-faster than anything else (`13.20 m` against `1.18–1.47 m`), Granite keeps what you cut. Right now a
-player meets exactly one of them, chosen for them, forever.
-**Done when** — Three slots, each with its own biome, history and record; switching between them
-touches neither's terrain; and a fresh slot can be started without any path existing that could
-clear an occupied one.
-**Careful — this is the closest anything has come to violating invariant 1.** "Nothing clears
-`HeightField.Height`. No reset, no level load, no *new game* that touches an existing slot." A slot
-picker is a new-game button standing next to three save files. The delete path must be explicit,
-per-slot, and impossible to reach by accident.
 
 ### L-050 · The sun does not move
 **Why** — Requested 2026-07-26. The light is one fixed directional at `Euler(46, 35, 0)`, set once at
@@ -296,6 +279,37 @@ spray half alone.
 ---
 
 ## Recently closed
+
+### L-047 · One mountain, forever, and no way to have another — closed 2026-07-26
+`SaveSystem` had taken a `slot` argument since it was written and nothing ever passed anything but 0.
+The almanac, the time-lapse archive and the confluence queue were all per-slot already. The plumbing
+existed and there was no way to reach it.
+**Evidence — 14 headless assertions** (`RILL/Run Headless Mountains Test`), including both refusals
+exercised against a real occupied slot rather than a fixture. `SaveSystem.ReadSummary` reads the
+header only — it sits ahead of the terrain arrays, so the gzip stream is pulled about sixty bytes
+rather than several megabytes, because drawing a three-slot menu must not deserialise three mature
+worlds.
+**The guards, which are the actual work.** A slot picker is a new-game button standing next to three
+save files, so the rules live in `MountainRoster` rather than in the UI: `Create` refuses an occupied
+slot outright, with no overwrite path and **no force flag, because a force flag is a thing a future
+caller passes `true` to**; `Delete` requires the *seed* of the mountain being deleted, which a caller
+can only know by having read that slot's summary — so it is impossible to destroy a mountain you have
+not looked at, or the wrong one via a stale index. There is no delete control on the main screen at
+all.
+**Three real hazards found and closed while wiring it.**
+1. `RunController` had six calls to `SaveSystem.Save`; two had quietly kept the defaulted `slot = 0`,
+   so ending a session on mountain 3 would have written **mountain 3 over mountain 1**. The fix is
+   not the two call sites — `slot` no longer has a default on `Save` or `Load`, so that entire class
+   of bug is a compile error rather than a lost world.
+2. `GameBootstrap.ResetWorldOnPlay` is a serialised bool that deletes somebody's mountain — the exact
+   shape invariant 1 forbids, one mis-click in the inspector away. Now compiled out of player builds
+   and it names the slot in a warning on its way past.
+3. `SwitchToMountain` is mostly about ordering: the mountain being left is written to disk **before**
+   anything is rebound, because every later step overwrites the live world.
+**Unobserved, as all UI here is.** The roster, the guards and the switching are tested; whether three
+rows on the main screen read well on a phone is a look-at-it question. The biome for a new slot is
+chosen as "whichever of Sandstone / Glacier / Volcanic no slot has yet", so filling all three gives
+three different games without a menu — that is a design call nobody has played.
 
 ### L-046 · The app is one screen with no way out of it — closed 2026-07-26
 Everything hung off `RunController`, which booted into a title and then never left the mountain: no
