@@ -271,6 +271,12 @@ namespace Rill.EditorTools
             var biomeHeadlines = new List<string>();
 
             var sim = new FlowSimulation(world);
+            // The dam break has never been counted anywhere. L-029 closed with the caveat that a
+            // basin needs ~50 runs to fill, so nobody in a first session would ever see one; the
+            // basins fill far faster now, so whether the cascade actually fires — and how often —
+            // is a question this test can answer and never has. (L-019)
+            int overflows = 0; float overflowVolume = 0f;
+            world.BasinOverflowed += (b, excess) => { overflows++; overflowVolume += excess; };
             var endings = new Dictionary<RunEnding, int>();
             var dailyPaths = new List<List<Vector3>>();
             var dailySea = new List<bool>();
@@ -654,6 +660,7 @@ namespace Rill.EditorTools
                 log.AppendLine();
             }
             log.AppendFormat("  water held       {0:n0} m³ across {1} basins\n", world.Basins.TotalWater(), world.Basins.Basins.Count);
+            log.AppendFormat("  dam breaks       {0} overflows, {1:n0} m³ over the lip\n", overflows, overflowVolume);
             log.AppendFormat("  fullest basin    {0:0.0}%\n", FullestBasin(world) * 100f);
             log.AppendFormat("  polished cells   {0} ({1:0.0}% of field)\n", PolishedCells(world), PolishedCells(world) * 100f / world.Field.Count);
             log.AppendFormat("  secrets revealed {0} of {1}\n", RevealedCount(world), world.Secrets.Count);
@@ -692,6 +699,47 @@ namespace Rill.EditorTools
             }
             log.AppendLine();
             log.AppendFormat("  terrain delta    min {0:0.00} m, max {1:0.00} m vs virgin\n", MinDelta(world), MaxDelta(world));
+            {
+                // A single "max +8.87 m" is the same number for a delta and for a silt wall across
+                // the runout, and those are a feature and a defect respectively. Footprint tells
+                // them apart: a delta is one connected mass low down near the water; a wall is a
+                // ridge, and scattered lumps are neither. (L-041)
+                var f = world.Field;
+                var seen = new bool[f.Count];
+                int cells = 0, masses = 0, biggest = 0;
+                float lowest = float.MaxValue, highest = float.MinValue, biggestElev = 0f;
+                var q = new Queue<int>();
+                for (int i = 0; i < f.Count; i++)
+                {
+                    if (seen[i] || f.Height[i] - f.Virgin[i] < 2f) continue;
+                    int size = 0; float elevSum = 0f;
+                    seen[i] = true; q.Clear(); q.Enqueue(i);
+                    while (q.Count > 0)
+                    {
+                        int c = q.Dequeue();
+                        size++; cells++;
+                        elevSum += f.Height[c];
+                        if (f.Height[c] < lowest) lowest = f.Height[c];
+                        if (f.Height[c] > highest) highest = f.Height[c];
+                        int cx = c % f.Size, cz = c / f.Size;
+                        for (int k = 0; k < 4; k++)
+                        {
+                            int nx = cx + (k == 0 ? 1 : k == 1 ? -1 : 0);
+                            int nz = cz + (k == 2 ? 1 : k == 3 ? -1 : 0);
+                            if (!f.InBounds(nx, nz)) continue;
+                            int ni = nz * f.Size + nx;
+                            if (seen[ni] || f.Height[ni] - f.Virgin[ni] < 2f) continue;
+                            seen[ni] = true; q.Enqueue(ni);
+                        }
+                    }
+                    masses++;
+                    if (size > biggest) { biggest = size; biggestElev = elevSum / size; }
+                }
+                if (cells == 0) log.AppendLine("  deposits         nothing stands 2 m above virgin rock");
+                else
+                    log.AppendFormat("  deposits         {0:n0} cells over 2 m above virgin in {1} masses; largest {2:n0} cells ({3:n0} m²) at {4:0} m elevation; spread {5:0}-{6:0} m\n",
+                        cells, masses, biggest, biggest * f.CellSize * f.CellSize, biggestElev, lowest, highest);
+            }
             {
                 // Closed depressions too small for the basin lattice to name (under 24 cells). The
                 // lattice ignores them on purpose — 47 nameless puddles is not a progression track —
