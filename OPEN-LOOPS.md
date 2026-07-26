@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **18** · Closed this cycle: **19** (9 archived)
+Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **20** (9 archived)
 
 ---
 
@@ -113,27 +113,6 @@ against these.
 **Careful** — Still do not tune `SteerAccel` or `SteerSpeedCost` on this alone. 40% may be correct
 for a game whose whole skill ceiling is restraint; that is a feel question and L-012 answers it.
 
-### L-013 · Water rendering
-**Why** — Lakes render as flat discs with hard shorelines; the sea is a plain blue plane. Water is
-the subject of the entire game and currently looks like placeholder geometry.
-**Done when** — Lakes have a depth gradient and a soft shoreline; the sea has a shoreline
-treatment; the ribbon reads as the brightest thing in frame.
-**Attempt 1 failed — observed 2026-07-26.** Shore alpha was ramped to zero at the waterline (it had
-been floored at 0.25, drawing a hard rim) and the sea was subdivided 96² so each vertex carries its
-real depth instead of being a 4-vertex quad with one flat tone. Both changes are reasoned from how
-the shader consumes vertex colour, both compile — and the verdict from watching it was **"it's a
-negative"**. So the rim was not the whole story, or not the story at all.
-**Do not attempt 2 blind.** Two shader-side theories are now spent. Next step is to look at what is
-actually on screen — a still of a lake edge and of the coastline — and work from that rather than
-from reasoning about vertex colours. Candidates not yet examined: `SurfaceLift` may push the surface
-above the shoreline so the mesh visibly floats; `MinDepth` may cull the feather ring entirely; the
-transparent queue writes no depth, so lake and sea surfaces may be compositing wrongly against each
-other and against terrain.
-
----
-
-## Next
-
 ### L-018 · Onboarding — the first 30 seconds explain nothing
 **Why** — There is no button and nothing moves on its own to suggest steering exists, so a player
 can complete several runs without discovering the only verb that matters. This is the single largest
@@ -200,6 +179,27 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-013 · Water rendering — closed 2026-07-26
+Three separate defects, and the first two attempts at this were wrong in ways worth recording.
+*Attempt 1* reasoned from how the shader consumes vertex colour — shore alpha ramped to zero,
+sea subdivided — and was reported back as "it's a negative". *Attempt 2* only worked because a
+screenshot showed what reasoning had missed: the water sheet was visibly **climbing the terrain at
+its edges**.
+The cause was in the mesh, not the shader. `PooledWaterMesh` set every vertex to `Height + Water`,
+which is the lake surface for a submerged cell — but the feather ring exists *because a neighbour*
+holds water, so its own depth is 0 and the vertex landed at terrain height, above the waterline by
+definition. Every lake was modelled as a flat disc walling upward into a collar. "Flat discs with
+hard shorelines" was a literal description of the geometry.
+**Evidence** — screenshots from the project owner. A lake with a visible dark-to-pale depth gradient
+dissolving softly at the shore and sitting *in* its bowl; a coastline grading from deep blue through
+shallows to a pale beach band; and the run ribbon clearly the brightest thing in frame. All three
+*Done when* clauses met.
+**Fixes** — ring vertices take the neighbouring lake's surface level so the surface is level; depth
+gradient mapped over 2.5 m rather than 6 m (basins here are only metres deep, so a 6 m range pinned
+every lake at the shallow colour); the shader blends toward sky instead of adding it, which had been
+washing the water to a grey film; and the sea is subdivided 96² so each vertex carries real depth
+instead of a 4-vertex quad that could only ever be one flat tone.
 
 ### L-021 · Biome balance — Glacier / Volcanic / Granite — closed 2026-07-26
 "Implemented, never run" was worse than it sounded: `BiomeRules.BetweenRuns` is called only from

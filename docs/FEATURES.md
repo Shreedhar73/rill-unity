@@ -80,8 +80,8 @@ Every feature named in `RILL-game-design.md`, with its real state.
 | Strata legible as colour | **Done** | Per-pixel bands + seams + concavity occlusion. Confirmed working in the editor by the project owner (L-011); no screenshot archived. |
 | Terrain silhouette (ridges, valleys, cliffs) | **Done** | Droplet erosion pre-pass + terracing. Summit 146 m over a 512 m base. |
 | Water ribbon as hero element | **Partial** | Widened and lifted; still not confirmed to read as the brightest thing in frame. |
-| Lakes | **Built** | Shore alpha now ramps to zero at the waterline instead of stopping at a 0.25 floor, which was the visible hard rim. Depth gradient was already in the shader. **Not looked at since the change.** |
-| The sea | **Built** | Subdivided 96² so each vertex carries its real depth (sea level minus ground), giving the coast a shallow-to-deep gradient and soft edge from the same shader. Was a 4-vertex quad, which could only ever be one flat tone. **Not looked at since the change.** |
+| Lakes | **Done** | Level surface (ring vertices take the lake's surface level, not terrain height), depth gradient over 2.5 m, soft shore. Confirmed by screenshot. |
+| The sea | **Done** | Subdivided 96², each vertex carrying real depth. Coastline grades deep blue → shallows → pale beach band. Confirmed by screenshot. |
 | Ecosystem props | **Partial** | Procedural cones/discs/blades, density scaled by life. Silhouettes are placeholder. |
 | Splash particles | **Built** | Code-built system + `Droplet.shader`. Never seen. |
 | Camera (follow, report framing, idle pan) | **Done** | Retuned to 62 m back / 46 m up. |
