@@ -797,9 +797,15 @@ namespace Rill.Flow
             {
                 WaterToSea = Mathf.Max(0f, Head.Volume);
             }
-            else if (ending == RunEnding.Pooled || ending == RunEnding.TimedOut)
+            else if (ending == RunEnding.Pooled || ending == RunEnding.TimedOut || ending == RunEnding.Abandoned)
             {
                 // The water stays on the mountain. Basins remember it between runs.
+                //
+                // Abandoned belongs here and did not use to. Abort() fell through both branches and
+                // zeroed Head.Volume, which destroys the run's water silently — invariant 6, the one
+                // this project has already broken twice. It went unnoticed because Abort() had no
+                // callers at all; a back button that can be pressed mid-run makes it live. Walking
+                // away from a run does not evaporate the water you released.
                 int cell = _f.NearestIndex(Head.Pos.x, Head.Pos.y);
                 _world.Basins.AddWater(cell, Mathf.Max(0f, Head.Volume));
             }

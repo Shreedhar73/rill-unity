@@ -126,6 +126,99 @@ namespace Rill.EditorTools
         static void Play(int Runs) { Debug.Log(PlayBiome(Runs, Biome.Sandstone).ToString()); }
 
         /// <summary>
+        /// Every navigation transition, driven directly. The shell's state machine is deliberately
+        /// MonoBehaviour-free so this can exist: UI cannot be checked from a terminal, and L-018 is
+        /// what happens when the only thing that could catch a gate is a person pressing Play.
+        ///
+        /// Each case below is a way to strand the player, not a formality.
+        /// </summary>
+        [MenuItem("RILL/Run Headless Navigation Test", false, 70)]
+        public static void RunHeadlessNavigation()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL navigation ===");
+            int pass = 0, fail = 0;
+
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            var nav = new Navigator();
+            check(nav.Current == AppScreen.Launch, "boots into Launch");
+            check(nav.Back() == NavAction.None, "Back during the launch does nothing");
+
+            nav.FinishLaunch();
+            check(nav.Current == AppScreen.Home, "launch hands off to Home");
+            check(nav.Depth == 1, "Home is the root, not stacked on the launch");
+
+            // The launch must not be re-enterable: an opening beat you can go back into is a menu,
+            // and the second time you see it, it is an obstacle.
+            nav.Push(AppScreen.Launch);
+            check(nav.Current == AppScreen.Home, "Launch cannot be pushed again");
+
+            nav.Push(AppScreen.Mountain);
+            nav.Push(AppScreen.Almanac);
+            check(nav.Depth == 3, "panels stack on the mountain");
+            check(nav.Back() == NavAction.Changed && nav.Current == AppScreen.Mountain,
+                  "Back from a panel returns to the mountain, not to Home");
+            check(nav.Back() == NavAction.Changed && nav.Current == AppScreen.Home,
+                  "Back from the mountain returns Home");
+
+            // The case that eats a run. Back must not unwind the screen out from under a live
+            // simulation: the water in the head has to be put somewhere first.
+            nav.Push(AppScreen.Mountain);
+            nav.RunInProgress = true;
+            check(nav.Back() == NavAction.AbandonRun, "Back mid-run asks for the run to be abandoned");
+            check(nav.Current == AppScreen.Mountain, "and does not move the player while it is in flight");
+            nav.RunInProgress = false;
+            check(nav.Back() == NavAction.Changed && nav.Current == AppScreen.Home,
+                  "and works normally once the run has ended");
+
+            // Depth is not a proxy for "have I been here before".
+            nav.Push(AppScreen.Mountain);
+            nav.Push(AppScreen.Almanac);
+            nav.Push(AppScreen.Almanac);
+            check(nav.Depth == 3, "pushing the screen you are already on is not two screens deep");
+
+            nav.GoHome();
+            check(nav.Current == AppScreen.Home && nav.Depth == 1, "GoHome drops the whole stack");
+
+            check(nav.Back() == NavAction.Quit, "Back at the root asks to quit where that is allowed");
+            nav.CanQuit = false;
+            check(nav.Back() == NavAction.None, "and does nothing on a platform that must not quit");
+            check(!nav.CanGoBack, "Back is not offered at the root when quitting is not allowed");
+
+            // The other half of "Back mid-run": the water. Abort() fell through both branches of
+            // Finish and zeroed the head's volume, destroying it — invariant 6, and unnoticed only
+            // because Abort() had no callers at all until a back button needed one.
+            {
+                var cfg = new GameConfig();
+                var world = RillWorld.Create(cfg, cfg.Seed, cfg.Biome);
+                var sim = new FlowSimulation(world);
+
+                world.BeginRun();
+                var rng = new Rng(world.Seed);
+                sim.Begin(world.SpawnPoint(ref rng), cfg.StartVolume);
+                for (int i = 0; i < 300 && sim.Running; i++) sim.Advance(cfg.SimStep);
+
+                float held = world.Basins.TotalWater();
+                float inHead = sim.Head.Volume;
+                sim.Abort();
+                world.Basins.Rebuild();
+                float after = world.Basins.TotalWater();
+
+                check(inHead > 1f, string.Format("the aborted run still had water in it ({0:0.0} m³)", inHead));
+                check(after > held + 1f,
+                      string.Format("abandoning a run leaves its water on the mountain ({0:0} -> {1:0} m³ held)", held, after));
+            }
+
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
+        /// <summary>
         /// The headline numbers of a session, so one tuning constant can be swept without reading
         /// forty lines of prose per arm.
         /// </summary>
