@@ -79,17 +79,16 @@ The design document sets an explicit M3 kill criterion: if a 20-person playtest 
 unprompted "one more run" behaviour, redesign before art exists. Nothing in this repo speaks to
 that. Every number below is a proxy.
 
-### 2. Three basins in five are unreachable
-The basin balance is now measured (L-009). 24 runs give `Pooled 20 · TimedOut 2 · ReachedSea 2` and
-91 m³ delivered to sea; 150 runs give 29 sea arrivals and 1,465 m³. What is *not* solved is
-reachability: across 150 runs water reached two basins and never touched the other three, and a run
-that deliberately aims at a chosen basin arrives 28% of the time, missing by 109 m on average. Three
-fifths of the volume progression track is currently scenery. See L-027.
+### 2. Filling a basin is a campaign, not a run (L-027 closed 2026-07-26)
+Every basin is reachable and a player who commits to one can fill it: with all aimed runs pointed at
+a single off-channel basin, it went from `0%` to **`85%` full** over 150 runs. The earlier reading
+that three fifths of the lattice was unreachable scenery was wrong — it was measuring a test bot
+that picked a fresh random basin every run, so no basin was ever worked at twice and no new route
+could be carved.
 
-Also measured getting here: `basins found 14, capacity 16,712 m³` was false — nine of those were
-depressions *below sea level*, including the two largest. The real mountain has 5 basins totalling
-5,591 m³. Any tuning judgement made before 2026-07-26 was made against a capacity number three times
-too large.
+What remains open is arrival reliability: an individual aimed run stops in its target basin 28% of
+the time, getting within 56 m on average before ending 85 m away. See L-030, which also records that
+the "hit" metric only counts runs that *stop* in the basin and so undercounts.
 
 ### 3. Secrets are findable (L-010 closed 2026-07-26)
 `secrets revealed 3 of 60` after 24 runs, `12 of 60` after 150. The blocker was not burial depth but

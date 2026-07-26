@@ -91,6 +91,12 @@ Two corollaries, both learned the expensive way on 2026-07-26:
   in the simulation at all: one was in basin labelling, one was in the smoke-test bot, which
   re-rolled a random steer target every second and therefore could not route water anywhere. A bot
   that cannot express intent cannot test a mechanic that exists to reward it.
+- **The bot must be able to do what the mechanic rewards.** Three separate "the simulation is
+  broken" conclusions in the basin work were harness flaws: sub-sea-level basins, a bot that could
+  not steer, and a bot that could not *persist*. The last one hid the answer completely — filling an
+  off-channel basin takes a campaign of roughly 36 aimed runs, and a bot that picked a fresh random
+  target every run could never spend them. It reported "3 of 5 basins are unreachable" for as long
+  as it existed.
 
 ---
 

@@ -96,7 +96,14 @@ namespace Rill.EditorTools
                     // Block size must divide the run count into at least one campaign per basin.
                     // At 50 runs over a 150-run test only basins 0-2 were ever aimed at, so the 0%
                     // sitting against 3 and 4 measured nothing but the test's own blind spot.
-                    intendedBasin = 0;   // DIAGNOSTIC: one determined campaign at basin #0
+                    // Blocks of 50, i.e. three sustained campaigns across a 150-run test. Sized
+                    // from what was measured, not by taste: ~36 aimed runs spread over all five
+                    // basins gives ~7 each and fills none (25% hit, 2 of 5 basins wet), while one
+                    // campaign of ~36 aimed runs took a basin from 0% to 85%. Filling an
+                    // off-channel basin is a campaign, so the bot has to run campaigns or it is
+                    // testing something nobody does. A 150-run test therefore only visits three of
+                    // the five basins; the untargeted ones sitting at 0% mean nothing.
+                    intendedBasin = (run / 50) % world.Basins.Basins.Count;
                     int c = world.Basins.Basins[intendedBasin].Cells[0];
                     destination = world.Field.GridToWorldXZ(c % config.Size, c / config.Size);
                 }

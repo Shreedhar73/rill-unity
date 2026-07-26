@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **14** (4 archived)
+Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **15** (4 archived)
 
 ---
 
@@ -44,23 +44,23 @@ Every loop has:
 
 ## Now
 
-### L-027 · Only two basins in five ever receive water
-**Why** — Closing L-009 measured it: across 150 runs, water reached basins #1 and #2 and no others.
-#0, #3 and #4 sat at exactly 0% forever. A player who *aims* at a specific basin reaches it 28% of
-the time and misses by an average of 109 m. The basin lattice is one of the four progression tracks
-in the design document, and three fifths of it is currently unreachable scenery. This is the loop
-L-009 kept being mistaken for: it is not basin *strength*, it is basin *reachability*.
-**Done when** — A 150-run smoke test has at least 4 of 5 basins above 0%, and the aimed-at-a-basin
-hit rate is over 50%.
-**Evidence needed** — `aimed at a basin N runs, reached it M` and the basin lattice line.
-**Approach** — Measured 2026-07-26, and **(b) is ruled out**: the reachability probe reports
-`climb 0 m → 1 of 5`, `climb 3 m → 5 of 5`. Every basin is reachable from the summit given a few
-metres of momentum-assisted climb, so this is not a terrain or generation problem. That leaves
-(a) steering too weak to leave the incised channel once one exists, and (c) `SteerSpeedCost` making
-a committed turn so slow the run times out first — `TimedOut 10` per 150 runs, and aimed runs that
-miss do so by an average of 100 m, which reads more like "never left the channel" than "aimed and
-fell short". Next step: log how far an aimed run's path deviates from the hands-off path for the
-same seed, which separates (a) from (c) directly.
+### L-030 · An aimed run arrives 28% of the time
+**Why** — L-027 established that a player who commits a campaign to a basin can fill it. What it also
+measured is that individual aimed runs are unreliable: 28% stop in the basin they were aimed at, and
+the ones that miss get within an average of 56 m before ending 85 m away. The player is being asked
+to spend dozens of runs on a target partly because two runs in three do not arrive. Some of that is
+the design working — the incised channel *should* fight you, and "restraint is the skill ceiling" —
+but 28% is a control-feel question that has never been examined, and `TimedOut 11 per 150 runs` says
+some aimed runs crawl for the full 75 s without getting anywhere.
+**Done when** — Either the aimed-arrival rate is over 50%, or there is a written argument (backed by
+the hand playtest in L-012) that ~30% is the intended difficulty and the loop is closed as
+by-design.
+**Evidence needed** — `aimed at a basin N runs, reached it M` plus `aimed closest`, and for the
+by-design route, a person's account of whether missing feels like their fault or the game's.
+**Careful** — Do not tune `SteerAccel` or `SteerSpeedCost` on the metric alone. The measured "hit"
+requires a run to *stop* in the target basin, so a run that delivers water and flows on counts as a
+miss. Fix the metric before trusting it, or a tuning pass will chase a number that does not mean
+what it says.
 
 ### L-013 · Water rendering
 **Why** — Lakes render as flat discs with hard shorelines; the sea is a plain blue plane. Water is
@@ -110,6 +110,32 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-027 · Only two basins in five ever receive water — closed 2026-07-26
+**The premise was wrong.** The loop assumed three fifths of the basin lattice was unreachable
+scenery. It is not: every basin is reachable, and a player who commits a campaign to one can fill
+it. What the loop was actually measuring was its own test bot, which picked a fresh random basin
+every single run — so no basin was ever worked at twice running, and carving a new route is the only
+way to reach one off the incised channel.
+**Evidence** — 150 runs, all aimed runs committed to a single off-channel basin: basin #0 went from
+`0%` to **`85%` full**, and the lattice read `85% · 56% · 97% · 0% · 0%`. Progression of the bot,
+same seed, same 150 runs throughout:
+
+| bot behaviour | aimed hit | closest | basins > 0% |
+|---|---|---|---|
+| random target each run | 31% | 64 m | 2 of 5 |
+| campaigns, blocks of 30 | 25% | 81 m | 2 of 5 |
+| campaigns, blocks of 50 | 44% | 56 m | 3 of 5 |
+| one sustained campaign | 28% | 56 m | 3 of 5, target 0% → **85%** |
+
+**Neither *Done when* clause was met literally, and both were mis-specified.** It asked for 4 of 5
+basins above 0%: a 150-run test contains ~36 aimed runs, and one basin needs roughly that many on
+its own, so no single test can wet five. It asked for a >50% aimed hit rate: "hit" counts only runs
+that *stop* in the target basin, so a run that delivers water and flows onward scores as a miss.
+Closing on the premise being disproven rather than on the numbers, with the arrival rate carried
+forward as **L-030** and the metric flaw recorded there.
+**Third harness flaw in this loop** — sub-sea-level basins, a bot that could not steer, and a bot
+that could not persist. Every one looked like a simulation bug.
 
 ### L-011 · See the strata pass — closed 2026-07-26
 Per-pixel strata bands, seam darkening and concavity occlusion were written to fix a mountain that
