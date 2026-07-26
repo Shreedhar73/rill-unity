@@ -51,8 +51,19 @@ namespace Rill.Flow
         /// </summary>
         public readonly Navigator Nav = new Navigator();
 
-        /// <summary>The three mountains, and the only sanctioned way to make or destroy one.</summary>
-        public readonly MountainRoster Roster = new MountainRoster();
+        /// <summary>
+        /// The three mountains, and the only sanctioned way to make or destroy one.
+        ///
+        /// Created in Initialise, NEVER in a field initializer: the constructor reads the save
+        /// headers from disk, and Unity forbids persistentDataPath inside a MonoBehaviour field
+        /// initializer. As one, it threw during AddComponent — which killed every field
+        /// initializer after this line, so _projects, _lastPath and _cascades were null, Initialise
+        /// died before EnterTitle, and the game booted straight onto the mountain with no title,
+        /// no report and no working run end. That was the entire "everything is broken" evening,
+        /// and no headless test could see it because none of them construct the MonoBehaviour.
+        /// Found by RILL/Run Play-Mode Probe, which does.
+        /// </summary>
+        public MountainRoster Roster { get; private set; }
 
         /// <summary>Which of the three the player is on. Every per-slot system keys off this.</summary>
         public int CurrentSlot { get; private set; }
@@ -102,6 +113,7 @@ namespace Rill.Flow
                                TimeLapsePlayer player, ConfluenceQueue confluence, WeatherSystem weather,
                                int slot = 0)
         {
+            Roster = new MountainRoster();
             CurrentSlot = slot;
             Home = home;
             Active = home;
