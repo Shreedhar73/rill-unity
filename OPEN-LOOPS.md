@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **20** (10 archived)
+Last updated: **2026-07-26** · Open loops: **13** · Closed this cycle: **22** (10 archived)
 
 ---
 
@@ -43,68 +43,6 @@ Every loop has:
 ---
 
 ## Now
-
-### L-031 · A cascade steals the player's next run
-**Why** — Observed in play 2026-07-26: "on restart it starts on basin not on top of mountain."
-`RunController.OnReportDismissed` dequeues a pending cascade and calls `StartCascade`, which runs
-`Active.BeginRun()` (consuming a run number), spawns at the basin's spill cell instead of the summit,
-and calls `SetSteer(false, ...)` so the player has no control. The tap that dismissed the report
-looks exactly like the tap that starts a run, so the player believes their run began in a lake and
-that the controls are dead.
-This code is not new. It was **dormant** because basins never filled; the L-009/L-026/L-028 work made
-overflow routine (`North basin broke its banks` now appears regularly), which turned a rare
-set-piece into the common case. A latent design decision became a bug by being exercised.
-**Done when** — After a basin overflows, the player's next tap starts *their* run from the summit
-with full control, and the dam break is legible as a separate event rather than a stolen turn.
-**Evidence needed** — Someone plays through an overflow and does not think the game broke.
-**Fix chosen 2026-07-26 (by the project owner): play it before the report.** The dam break now runs
-between the player's run ending and their report card appearing, so it reads as a *consequence* of
-the run rather than as the next run. Dismissing the report always returns to idle at the summit;
-nothing chains off that tap any more. The carve baseline is deliberately not reset while a report is
-held, or the overlay would show only the cascade with the player's own carving subtracted out.
-**Still open** — nobody has played through an overflow since the change. Also unresolved: a cascade
-still calls `Active.BeginRun()`, so it consumes a run number and the report card can read "run 12"
-while the world has moved to 13. Left deliberately, as changing run-number semantics is a separate
-decision from the ordering one.
-
-### L-032 · Basin crossing teleports the stream
-**Why** — Observed in play 2026-07-26: "when water reaches the large basin, it kinda gets teleported
-to next side." Accurate. `FlowSimulation.CrossBasin` sets `Head.Pos = outlet` in a single step — a
-hard positional jump across the lake, with one `Path.Add` so the ribbon draws a straight line across
-open water. The *simulation* is right (water is conserved, the lake fills to its spill and the
-stream continues from the outlet, measured in L-029) but the *presentation* is a teleport.
-**L-029 closed on measurement alone and its evidence stands** — 23 crossings, 5 sea arrivals, 42 m
-travelled after crossing were all real. What that evidence could not show is what it looks like,
-which is exactly the gap `docs/FEATURES.md` marks with Built vs Done. This loop says so rather than
-editing a closed loop.
-**Done when** — The stream visibly traverses the lake surface to the outlet instead of jumping, and
-nobody watching calls it a teleport.
-**Evidence needed** — Someone watches a crossing and does not flinch. The simulation half is now
-measured; only the picture is unconfirmed.
-**Outlet fix measured 2026-07-26** — crossings were also stalling, not just cascades. Aiming the
-traverse past the lip instead of at the saddle:
-
-| | before | after |
-|---|---|---|
-| ReachedSea (150 runs) | 35 | **45** |
-| delivered to sea | 1,808 m³ | **2,322 m³** |
-| crossings reaching the sea | 3 of 22 | **16 of 24** |
-| distance after crossing | 33 m | **103 m** |
-
-Post-crossing reach tripled. This is the strongest single number produced by any change this cycle,
-and it came from a defect that was only visible because someone played the game and said "there is
-no way out".
-**Implemented 2026-07-26, unobserved.** The head now swims to the outlet: a `_crossing` state that
-drifts across the *water surface* (bed height plus water depth), ignores terrain — the bed slopes
-back toward the basin centre, which is what defeated every earlier "steer toward the spill" attempt
-— and carves nothing on the way.
-First attempt at it decayed speed by `0.98` per **sub-step** at 90 Hz, reaching `StartSpeed` within a
-second, so a 40 m lake ate ~27 s of the 75 s run clock. Measured cost: crossings reaching the sea
-5 → 2, distance after crossing 42 m → 25 m. Fixed by separating the drift speed (flat 6 m/s) from
-the exit speed off the lip (banked at crossing time from arrival speed). After: `ReachedSea` 35,
-`delivered to sea 1,808 m³` — both at or above the teleport baseline — with distance after crossing
-at 33 m against 42 m before. That remaining ~20% is the honest price of the traverse taking real
-time instead of being instantaneous, and is not a defect to chase.
 
 ### L-030 · An aimed run arrives about 40% of the time
 **Why** — L-027 established that a player who commits a campaign to a basin can fill it. What it also
@@ -197,6 +135,44 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-032 · Basin crossing teleports the stream — closed 2026-07-26
+`CrossBasin` set `Head.Pos` to the outlet in a single step, drawing the ribbon as a straight line
+across open water. Correct as physics, wrong as a picture, and reported as exactly that. The head now
+swims across the *water surface* to the outlet, ignoring terrain (the bed slopes back toward the
+basin centre, which defeated every earlier "steer toward the spill" attempt) and carving nothing.
+A second defect surfaced underneath it: the traverse aimed at `SpillCell`, the saddle — flat, and at
+water level once the basin is full — so arriving there left the head with no slope and it pooled on
+the rim. `BasinSystem.OutletCell` now walks past the lip to ground 1.5 m below spill level.
+**Evidence** — confirmed in play by the project owner. Measured alongside, 150 runs:
+
+| | teleport | traverse | traverse + outlet |
+|---|---|---|---|
+| ReachedSea | 35 | 33 | **45** |
+| delivered to sea | 1,776 m³ | 1,725 m³ | **2,322 m³** |
+| crossings reaching the sea | 5 of 23 | 2 of 22 | **16 of 24** |
+| distance after crossing | 42 m | 25 m | **103 m** |
+
+The middle column is a regression I introduced and the smoke test caught: decaying drift speed by
+`0.98` per **sub-step** at 90 Hz reached `StartSpeed` within a second, so a 40 m lake ate ~27 s of
+the 75 s run clock. Fixed by separating drift speed from the exit speed banked at crossing time.
+
+### L-031 · A cascade steals the player's next run — closed 2026-07-26
+Three faults, only the first of which the original report pointed at. (1) The dam break ran off the
+tap that *dismissed the report card* — a tap indistinguishable from the one that starts a run — so
+the player believed their own run had begun inside a lake. It now plays **before** the report, as a
+consequence of the run rather than as the next one. (2) It launched at `SpillCell`, the flat saddle,
+where `down * StartSpeed` is ~zero and a full basin puts the lip at water level for another
+`drag += 2.5`: the overflow stalled on the rim, which the owner described as "there is no way out".
+It now starts below the lip. (3) It was bookkept as one of the player's runs — `BeginRun` incremented
+`RunNumber` so the report read "run 12" while the world had moved to 13, and it was written into the
+almanac, confluence queue, time-lapse and autosave, and consumed a Daily run. `BeginAutomaticEvent`
+takes the same snapshot without the run number and the recording block is skipped.
+**Evidence** — confirmed in play by the project owner.
+**Worth recording** — this was reported twice before it was fixed. The first attempt addressed *when*
+the cascade happened because that is what the description pointed at, but a reordered cascade that
+still cannot move was never going to help. "No way out" was the diagnosis, and it was read as a
+symptom.
 
 ### L-013 · Water rendering — closed 2026-07-26
 Three separate defects, and the first two attempts at this were wrong in ways worth recording.
