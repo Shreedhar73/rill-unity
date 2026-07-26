@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **16** · Closed this cycle: **19** (4 archived)
+Last updated: **2026-07-26** · Open loops: **18** · Closed this cycle: **19** (9 archived)
 
 ---
 
@@ -113,33 +113,6 @@ against these.
 **Careful** — Still do not tune `SteerAccel` or `SteerSpeedCost` on this alone. 40% may be correct
 for a game whose whole skill ceiling is restraint; that is a feel question and L-012 answers it.
 
-### L-021 · Biome balance — Glacier / Volcanic / Granite — closed 2026-07-26
-"Implemented, never run" was worse than it sounded: `BiomeRules.BetweenRuns` is called only from
-`RunController.FinishRun`, so **no headless test had ever executed it**. Glacier freeze/thaw,
-volcanic vents and granite spalling had run zero times in this project's history. The first
-comparison, made before that was noticed, measured generation alone and produced a tidy, wrong
-answer — four biomes collapsing into two pairs on identical terrain:
-
-| biome | summit | basin capacity | sediment | basin sites |
-|---|---|---|---|---|
-| Sandstone | 146.4 m | 5,591 m³ | 1,493 | `11m/157m …` |
-| Granite | 146.4 m | 4,411 m³ | 1,455 | `8m/157m …` |
-| Glacier | 146.4 m | 5,571 m³ | 1,508 | *identical to Sandstone* |
-| Volcanic | 146.4 m | 4,415 m³ | 1,447 | *identical to Granite* |
-
-**Evidence, with the rules actually running** — Glacier: `"Channels froze overnight" x5`, **1,705 ice
-cells**. Volcanic: `terrain delta max 13.20 m` against 1.18–1.47 m everywhere else — the vents build
-an order of magnitude more terrain than any other biome causes. Granite: no events, correctly, as it
-only nudges `Polish` upward ("what you cut here stays cut"). Sandstone has no rules by design.
-**Defect found and fixed** — Volcanic grew the mountain 13 m over 24 runs and told the player
-*nothing* unless water happened to quench a vent. A mountain that grows in silence breaks the same
-rule as a system that silently does nothing, so vent growth now reports its volume.
-**Left open deliberately, as new loops rather than scope creep** — weather was `Drought` on every
-run of every biome (it is seed-derived), so the glacier **thaw** path is still unexercised: only
-freeze has ever run. And `Field.Ice` is written by `BiomeRules` and read only by
-`TerrainMeshBuilder`, i.e. it is a visual tint with no simulation consequence. Both are now L-033
-and L-034.
-
 ### L-013 · Water rendering
 **Why** — Lakes render as flat discs with hard shorelines; the sea is a plain blue plane. Water is
 the subject of the entire game and currently looks like placeholder geometry.
@@ -160,45 +133,6 @@ other and against terrain.
 ---
 
 ## Next
-
-### L-033 · Glacier thaw has never run — closed 2026-07-26
-Weather is derived from the date, and the default seed lands on `Drought` every run, so only the
-freeze branch had ever executed. Added a test that searches for dates producing specific weather and
-drives both halves explicitly.
-**Evidence** — `after 12 runs of Drought   ice cells 870   headlines: NONE` then
-`after 12 runs of Snowmelt  ice cells 0   headlines: The thaw released 187 m³ | 142 m³ | 96 m³`.
-Ice cleared 870 → 0, meltwater non-zero. Both *Done when* conditions met.
-**Weaker than asked in one respect** — the loop said "Snowmelt **and** Storm". Only Snowmelt was
-driven. Both set the same `thawing` flag on the same branch, so the code path is identical, but
-Storm has not literally been run and this entry should not be read as saying it has.
-**Defect found while closing, fixed** — the thaw announced meltwater it never delivered. See L-035.
-
-### L-035 · The thaw announced water it never delivered — closed 2026-07-26
-`thawedVolume` was accumulated solely to build the headline string. The game told the player
-"The thaw released 187 m³" and put nothing anywhere: no basin gained volume, no run gained volume,
-only `Wet` was nudged. The code's own comment claimed "Meltwater is real water: a thaw is a free
-run's worth of volume, spread out" — it was neither. A game whose entire trust contract is that the
-world honestly records what you did cannot announce water the player never receives.
-Meltwater now goes into the world, routed downhill to a basin by the same `AddWater` path as every
-other drop, and the headline reports what actually arrived rather than what melted.
-**Evidence** — glacier thaw test, basin water **656 m³ → 1,203 m³** across the thaw phase, and the
-headline now reads `The thaw released 187 m³ (132 m³ reached the basins)`. Before the fix the same
-run reported the same 187 m³ with basin water unchanged by the thaw.
-
-### L-034 · Ice is decoration — closed 2026-07-26
-`Field.Ice` was written by the glacier rules and read only by `TerrainMeshBuilder` as a colour tint,
-so a frozen channel behaved exactly like an open one and the whole biome was a palette swap with a
-headline. Ice now has physical consequences in `FlowSimulation`: slick to travel over
-(`drag × 0.55` at full ice) and armoured against carving (`carve × 0.25`). A glacier should be fast
-and grudging about being cut, which is what makes it a different game rather than a filter.
-**Evidence** — 24 runs, Glacier against Sandstone on the same seed, with 1,725 ice cells present:
-distance **118 → 131 m/run (+11%)**, top speed **24.8 → 28.0 m/s** (now reaching the cap). The loop
-warned that the two biomes already differed by ~4% in sediment, i.e. noise; +11% distance and +13%
-speed are comfortably clear of it.
-**The carve-armour half did not show in the totals** — sediment moved is 63 vs 62 m³/run, a 1.3%
-difference well inside noise. Runs on ice cut less *where the ice is* but travel further and faster,
-so they carve more everywhere else and it nets out. The drag effect is proven; the armour effect is
-not, and a per-cell measurement would be needed to claim it.
 
 ### L-018 · Onboarding — the first 30 seconds explain nothing
 **Why** — There is no button and nothing moves on its own to suggest steering exists, so a player
@@ -266,6 +200,72 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-021 · Biome balance — Glacier / Volcanic / Granite — closed 2026-07-26
+"Implemented, never run" was worse than it sounded: `BiomeRules.BetweenRuns` is called only from
+`RunController.FinishRun`, so **no headless test had ever executed it**. Glacier freeze/thaw,
+volcanic vents and granite spalling had run zero times in this project's history. The first
+comparison, made before that was noticed, measured generation alone and produced a tidy, wrong
+answer — four biomes collapsing into two pairs on identical terrain:
+
+| biome | summit | basin capacity | sediment | basin sites |
+|---|---|---|---|---|
+| Sandstone | 146.4 m | 5,591 m³ | 1,493 | `11m/157m …` |
+| Granite | 146.4 m | 4,411 m³ | 1,455 | `8m/157m …` |
+| Glacier | 146.4 m | 5,571 m³ | 1,508 | *identical to Sandstone* |
+| Volcanic | 146.4 m | 4,415 m³ | 1,447 | *identical to Granite* |
+
+**Evidence, with the rules actually running** — Glacier: `"Channels froze overnight" x5`, **1,705 ice
+cells**. Volcanic: `terrain delta max 13.20 m` against 1.18–1.47 m everywhere else — the vents build
+an order of magnitude more terrain than any other biome causes. Granite: no events, correctly, as it
+only nudges `Polish` upward ("what you cut here stays cut"). Sandstone has no rules by design.
+**Defect found and fixed** — Volcanic grew the mountain 13 m over 24 runs and told the player
+*nothing* unless water happened to quench a vent. A mountain that grows in silence breaks the same
+rule as a system that silently does nothing, so vent growth now reports its volume.
+**Left open deliberately, as new loops rather than scope creep** — weather was `Drought` on every
+run of every biome (it is seed-derived), so the glacier **thaw** path is still unexercised: only
+freeze has ever run. And `Field.Ice` is written by `BiomeRules` and read only by
+`TerrainMeshBuilder`, i.e. it is a visual tint with no simulation consequence. Both are now L-033
+and L-034.
+
+### L-033 · Glacier thaw has never run — closed 2026-07-26
+Weather is derived from the date, and the default seed lands on `Drought` every run, so only the
+freeze branch had ever executed. Added a test that searches for dates producing specific weather and
+drives both halves explicitly.
+**Evidence** — `after 12 runs of Drought   ice cells 870   headlines: NONE` then
+`after 12 runs of Snowmelt  ice cells 0   headlines: The thaw released 187 m³ | 142 m³ | 96 m³`.
+Ice cleared 870 → 0, meltwater non-zero. Both *Done when* conditions met.
+**Weaker than asked in one respect** — the loop said "Snowmelt **and** Storm". Only Snowmelt was
+driven. Both set the same `thawing` flag on the same branch, so the code path is identical, but
+Storm has not literally been run and this entry should not be read as saying it has.
+**Defect found while closing, fixed** — the thaw announced meltwater it never delivered. See L-035.
+
+### L-035 · The thaw announced water it never delivered — closed 2026-07-26
+`thawedVolume` was accumulated solely to build the headline string. The game told the player
+"The thaw released 187 m³" and put nothing anywhere: no basin gained volume, no run gained volume,
+only `Wet` was nudged. The code's own comment claimed "Meltwater is real water: a thaw is a free
+run's worth of volume, spread out" — it was neither. A game whose entire trust contract is that the
+world honestly records what you did cannot announce water the player never receives.
+Meltwater now goes into the world, routed downhill to a basin by the same `AddWater` path as every
+other drop, and the headline reports what actually arrived rather than what melted.
+**Evidence** — glacier thaw test, basin water **656 m³ → 1,203 m³** across the thaw phase, and the
+headline now reads `The thaw released 187 m³ (132 m³ reached the basins)`. Before the fix the same
+run reported the same 187 m³ with basin water unchanged by the thaw.
+
+### L-034 · Ice is decoration — closed 2026-07-26
+`Field.Ice` was written by the glacier rules and read only by `TerrainMeshBuilder` as a colour tint,
+so a frozen channel behaved exactly like an open one and the whole biome was a palette swap with a
+headline. Ice now has physical consequences in `FlowSimulation`: slick to travel over
+(`drag × 0.55` at full ice) and armoured against carving (`carve × 0.25`). A glacier should be fast
+and grudging about being cut, which is what makes it a different game rather than a filter.
+**Evidence** — 24 runs, Glacier against Sandstone on the same seed, with 1,725 ice cells present:
+distance **118 → 131 m/run (+11%)**, top speed **24.8 → 28.0 m/s** (now reaching the cap). The loop
+warned that the two biomes already differed by ~4% in sediment, i.e. noise; +11% distance and +13%
+speed are comfortably clear of it.
+**The carve-armour half did not show in the totals** — sediment moved is 63 vs 62 m³/run, a 1.3%
+difference well inside noise. Runs on ice cut less *where the ice is* but travel further and faster,
+so they carve more everywhere else and it nets out. The drag effect is proven; the armour effect is
+not, and a per-cell measurement would be needed to claim it.
 
 ### L-027 · Only two basins in five ever receive water — closed 2026-07-26
 **The premise was wrong.** The loop assumed three fifths of the basin lattice was unreachable
@@ -367,47 +367,5 @@ written up here so the reason it mattered is on the record.
 **Evidence** — `basins found 14, capacity 16,712 m³` → **`basins found 5, capacity 5,591 m³`**, and
 the lattice went from nine permanent `0%` entries to five real tarns at 11 m, 28 m, 69 m, 42 m and
 3 m elevation.
-
-### L-009 · Confirm the basin retune — closed 2026-07-26
-The numbers are now measured rather than guessed. Getting there needed three separate fixes, because
-the original `24/24 Pooled` had three independent causes and each one hid the next: sea-floor
-basins (L-026), a through-flow branch that never worked (L-029), and a smoke-test bot that steered
-randomly and so could not route water anywhere at all.
-**Evidence** — 24 runs, neutral bot: `Pooled 20 · TimedOut 2 · ReachedSea 2`, `delivered to sea
-91 m³`, basin lattice `0% · 13% · 62% · 0% · 0%`. 150 runs: `Pooled 107 · TimedOut 12 ·
-ReachedSea 29 · SoakedAway 2`, `delivered to sea 1,465 m³`, lattice `0% · 63% · 100% · 0% · 0%`.
-**Closed on weaker evidence than asked for.** *Done when* wanted "several basins at different fill
-levels". Only two of five ever receive water; the other three are at exactly 0% after 150 runs. The
-mixture-of-endings and reaches-the-sea clauses are met outright. The unmet clause is now **L-027**.
-**Caveat on attribution** — an intermediate measurement showed sea arrivals *falling* (13→5 per 150
-runs). That was an artefact of a smoke-test bot that aimed two runs in three at a basin, i.e.
-deliberately away from the sea. With a bot neutral between the two endings the loop is judged on,
-the same code gives 29 per 150 runs against a 13 baseline. No conclusion should be drawn from the
-intermediate figure.
-
-### L-008 · Documentation set — closed 2026-07-26
-Wrote `docs/` (STATUS, FEATURES, ARCHITECTURE, TUNING, VERIFICATION), vendored the Unity stub into
-`tools/unity-stub/` so the documented type-check workflow survives a temp-dir wipe.
-**Evidence** — `./tools/unity-stub/typecheck.sh` runs clean from the repo copy.
-
-### L-007 · Basins hold water — closed 2026-07-26
-Tarns were carved as a subtracted bump with an open downhill lip, so they drained continuously and
-could never fill. Rewrote to excavate to an absolute floor with a rim closing all the way round and
-one low spill point.
-**Evidence** — `water held 1,264 m³ across 16 basins · fullest basin 100.0%`, and the carve report
-reading `South basin now 1% full` → `14% full` over 24 runs.
-
-### L-006 · Water is never silently destroyed — closed 2026-07-26
-Two separate bugs deleted the player's water without a trace: `AddWater` discarded the run's entire
-remaining volume whenever the stream stopped outside a depression (i.e. usually), and
-`GatherExistingWater` deleted water in cells that were no longer inside a labelled basin, silently
-emptying lakes between runs. Both now route the water downhill to low ground.
-**Evidence** — Basin volumes persist across runs and accumulate; see L-007.
-
-### L-005 · Basins actually exist — closed 2026-07-26
-`CarveBasins` was placing **zero** basins on every seed — rejection sampling on surface slope can
-never pass on terraced ground. Replaced with deterministic best-site scoring, which cannot fail to
-place N. The tell was a capacity number that did not change across a code edit.
-**Evidence** — `[RILL] Carved 7 basins into the eroded mountain.` and basin count 9 → 16.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
