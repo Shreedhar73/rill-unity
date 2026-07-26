@@ -145,8 +145,20 @@ namespace Rill.Render
                     Color col = StrataPalette.ColorAt(_bands, hgt);
 
                     // A polished bed is darker and cooler: your channels read as channels from orbit.
+                    //
+                    // This existed and was simply too faint to see. At polish = 1 it darkened by
+                    // 28%, and a real channel sits nearer 0.3-0.5, so the actual effect was ~10% —
+                    // invisible against the strata banding, which is why a dry channel could not be
+                    // made out from the idle camera at all. sqrt() lifts modest polish into visible
+                    // range, and the target colour is darker and bluer so a channel reads as damp
+                    // rock rather than as slightly-different rock.
                     float polish = _f.Polish[gi];
-                    if (polish > 0.001f) col = Color.Lerp(col, col * 0.72f + new Color(0.02f, 0.05f, 0.07f), polish * 0.8f);
+                    if (polish > 0.001f)
+                    {
+                        float k = Mathf.Sqrt(Mathf.Clamp01(polish));
+                        var dampRock = col * 0.52f + new Color(0.03f, 0.06f, 0.09f);
+                        col = Color.Lerp(col, dampRock, k);
+                    }
 
                     if (wet > 0.001f) col = Color.Lerp(col, StrataPalette.WetColor, wet * 0.30f);
 

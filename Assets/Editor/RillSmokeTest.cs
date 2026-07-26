@@ -63,6 +63,15 @@ namespace Rill.EditorTools
             log.AppendFormat("secrets placed {0}\n", world.Secrets.Count);
             log.AppendFormat("basins found {0}, capacity {1:n0} m³\n", world.Basins.Basins.Count, TotalCapacity(world));
 
+            // Biome rules live in RunController.FinishRun, so no headless test had ever executed
+            // them: glacier freeze/thaw, volcanic vents and granite spalling had run exactly zero
+            // times in this project's entire history. A biome comparison without them measures
+            // only generation, which is how four biomes could look "implemented" while three of
+            // their behaviours had never been invoked once.
+            var weather = new Rill.World.WeatherSystem(world.Seed);
+            weather.Evaluate(System.DateTime.UtcNow);
+            var biomeHeadlines = new List<string>();
+
             var sim = new FlowSimulation(world);
             var endings = new Dictionary<RunEnding, int>();
             var dailyPaths = new List<List<Vector3>>();
@@ -82,6 +91,7 @@ namespace Rill.EditorTools
             float aimedMissDistance = 0f;
             float strandedVolume = 0f, totalDescent = 0f, totalStopSlope = 0f;
             var stopBasinHits = new Dictionary<int, int>();
+            var biomeHeadlineCounts = new Dictionary<string, int>();
 
             for (int run = 1; run <= Runs; run++)
             {
@@ -210,6 +220,11 @@ namespace Rill.EditorTools
                 var rep = world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
                 world.Basins.Rebuild();
                 world.ApplyBetweenRunDrift();
+                biomeHeadlines.Clear();
+                Rill.World.BiomeRules.BetweenRuns(world, weather, biomeHeadlines);
+                for (int h = 0; h < biomeHeadlines.Count; h++)
+                    if (!biomeHeadlineCounts.ContainsKey(biomeHeadlines[h])) biomeHeadlineCounts[biomeHeadlines[h]] = 1;
+                    else biomeHeadlineCounts[biomeHeadlines[h]]++;
 
                 if (!endings.ContainsKey(sim.Ending)) endings[sim.Ending] = 0;
                 endings[sim.Ending]++;
@@ -333,6 +348,15 @@ namespace Rill.EditorTools
             }
             log.AppendLine();
             log.AppendFormat("  terrain delta    min {0:0.00} m, max {1:0.00} m vs virgin\n", MinDelta(world), MaxDelta(world));
+            log.AppendFormat("  weather          {0}\n", weather.Kind);
+            if (biomeHeadlineCounts.Count == 0) log.AppendLine("  biome events     NONE — biome rules produced nothing");
+            else
+            {
+                log.Append("  biome events    ");
+                foreach (var kv in biomeHeadlineCounts) log.AppendFormat("\"{0}\" x{1}  ", kv.Key, kv.Value);
+                log.AppendLine();
+            }
+            log.AppendFormat("  ice cells        {0}\n", IceCells(world));
 
             // Save / load round-trip: the world is the save file, so this is the load-bearing test.
             var life = new float[world.Field.Count];
@@ -407,6 +431,13 @@ namespace Rill.EditorTools
             for (int i = 0; i < w.Basins.Basins.Count; i++)
                 if (w.Basins.Basins[i].FillFraction > best) best = w.Basins.Basins[i].FillFraction;
             return best;
+        }
+
+        static int IceCells(RillWorld w)
+        {
+            int n = 0;
+            for (int i = 0; i < w.Field.Count; i++) if (w.Field.Ice[i] > 0.5f) n++;
+            return n;
         }
 
         static int PolishedCells(RillWorld w)

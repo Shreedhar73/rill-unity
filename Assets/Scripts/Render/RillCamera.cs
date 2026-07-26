@@ -16,6 +16,20 @@ namespace Rill.Render
         public float Yaw = 30f;
         public float FollowDistance = 62f;
         public float FollowHeight = 46f;
+
+        // Speed had no camera consequence at all: 24 m/s framed identically to 9 m/s, so the
+        // momentum economy — the whole skill ceiling — was invisible without reading the HUD meter.
+        // Widening the lens and dropping toward the bed at speed puts motion in the periphery and
+        // brings the ground closer, which is what actually reads as fast.
+        [Tooltip("Speed treated as 'flat out' for camera response, m/s.")]
+        public float SpeedReference = 24f;
+        [Tooltip("Degrees of extra field of view at full speed.")]
+        public float SpeedFovKick = 13f;
+        [Tooltip("Fraction of follow distance and height pulled in at full speed.")]
+        public float SpeedCloseIn = 0.22f;
+
+        float _speed01;
+        float _baseFov;
         public float OverviewDistance = 210f;
         public float OverviewHeight = 150f;
         public float ReportDistance = 115f;
@@ -52,6 +66,7 @@ namespace Rill.Render
             _mode = Mode.Follow;
             Vector3 lookahead = new Vector3(velocityXZ.x, 0f, velocityXZ.y) * LookaheadPerSpeed;
             _target = headWorld + lookahead;
+            _speed01 = Mathf.Clamp01(velocityXZ.magnitude / Mathf.Max(1f, SpeedReference));
         }
 
         public void FrameReport(Vector3 focus)
@@ -83,14 +98,15 @@ namespace Rill.Render
             switch (_mode)
             {
                 case Mode.Follow:
-                    wantDistance = FollowDistance;
-                    wantHeight = FollowHeight;
+                    wantDistance = FollowDistance * (1f - SpeedCloseIn * _speed01);
+                    wantHeight = FollowHeight * (1f - SpeedCloseIn * _speed01);
                     break;
                 case Mode.Report:
                     wantDistance = ReportDistance;
                     wantHeight = ReportDistance * 0.7f;
                     break;
                 default:
+                    _speed01 = 0f;
                     wantDistance = OverviewDistance;
                     wantHeight = OverviewHeight;
                     _overviewSpin += Time.deltaTime * 0.9f; // barely-there drift; the world breathes
@@ -110,6 +126,14 @@ namespace Rill.Render
 
             transform.position = pos;
             transform.rotation = Quaternion.LookRotation((_currentTarget - pos).normalized, Vector3.up);
+
+            var cam = Cam;
+            if (cam != null)
+            {
+                if (_baseFov <= 0f) _baseFov = cam.fieldOfView;
+                float wantFov = _baseFov + SpeedFovKick * _speed01;
+                cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, wantFov, k);
+            }
         }
     }
 }
