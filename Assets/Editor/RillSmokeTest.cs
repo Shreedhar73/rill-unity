@@ -58,6 +58,7 @@ namespace Rill.EditorTools
             // lattice as a progression track assumes yes, and nothing has ever tested it.
             int aimedRuns = 0, aimedHits = 0, seaRuns = 0, seaHits = 0;
             int crossingRuns = 0, crossingToSea = 0;
+            float aimedClosest = 0f;
             float distanceAfterCrossing = 0f;
             float aimedMissDistance = 0f;
             float strandedVolume = 0f, totalDescent = 0f, totalStopSlope = 0f;
@@ -102,8 +103,14 @@ namespace Rill.EditorTools
                 bool intentional = aimBasin || aimSea;
 
                 int steps = 0;
+                float closestApproach = float.MaxValue;
                 while (sim.Running && steps++ < 20000)
                 {
+                    if (intentional)
+                    {
+                        float d = (sim.Head.Pos - destination).magnitude;
+                        if (d < closestApproach) closestApproach = d;
+                    }
                     if (steps % 30 == 0)
                     {
                         if (intentional) sim.SetSteer(true, destination);
@@ -140,6 +147,10 @@ namespace Rill.EditorTools
                 if (aimBasin)
                 {
                     aimedRuns++;
+                    // Closest approach separates "never got near it" from "passed it and carried
+                    // on". A final-distance miss cannot tell those apart, and they need opposite
+                    // fixes: more steering authority vs a reason to stop once you arrive.
+                    aimedClosest += closestApproach;
                     if (stopBasin != null && stopBasin.Id == intendedBasin) aimedHits++;
                     else aimedMissDistance += (sim.Head.Pos - destination).magnitude;
                 }
@@ -189,6 +200,8 @@ namespace Rill.EditorTools
             log.AppendFormat("  aimed at a basin {0} runs, reached it {1} ({2:0}%), avg miss {3:0} m\n",
                 aimedRuns, aimedHits, aimedRuns > 0 ? aimedHits * 100f / aimedRuns : 0f,
                 aimedRuns > aimedHits ? aimedMissDistance / (aimedRuns - aimedHits) : 0f);
+            log.AppendFormat("  aimed closest    avg {0:0} m (vs avg final miss above)\n",
+                aimedRuns > 0 ? aimedClosest / aimedRuns : 0f);
             log.AppendFormat("  aimed at the sea {0} runs, reached it {1} ({2:0}%)\n",
                 seaRuns, seaHits, seaRuns > 0 ? seaHits * 100f / seaRuns : 0f);
             log.Append("  basin sites:    ");

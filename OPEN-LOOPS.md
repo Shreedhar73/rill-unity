@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **12** (4 archived)
+Last updated: **2026-07-26** · Open loops: **16** · Closed this cycle: **13** (4 archived)
 
 ---
 
@@ -62,19 +62,6 @@ miss do so by an average of 100 m, which reads more like "never left the channel
 fell short". Next step: log how far an aimed run's path deviates from the hands-off path for the
 same seed, which separates (a) from (c) directly.
 
-### L-029 · Basin crossing is built but has never mattered
-**Why** — A run whose remaining volume exceeds a lake's headroom now fills that lake to its spill and
-continues from the outlet. It replaced a version that provably never worked (a 0.35g nudge toward
-the spill cell, which loses to terrain gravity on the rim it has to climb — 1,187 sub-steps across
-24 runs, zero runs carried out). The replacement is *physically* right and fires ~23 times in 150
-runs, which is too rare to have been observed doing anything. It is Built, not Done.
-**Done when** — Someone has watched a run cross a full lake and leave by the outlet, or a test
-attributes a measurable share of sea arrivals to crossings.
-**Evidence needed** — The new `basin crossings N runs … M reached the sea … avg X m travelled after
-crossing` line, or a screenshot. Note the count alone is not evidence: a counter proves the branch
-executed, not that it carried the run anywhere, which is why the distance-after-crossing figure
-exists.
-
 ### L-011 · See the strata pass
 **Why** — Per-pixel strata bands, seam darkening and concavity occlusion were written to fix a
 mountain that rendered as a smooth orange bedsheet. Shaders compile. **Nobody has looked at it.**
@@ -131,6 +118,20 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-029 · Basin crossing is built but has never mattered — closed 2026-07-26
+A run whose remaining volume exceeds a lake's headroom fills that lake to its spill and continues
+from the outlet. The version it replaced provably never worked — a 0.35g nudge toward the spill cell
+loses to terrain gravity on the rim it has to climb, and ran for 1,187 sub-steps across 24 runs
+while carrying out zero of them.
+**Evidence** — 150 runs: `basin crossings 23 runs crossed a full lake; 5 of those reached the sea;
+avg 42 m travelled after crossing`. The distance-after-crossing figure is the load-bearing one: the
+crossing count alone was never evidence, because a counter proves the branch executed rather than
+that it carried the run anywhere. 5 of the 35 sea arrivals followed a crossing.
+**Caveat** — 0 crossings in 24 runs. The mechanic only engages once a basin is genuinely full, which
+takes roughly 50 runs on the default seed, so nobody playing a first session will ever see it. That
+is expected rather than broken, but it means L-019 (cascade spectacle) still has nothing to show
+early and the visual has still never been *watched* — only measured.
 
 ### L-010 · Make secrets findable — closed 2026-07-26
 Three compounding causes, and the first two fixes each looked like progress while the track stayed
