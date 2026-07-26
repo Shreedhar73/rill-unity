@@ -27,6 +27,9 @@ namespace Rill.UI
         CanvasGroup _reportGroup, _panelGroup, _buttonsGroup, _speedGroup, _titleGroup;
         Text _titleWord, _titleTag, _titleRecord;
         Button _startButton;
+        bool _titleShown;
+        float _titleFade;
+        const float TitleFadeSeconds = 1.4f;
         RectTransform _buttons;
 
         public bool ReportVisible { get; private set; }
@@ -71,12 +74,11 @@ namespace Rill.UI
             hrt.anchorMin = Vector2.zero; hrt.anchorMax = Vector2.one;
             hrt.offsetMin = Vector2.zero; hrt.offsetMax = Vector2.zero;
 
-            // A wash rather than a slab, so the mountain stays readable underneath.
-            var wash = UIFactory.MakePanel(holder.transform, "Wash", new Color(0.05f, 0.06f, 0.08f, 0.42f));
-            var wrt = UIFactory.Rect(wash.gameObject);
-            wrt.anchorMin = Vector2.zero; wrt.anchorMax = Vector2.one;
-            wrt.offsetMin = Vector2.zero; wrt.offsetMax = Vector2.zero;
-            wash.raycastTarget = false;
+            // Clear at the top so the summit keeps its silhouette, dense at the bottom where the
+            // name and the button need to be legible against whatever terrain drifts past.
+            UIFactory.MakeGradient(holder.transform, "Wash",
+                                   new Color(0.04f, 0.05f, 0.07f, 0.06f),
+                                   new Color(0.03f, 0.04f, 0.06f, 0.80f));
 
             _titleWord = UIFactory.MakeText(holder.transform, "Word", "RILL", 150, TextAnchor.MiddleCenter, UIFactory.Ink);
             UIFactory.Place(_titleWord.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 210f), new Vector2(1000f, 190f));
@@ -100,7 +102,11 @@ namespace Rill.UI
         public void SetTitle(bool visible, string record, System.Action onStart)
         {
             if (_titleGroup == null) return;
-            _titleGroup.alpha = visible ? 1f : 0f;
+            _titleShown = visible;
+            // Fade up from nothing rather than appearing on frame one, so the mountain is on screen
+            // a beat before the words land on it.
+            if (visible) { _titleFade = 0f; _titleGroup.alpha = 0f; }
+            else _titleGroup.alpha = 0f;
             _titleGroup.blocksRaycasts = visible;
             _titleGroup.interactable = visible;
             if (_titleRecord != null) _titleRecord.text = record ?? "";
@@ -112,6 +118,26 @@ namespace Rill.UI
         }
 
         public bool TitleVisible => _titleGroup != null && _titleGroup.blocksRaycasts;
+
+        void Update()
+        {
+            if (_titleGroup == null || !_titleShown) return;
+
+            if (_titleFade < 1f)
+            {
+                _titleFade = Mathf.Min(1f, _titleFade + Time.deltaTime / TitleFadeSeconds);
+                // Ease out: quick to become visible, slow to settle.
+                _titleGroup.alpha = 1f - (1f - _titleFade) * (1f - _titleFade);
+            }
+
+            // The button breathes. Nothing else on this screen moves except the mountain, and a
+            // still button on a drifting landscape reads as a screenshot rather than a game.
+            if (_startButton != null)
+            {
+                float pulse = 1f + Mathf.Sin(Time.unscaledTime * 2.1f) * 0.022f;
+                _startButton.transform.localScale = new Vector3(pulse, pulse, 1f);
+            }
+        }
 
         void BuildSpeedMeter(Transform root)
         {

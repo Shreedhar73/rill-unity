@@ -9,7 +9,7 @@ namespace Rill.Render
     /// </summary>
     public sealed class RillCamera : MonoBehaviour
     {
-        public enum Mode { Overview, Follow, Report }
+        public enum Mode { Overview, Follow, Report, Title }
 
         public Camera Cam;
         public float Pitch = 42f;
@@ -30,6 +30,12 @@ namespace Rill.Render
 
         float _speed01;
         float _baseFov;
+
+        [Header("Title framing")]
+        public float TitleDistance = 190f;
+        public float TitleHeight = 78f;
+        [Tooltip("Degrees per second the title camera orbits the summit.")]
+        public float TitleOrbitSpeed = 3.5f;
         public float OverviewDistance = 210f;
         public float OverviewHeight = 150f;
         public float ReportDistance = 115f;
@@ -51,6 +57,19 @@ namespace Rill.Render
             if (Cam == null) Cam = GetComponent<Camera>();
             _distance = OverviewDistance;
             _height = OverviewHeight;
+        }
+
+        /// <summary>
+        /// Title framing: closer and lower than the idle overview, orbiting continuously. The idle
+        /// camera sits high and barely moves — correct for a garden you are tending, wrong for a
+        /// first impression, where the mountain should have some silhouette and some motion.
+        /// </summary>
+        public void SetTitle(Vector3 worldCentre)
+        {
+            _mode = Mode.Title;
+            _target = worldCentre;
+            _currentTarget = worldCentre;
+            _panOffset = Vector3.zero;
         }
 
         public void SetOverview(Vector3 worldCentre)
@@ -105,6 +124,12 @@ namespace Rill.Render
                     wantDistance = ReportDistance;
                     wantHeight = ReportDistance * 0.7f;
                     break;
+                case Mode.Title:
+                    _speed01 = 0f;
+                    wantDistance = TitleDistance;
+                    wantHeight = TitleHeight;
+                    _overviewSpin += Time.deltaTime * TitleOrbitSpeed;
+                    break;
                 default:
                     _speed01 = 0f;
                     wantDistance = OverviewDistance;
@@ -119,7 +144,9 @@ namespace Rill.Render
             Vector3 goal = _target + (_mode == Mode.Overview ? _panOffset : Vector3.zero);
             _currentTarget = Vector3.Lerp(_currentTarget, goal, k);
 
-            float yaw = Yaw + (_mode == Mode.Overview ? Mathf.Sin(_overviewSpin * 0.05f) * 6f : 0f);
+            float yaw = Yaw;
+            if (_mode == Mode.Overview) yaw += Mathf.Sin(_overviewSpin * 0.05f) * 6f;
+            else if (_mode == Mode.Title) yaw += _overviewSpin;   // a slow, continuous turn
             Quaternion rot = Quaternion.Euler(0f, yaw, 0f);
             Vector3 back = rot * new Vector3(0f, 0f, -1f);
             Vector3 pos = _currentTarget + back * _distance + Vector3.up * _height;

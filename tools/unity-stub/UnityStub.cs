@@ -269,8 +269,15 @@ namespace UnityEngine
 
     public enum TextureFormat { RGB24, RGBA32, ARGB32 }
 
+    public enum TextureWrapMode { Repeat, Clamp, Mirror }
+    public enum FilterMode { Point, Bilinear, Trilinear }
+
     public class Texture2D : Texture
     {
+        public TextureWrapMode wrapMode { get; set; }
+        public FilterMode filterMode { get; set; }
+        public void SetPixel(int x, int y, Color c) { }
+
         public Texture2D(int w, int h) { }
         public Texture2D(int w, int h, TextureFormat f, bool mips) { }
         public void SetPixels(Color[] px) { }

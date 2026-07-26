@@ -144,7 +144,7 @@ namespace Rill.Flow
         public void EnterTitle()
         {
             Current = State.Title;
-            Cam.SetOverview(Active.SummitWorld);
+            Cam.SetTitle(Active.SummitWorld);
             Ribbon.Clear();
             Hud.SetIdleUI(false);
             Hud.SetHint("");

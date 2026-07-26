@@ -78,6 +78,38 @@ namespace Rill.UI
             return img;
         }
 
+        /// <summary>
+        /// A vertical gradient, built from stacked translucent bands rather than a generated
+        /// texture. A flat slab over the mountain reads as a grey filter and flattens the
+        /// silhouette; a gradient that is clear at the top and dense at the bottom keeps the
+        /// terrain readable while still giving text something to sit on.
+        ///
+        /// Bands rather than a Texture2D on purpose: no sprite assets, nothing to import, and it
+        /// stays inside the "everything is built in code" rule the project holds to.
+        /// </summary>
+        public static GameObject MakeGradient(Transform parent, string name, Color top, Color bottom, int bands = 10)
+        {
+            var holder = new GameObject(name, typeof(RectTransform));
+            holder.transform.SetParent(parent, false);
+            var hrt = Rect(holder);
+            hrt.anchorMin = Vector2.zero; hrt.anchorMax = Vector2.one;
+            hrt.offsetMin = Vector2.zero; hrt.offsetMax = Vector2.zero;
+
+            for (int i = 0; i < bands; i++)
+            {
+                float t0 = i / (float)bands;
+                float t1 = (i + 1) / (float)bands;
+                var band = MakePanel(holder.transform, name + i, Color.Lerp(bottom, top, (t0 + t1) * 0.5f));
+                var rt = Rect(band.gameObject);
+                rt.anchorMin = new Vector2(0f, t0);
+                rt.anchorMax = new Vector2(1f, t1);
+                rt.offsetMin = Vector2.zero;
+                rt.offsetMax = Vector2.zero;
+                band.raycastTarget = false;
+            }
+            return holder;
+        }
+
         public static Button MakeButton(Transform parent, string name, string label, int size = 30)
         {
             var img = MakePanel(parent, name, new Color(0.14f, 0.16f, 0.19f, 0.78f));
