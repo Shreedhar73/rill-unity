@@ -127,6 +127,13 @@ namespace Rill.Core
         {
             // Ignore anything shallower than 10 cm. Below that a "basin" is just noise in the
             // heightfield, and 47 nameless puddles is not a progression track.
+            //
+            // Ignore anything at or below sea level too. The priority flood happily labels
+            // depressions in the sea floor as basins, and they are not places the player can ever
+            // route water to: 9 of the 14 "basins" on the default seed had floors 7-158 m BELOW
+            // sea level, 230-330 m from the summit, including the two largest by capacity. They
+            // sat at 0% forever, made "basins found 14, capacity 16,712 m³" false (the truth was
+            // 5 and 5,325 m³), and poisoned every routing test that picked a target at random.
             const float eps = 0.10f;
             for (int i = 0; i < _basinOf.Length; i++) _basinOf[i] = -1;
             _basins.Clear();
@@ -135,6 +142,7 @@ namespace Rill.Core
             for (int start = 0; start < _f.Count; start++)
             {
                 if (_basinOf[start] >= 0) continue;
+                if (_f.Height[start] <= _f.SeaLevel) continue;
                 if (_filled[start] - _f.Height[start] <= eps) continue;
 
                 int id = _basins.Count;
@@ -157,6 +165,7 @@ namespace Rill.Core
                         if (nx < 0 || nz < 0 || nx >= _n || nz >= _n) continue;
                         int ni = nz * _n + nx;
                         if (_basinOf[ni] >= 0) continue;
+                        if (_f.Height[ni] <= _f.SeaLevel) continue;
                         if (_filled[ni] - _f.Height[ni] <= eps) continue;
                         // Same depression only if the two share a spill elevation.
                         if (Mathf.Abs(_filled[ni] - _filled[c]) > 0.25f) continue;
