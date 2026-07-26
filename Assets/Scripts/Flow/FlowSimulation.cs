@@ -75,6 +75,11 @@ namespace Rill.Flow
         public int HollowsFilled { get; private set; }
         public float HollowVolume { get; private set; }
 
+        /// <summary>Water this run left in basins on its way past them, m³.</summary>
+        public float WaterToBasins { get; private set; }
+        Basin _soakBasin;
+        float _soakPending;
+
         // A run that stops is a run that ended. A run that neither moves nor ends is the worst
         // thing this game can do with seventy-five seconds, and it was happening to 4 runs in 24.
         // Traced: run 3 spent 68 of its 75 s oscillating between 69 m and 84 m of elevation at
@@ -188,6 +193,9 @@ namespace Rill.Flow
             _lastSlope = _lastWater = _lastPolish = _lastFastElapsed = 0f;
             HollowsFilled = 0;
             HollowVolume = 0f;
+            WaterToBasins = 0f;
+            _soakBasin = null;
+            _soakPending = 0f;
             _stuckAnchor = Head.Pos;
             _stuckAnchorTime = 0f;
             _escapes = 0;
@@ -250,7 +258,26 @@ namespace Rill.Flow
                 // stream in place instead of steering it, which is not a punishment the player can
                 // read, only a run that stops happening.
                 float authority = Mathf.Clamp01(Head.Vel.magnitude / Mathf.Max(_cfg.SteerFullSpeed, 0.01f));
-                Head.Vel += right * (lateral * _cfg.SteerAccel * authority * dt);
+                Vector2 push = right * (lateral * _cfg.SteerAccel * authority * dt);
+
+                // Rule 1 is "water flows downhill", and the thumb does not get a vote on it. Strip
+                // whatever part of the lean points up the fall line, leaving the part that steers
+                // across it. Leaning decides *where* on the mountain the water goes; the mountain
+                // decides whether it goes up.
+                //
+                // This is what makes the deadlock impossible by construction rather than by tuning.
+                // Without it the two things the player needs are the same number and pull opposite
+                // ways: enough authority to carve a route to a basin off the channel (basin #0 goes
+                // 0% -> 100% over one campaign at SteerAccel 42, and stays at 0% at 20) is also
+                // enough to hold the stream against the hill until the clock runs out (9-18 runs
+                // per 150 timed out at those values). Separating them costs nothing the player
+                // wanted: nobody is trying to push water uphill on purpose.
+                if (slope > 1e-6f)
+                {
+                    float uphill = Vector2.Dot(push, -down);
+                    if (uphill > 0f) push += down * uphill;
+                }
+                Head.Vel += push;
                 // Fighting gravity bleeds momentum. Expert play is knowing when NOT to touch.
                 float bleed = 1f - _cfg.SteerSpeedCost * Mathf.Abs(lateral) * dt;
                 Head.Vel *= Mathf.Max(0f, bleed);
@@ -284,6 +311,7 @@ namespace Rill.Flow
                 CrossBasin(basin);
                 return;
             }
+            if (basin != null) SoakIntoBasin(basin, dt);
 
             if (waterHere > 0.05f)
             {
@@ -444,6 +472,41 @@ namespace Rill.Flow
         }
 
         /// <summary>
+        /// A basin with headroom drinks from the stream crossing it. Deliberately a drain and not a
+        /// capture: stopping the run dead the moment it touches a bowl would make every lake on the
+        /// route a wall, whereas draining lets the player watch their water go into the thing they
+        /// aimed at and carry on with what is left.
+        ///
+        /// Batched rather than applied per sub-step, because AddWater re-solves the basin's whole
+        /// water surface and the largest basin here is 2,900 m³ of cells — doing that ninety times
+        /// a second would cost more than the rest of the simulation put together.
+        /// </summary>
+        void SoakIntoBasin(Basin b, float dt)
+        {
+            float headroom = b.Capacity - b.Volume - _soakPending;
+            if (headroom <= 0f) return;
+
+            float give = Mathf.Min(Mathf.Min(_cfg.BasinSoakRate * dt, headroom), Head.Volume - _cfg.MinVolume);
+            if (give <= 0f) return;
+
+            // Flush before switching basins, or the batch owed to the last one is credited to this.
+            if (_soakBasin != null && _soakBasin.Id != b.Id) FlushSoak();
+            _soakBasin = b;
+
+            Head.Volume -= give;
+            WaterToBasins += give;
+            _soakPending += give;
+            if (_soakPending >= 2f) FlushSoak();
+        }
+
+        void FlushSoak()
+        {
+            if (_soakBasin == null || _soakPending <= 0f) { _soakPending = 0f; return; }
+            _world.Basins.AddWater(_soakBasin.Cells[0], _soakPending);
+            _soakPending = 0f;
+        }
+
+        /// <summary>
         /// True when this lake cannot swallow the run: the water left in the head is more than the
         /// headroom below the spill level. Deliberately a volume comparison and not a fill
         /// percentage — a 4,967 m³ tarn at 0% and a 396 m³ tarn at 0% look identical as fractions
@@ -464,6 +527,7 @@ namespace Rill.Flow
         /// </summary>
         void CrossBasin(Basin b)
         {
+            FlushSoak();
             _crossed.Add(b.Id);
             CrossedAnyBasin = true;
             _distanceAtLastCrossing = Distance;
@@ -710,6 +774,7 @@ namespace Rill.Flow
 
         void Finish(RunEnding ending, bool deliverVolume)
         {
+            FlushSoak();
             Running = false;
             Ending = ending;
             VolumeAtEnd = Mathf.Max(0f, Head.Volume);

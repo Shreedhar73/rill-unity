@@ -122,8 +122,9 @@ namespace Rill.EditorTools
         /// </summary>
         public class Summary
         {
-            public int Sea, TimedOut, Pooled, AimedRuns, AimedDelivered, StoppedInBasin;
-            public float DistancePerRun, Descent, SedimentPerRun, ToSea, AimedMiss, AimedClosest, HollowVolume;
+            public int Sea, TimedOut, Pooled, AimedRuns, AimedDelivered, StoppedInBasin, AimedEntered;
+            public float DistancePerRun, Descent, SedimentPerRun, ToSea, AimedMiss, AimedClosest, HollowVolume, HeldWater;
+            public float TargetFill, TargetVolume;
         }
 
         /// <summary>
@@ -146,6 +147,75 @@ namespace Rill.EditorTools
         /// </summary>
         [MenuItem("RILL/Run Headless Steering Sweep (long)", false, 65)]
         public static void RunHeadlessSteerSweepLong() { SweepSteering(150, new[] { 0f, 7f, 11f }); }
+
+        /// <summary>
+        /// How fast a basin with headroom should drink from a stream passing over it. 8 of the 15
+        /// aimed runs that reached their target basin sailed across its dry floor and climbed out
+        /// the far side, which is why aimed delivery sat at 19%. Too slow a drain leaves that
+        /// unfixed; too fast turns every lake on the route into a wall and starves the sea. Both
+        /// halves are in the table. 0 is the arm with no drain at all.
+        /// </summary>
+        [MenuItem("RILL/Run Headless Basin Soak Sweep", false, 66)]
+        public static void RunHeadlessSoakSweep()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== basin soak sweep — 150 runs per arm, same seed, same bot ===");
+            log.AppendLine("  m3/s    sea  timeout  pooled   dist/run  descent   toSea    held   aimedIn  delivered");
+            foreach (float r in new[] { 0f, 4f, 8f, 14f, 22f })
+            {
+                var cfg = new GameConfig { BasinSoakRate = r };
+                var sum = new Summary();
+                PlayBiome(150, Biome.Sandstone, cfg, sum);
+                log.AppendFormat("  {0,4:0}  {1,5}  {2,7}  {3,6}   {4,7:0} m  {5,6:0} m  {6,6:0} m3  {7,6:0} m3  {8,6}/{9}  {10,7}/{11}\n",
+                    r, sum.Sea, sum.TimedOut, sum.Pooled, sum.DistancePerRun, sum.Descent, sum.ToSea,
+                    sum.HeldWater, sum.AimedEntered, sum.AimedRuns, sum.AimedDelivered, sum.AimedRuns);
+            }
+            Debug.Log(log.ToString());
+        }
+
+        /// <summary>
+        /// The claim the entire progression track rests on, re-tested under the new flow dynamics:
+        /// a player who commits to one basin off the incised channel can fill it. L-027 measured
+        /// 0% -> 85% for basin #0 over one sustained campaign; if that no longer holds, the basin
+        /// lattice is scenery and "north basin 87% full" is not an open loop the player can close.
+        ///
+        /// Basin #0 is chosen because it is NOT reachable downhill from the spring without carving
+        /// a route to it, which is the hard case and the interesting one.
+        /// </summary>
+        [MenuItem("RILL/Run Headless Basin Campaign", false, 67)]
+        public static void RunHeadlessCampaign()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== one sustained campaign against basin #0, 150 runs ===");
+            log.Append(PlayBiome(150, Biome.Sandstone, null, null, 0));
+            Debug.Log(log.ToString());
+        }
+
+        /// <summary>
+        /// Lateral authority against the one thing that needs it: carving a route to a basin that
+        /// is not downhill from the spring. Scaling authority by speed (L-038) fixed a deadlock but
+        /// took basin #0 from L-027's 0% -> 85% under one sustained campaign to 0 of 36 aimed runs
+        /// even getting inside it. The two are separable — the deadlock was authority at REST, and
+        /// route-carving is authority at SPEED — so SteerAccel is the knob to test, not the scaling.
+        /// </summary>
+        [MenuItem("RILL/Run Headless Campaign Sweep", false, 68)]
+        public static void RunHeadlessCampaignSweep()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== steer authority vs one sustained campaign on off-channel basin #0, 150 runs ===");
+            log.AppendLine("  accel   basin#0     entered  delivered   sea  timeout   dist/run   toSea   aimedNear");
+            foreach (float a in new[] { 20f, 42f, 56f, 70f })
+            {
+                var cfg = new GameConfig { SteerAccel = a };
+                var sum = new Summary();
+                PlayBiome(150, Biome.Sandstone, cfg, sum, 0);
+                log.AppendFormat("  {0,5:0}  {1,5:0.0}% {2,7:n0} m3  {3,5}/{4}  {5,5}/{6}  {7,4}  {8,7}  {9,7:0} m  {10,6:0} m3  {11,7:0} m\n",
+                    a, sum.TargetFill * 100f, sum.TargetVolume, sum.AimedEntered, sum.AimedRuns,
+                    sum.AimedDelivered, sum.AimedRuns, sum.Sea, sum.TimedOut, sum.DistancePerRun,
+                    sum.ToSea, sum.AimedClosest);
+            }
+            Debug.Log(log.ToString());
+        }
 
         static void SweepSteering(int runs, float[] arms)
         {
@@ -177,7 +247,8 @@ namespace Rill.EditorTools
             public float Slope, Water, Polish, Crawl, Volume;
         }
 
-        static StringBuilder PlayBiome(int Runs, Biome biome, GameConfig config = null, Summary summary = null)
+        static StringBuilder PlayBiome(int Runs, Biome biome, GameConfig config = null, Summary summary = null,
+                                       int forcedCampaignBasin = -1)
         {
             var log = new StringBuilder();
             if (config == null) config = new GameConfig();
@@ -212,7 +283,10 @@ namespace Rill.EditorTools
             // Can a player who wants to fill a particular basin actually fill it? The whole basin
             // lattice as a progression track assumes yes, and nothing has ever tested it.
             int aimedRuns = 0, aimedHits = 0, seaRuns = 0, seaHits = 0;
-            int crossingRuns = 0, crossingToSea = 0, aimedDelivered = 0;
+            int crossingRuns = 0, crossingToSea = 0, aimedDelivered = 0, aimedEntered = 0, aimedPassedThrough = 0;
+            int aimedWithRoom = 0, aimedEnteredWithRoom = 0;
+            int campaignBasin = -1;
+            float waterToBasins = 0f;
             float aimedClosest = 0f;
             float distanceAfterCrossing = 0f;
             float aimedMissDistance = 0f;
@@ -268,7 +342,25 @@ namespace Rill.EditorTools
                     // off-channel basin is a campaign, so the bot has to run campaigns or it is
                     // testing something nobody does. A 150-run test therefore only visits three of
                     // the five basins; the untargeted ones sitting at 0% mean nothing.
-                    intendedBasin = (run / 50) % world.Basins.Basins.Count;
+                    // Pick the campaign target by headroom, not by index. Cycling the index aimed
+                    // 15 of 36 aimed runs at a basin that was already 100% full — basin #2 fills by
+                    // run 24 on this seed — and a run aimed at a full basin cannot deliver anything
+                    // however well it is flown. That made "aimed delivered 19%" partly a measure of
+                    // the harness choosing impossible targets, and it silently got worse over a
+                    // session precisely *because* the game was working. A player picks somewhere
+                    // that still has room. (L-039)
+                    if (forcedCampaignBasin >= 0) campaignBasin = forcedCampaignBasin;
+                    else if (campaignBasin < 0 || (run - 1) % 50 == 0)
+                    {
+                        campaignBasin = 0;
+                        float bestRoom = -1f;
+                        for (int b = 0; b < world.Basins.Basins.Count; b++)
+                        {
+                            float room = world.Basins.Basins[b].Capacity - world.Basins.Basins[b].Volume;
+                            if (room > bestRoom) { bestRoom = room; campaignBasin = b; }
+                        }
+                    }
+                    intendedBasin = campaignBasin;
                     int c = world.Basins.Basins[intendedBasin].Cells[0];
                     destination = world.Field.GridToWorldXZ(c % config.Size, c / config.Size);
                 }
@@ -287,9 +379,20 @@ namespace Rill.EditorTools
                 // water and flows onward as a miss — so it undercounts arrival by construction.
                 float targetVolumeBefore = intendedBasin >= 0 && intendedBasin < world.Basins.Basins.Count
                     ? world.Basins.Basins[intendedBasin].Volume : 0f;
+                // A campaign aimed at a basin that is already full cannot deliver anything, however
+                // well it is flown. Basin #2 reaches 100% by run 24 on this seed, and the bot aims a
+                // whole 50-run block at it, so a delivery rate quoted over all aimed runs is partly
+                // measuring the harness picking impossible targets. (L-039)
+                bool targetHadRoom = intendedBasin >= 0 && intendedBasin < world.Basins.Basins.Count &&
+                    world.Basins.Basins[intendedBasin].Capacity - targetVolumeBefore > 1f;
 
                 int steps = 0;
                 float closestApproach = float.MaxValue;
+                // Did the run ever get *inside* the basin it was aimed at? "Delivered" and "stopped
+                // in it" both answer a different question, and neither can tell a run that never
+                // arrived from one that arrived, sailed across the dry floor and left out the far
+                // side. Those need opposite fixes, so the distinction has to be measured. (L-039)
+                bool enteredTarget = false;
                 // A once-a-second trace of the head, kept for every run and printed only for the
                 // first couple that end badly. End-of-run aggregates said two contradictory things
                 // about a TimedOut run — terminal speed 23 m/s where it stopped, 2.1 m/s averaged
@@ -307,6 +410,9 @@ namespace Rill.EditorTools
                     {
                         float d = (sim.Head.Pos - destination).magnitude;
                         if (d < closestApproach) closestApproach = d;
+                        if (intendedBasin >= 0 && !enteredTarget &&
+                            world.Basins.BasinIdAt(world.Field.NearestIndex(sim.Head.Pos.x, sim.Head.Pos.y)) == intendedBasin)
+                            enteredTarget = true;
                     }
                     if (steps % 30 == 0)
                     {
@@ -329,6 +435,7 @@ namespace Rill.EditorTools
                 throughFlow += sim.ThroughFlowSteps;
                 hollowsFilled += sim.HollowsFilled;
                 hollowVolume += sim.HollowVolume;
+                waterToBasins += sim.WaterToBasins;
                 if (sim.HollowsFilled > 0) runsThatFilled++;
                 if (sim.CrossedAnyBasin)
                 {
@@ -378,6 +485,10 @@ namespace Rill.EditorTools
                     // on". A final-distance miss cannot tell those apart, and they need opposite
                     // fixes: more steering authority vs a reason to stop once you arrive.
                     aimedClosest += closestApproach;
+                    if (enteredTarget) aimedEntered++;
+                    if (targetHadRoom) aimedWithRoom++;
+                    if (targetHadRoom && enteredTarget) aimedEnteredWithRoom++;
+                    if (enteredTarget && (stopBasin == null || stopBasin.Id != intendedBasin)) aimedPassedThrough++;
                     if (stopBasin != null && stopBasin.Id == intendedBasin) aimedHits++;
                     else aimedMissDistance += (sim.Head.Pos - destination).magnitude;
                 }
@@ -432,6 +543,13 @@ namespace Rill.EditorTools
                 summary.AimedMiss = aimedRuns > aimedHits ? aimedMissDistance / (aimedRuns - aimedHits) : 0f;
                 summary.AimedClosest = aimedRuns > 0 ? aimedClosest / aimedRuns : 0f;
                 summary.HollowVolume = hollowVolume;
+                summary.AimedEntered = aimedEntered;
+                summary.HeldWater = world.Basins.TotalWater();
+                if (forcedCampaignBasin >= 0 && forcedCampaignBasin < world.Basins.Basins.Count)
+                {
+                    summary.TargetFill = world.Basins.Basins[forcedCampaignBasin].FillFraction;
+                    summary.TargetVolume = world.Basins.Basins[forcedCampaignBasin].Volume;
+                }
             }
 
             log.AppendLine("--- after " + Runs + " runs ---");
@@ -471,6 +589,12 @@ namespace Rill.EditorTools
                 aimedRuns > aimedHits ? aimedMissDistance / (aimedRuns - aimedHits) : 0f);
             log.AppendFormat("  aimed delivered  {0} of {1} aimed runs put water in the target ({2:0}%)\n",
                 aimedDelivered, aimedRuns, aimedRuns > 0 ? aimedDelivered * 100f / aimedRuns : 0f);
+            log.AppendFormat("  aimed entered    {0} of {1} got inside the target basin; {2} of those sailed across and left\n",
+                aimedEntered, aimedRuns, aimedPassedThrough);
+            log.AppendFormat("  aimed answerable {0} of {1} were aimed at a basin that had room; {2} of those got inside it\n",
+                aimedWithRoom, aimedRuns, aimedEnteredWithRoom);
+            log.AppendFormat("  fed in passing   {0:n0} m³ left in basins the runs flowed over ({1:0.0}/run)\n",
+                waterToBasins, waterToBasins / Runs);
             log.AppendFormat("  aimed closest    avg {0:0} m (vs avg final miss above)\n",
                 aimedRuns > 0 ? aimedClosest / aimedRuns : 0f);
             log.AppendFormat("  aimed at the sea {0} runs, reached it {1} ({2:0}%)\n",

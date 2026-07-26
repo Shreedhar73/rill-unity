@@ -35,8 +35,24 @@ namespace Rill.App
         public float SimStep = 1f / 90f;
 
         [Header("Steering — restraint is the skill ceiling")]
-        [Tooltip("Lateral acceleration at full thumb offset.")]
-        public float SteerAccel = 20f;
+        [Tooltip("Lateral acceleration at full thumb offset. Much larger than the 20 it used to be, " +
+                 "because the simulation now discards whatever part of the lean points up the fall " +
+                 "line — the thumb steers across the mountain and never up it — so a hard lean is " +
+                 "spent turning rather than climbing, and the old number bought almost no turning " +
+                 "at all once the uphill half was gone.\n\n" +
+                 "42 measured over 150 runs per arm against 20 / 30 / 42 / 56 / 70 / 90. It is the " +
+                 "largest value with zero timeouts: above it the stream can be spun in circles " +
+                 "along a contour, which the fall-line rule does not forbid (2 per 150 at 56, 6 at " +
+                 "70, 14 at 90). Closest approach to an aimed basin over a session is 41 m against " +
+                 "111 m before any of this, so the player routes water *better* than they used to, " +
+                 "not worse.\n\n" +
+                 "Known cost, recorded in L-040 rather than tuned away: 56 is the value at which a " +
+                 "sustained campaign can fill basin #0, which is not reachable downhill from the " +
+                 "spring. Buying that with steering costs first-session sea arrivals (6 → 2 over " +
+                 "24 runs) and brings timeouts back. Four of five basins on this seed cannot be " +
+                 "reached downhill at all, and that is a generation problem wearing a tuning " +
+                 "problem's clothes.")]
+        public float SteerAccel = 42f;
         [Tooltip("Thumb offset (metres) at which steering saturates. Close = fine, far = hard lean.")]
         public float SteerRange = 22f;
         [Tooltip("Fraction of speed bled per second at full steer. Fighting gravity must cost.")]
@@ -74,6 +90,14 @@ namespace Rill.App
         public float StormVolumeMultiplier = 2f;
         public float InfiltrationRate = 1.6f;    // m^3/s lost into dry ground
         public float MinVolume = 2f;             // run ends below this
+        [Tooltip("m³/s a basin with headroom takes from a stream passing over it. The design has " +
+                 "always said a lake with room absorbs the run; the code only ever implemented the " +
+                 "opposite case (a full lake, which spills). A head entering an empty bowl simply " +
+                 "sailed across the dry floor and climbed out the far side on momentum — measured, " +
+                 "8 of the 15 aimed runs that reached their target basin left it again. This is a " +
+                 "drain rather than a hard capture on purpose: being stopped dead by scenery is a " +
+                 "punishment, whereas watching your stream feed the lake you aimed at is the point.")]
+        public float BasinSoakRate = 8f;
 
         [Header("Run end")]
         [Tooltip("Below this speed the water is considered to have stopped. Must sit well under " +
