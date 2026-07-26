@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **12** · Closed this cycle: **33** (23 archived)
+Last updated: **2026-07-26** · Open loops: **18** · Closed this cycle: **33** (23 archived)
 
 ---
 
@@ -43,6 +43,116 @@ Every loop has:
 ---
 
 ## Now
+
+**Order for this batch, and the reasoning.** L-046 first because it is the container: back, quit,
+three mountains and three modes all need a level above the run loop that does not exist yet. Then
+L-047, because the mountains are the substance and the save plumbing is already there unused. Then
+L-050 out of turn, because it is the **only item in the batch that can be verified from a terminal** —
+the capture tool renders lighting, and everything else here is UI that needs a person pressing Play.
+Then L-049 (a launch needs somewhere to hand off to, and is far better once the sun moves), L-048,
+and L-051 last.
+
+**Said once, then built as asked.** This is a lot of shell and meta for a game whose kill criterion
+(L-012) has still never been tested, and the design document's own instruction is to redesign before
+building outward if the core does not compel. The core loop is measurably much stronger than it was
+this morning — 378 of 500 runs reach the sea, no run fails to end — but nobody has still ever wanted
+one more run in front of a witness. If the playtest goes badly, this batch is the work most likely to
+be wasted. Recorded here so that is a known bet rather than a surprise.
+
+### L-046 · The app is one screen with no way out of it
+**Why** — Requested 2026-07-26. Everything the game can do hangs off a single `RunController` state
+machine that boots into a title and then never leaves the mountain. There is no home, no back, no
+way to close the game, and no level above the run loop for a second mountain or a second mode to
+live in. Every other loop below is blocked on this one existing, which is why it is first.
+**Done when** — From any screen there is one obvious way back, the chain ends at a home screen, and
+the home screen can be left deliberately.
+**Approach, and it matters** — the navigation state machine goes in a **MonoBehaviour-free class**
+alongside `Rill.Core`, not in the UI. UI cannot be verified from a terminal; a state machine can, and
+L-018 is the cautionary tale — onboarding "compiled, committed, and was structurally incapable of
+being seen" because nothing tested the gate. The smoke test will drive back/forward transitions
+directly.
+**Two platform decisions, made rather than deferred**
+- Android's hardware **back** must map to the same action as the on-screen back, or the OS one wins
+  and the app closes mid-run.
+- **Quit is Android/desktop only.** Apple's guidelines say an iOS app must not offer to close itself,
+  so a "close game" button ships everywhere except iOS rather than being cut or being wrong.
+
+### L-047 · One mountain, forever, and no way to have another
+**Why** — Requested 2026-07-26 as "three mountains". `SaveSystem` has taken a `slot` argument since
+it was written and nothing has ever passed anything but 0 — the almanac, the time-lapse archive and
+the confluence queue are all per-slot already. The plumbing exists and there is no way to reach it.
+**What three mountains buys, beyond quantity** — the biomes are genuinely different games and three
+of the four have been measured as such: Glacier is fast and grudging (`+11%` distance, `+13%` top
+speed, and ice armours the rock against carving), Volcanic grows terrain an order of magnitude
+faster than anything else (`13.20 m` against `1.18–1.47 m`), Granite keeps what you cut. Right now a
+player meets exactly one of them, chosen for them, forever.
+**Done when** — Three slots, each with its own biome, history and record; switching between them
+touches neither's terrain; and a fresh slot can be started without any path existing that could
+clear an occupied one.
+**Careful — this is the closest anything has come to violating invariant 1.** "Nothing clears
+`HeightField.Height`. No reset, no level load, no *new game* that touches an existing slot." A slot
+picker is a new-game button standing next to three save files. The delete path must be explicit,
+per-slot, and impossible to reach by accident.
+
+### L-050 · The sun does not move
+**Why** — Requested 2026-07-26. The light is one fixed directional at `Euler(46, 35, 0)`, set once at
+boot and never touched, so every session of every day looks identical — and the game's whole premise
+is a world that carries time in it.
+**Why it is worth doing early despite being cosmetic** — it is the only item in this batch I can
+*prove*. `RILL/Capture Mountain PNG` renders terrain and lighting from a terminal, so dawn, noon and
+dusk can be archived and compared. The shell, the modes and the records screen are all UI and cannot
+be checked without a person pressing Play.
+**Done when** — Sun angle, sun colour, ambient and sky follow time of day; three renders at different
+hours are archived and are obviously different.
+**Where it should come from** — `WeatherSystem` is already derived from the UTC date and drives
+weather deterministically. Time of day should come from the player's **local clock**, not from the
+seed: playing in the evening should look like evening. That is free, it needs no content, and it is
+the kind of detail that makes a world feel like a place. The Daily is the exception — it must stay
+identical for everyone, so it takes a fixed hour.
+
+### L-049 · The app appears rather than opens
+**Why** — Requested 2026-07-26. L-037 gave the game a title screen; it still has no launch. The
+title fades up over an already-built mountain, which is a screen rather than an arrival.
+**Done when** — Opening the app is a moment: something happens before the title settles, and it is
+skippable on the second run of the day.
+**Do not use a logo sting** — the honest launch for this game is its own premise. The mountain is the
+save file, so the app should open *on the world the player left*, and the camera should arrive at it.
+Dawn breaking over your own river system costs nothing once L-050 exists and says the whole design in
+four seconds.
+**Blocked by** — L-046 (there is nowhere for a launch sequence to hand off to) and improved enormously
+by L-050.
+
+### L-048 · There is one mode and it is unnamed
+**Why** — Requested 2026-07-26. Daily Rill exists and is reachable only as a toggle button on the
+HUD; the main game has no name and no framing. With a shell and three mountains there is somewhere
+for modes to be chosen rather than toggled.
+**The three, and why these three**
+1. **Mountains** — the game. Three persistent worlds, one per slot, nothing ever reset.
+2. **Daily Rill** — exists. Same seed worldwide, a fixed run count, one shareable glyph. Untouched by
+   your mountains, which is what makes it safe to compete on.
+3. **Expedition** — a fixed short visit to a freshly seeded mountain that you may then **keep**,
+   promoting it into a free slot, or walk away from. Invented to solve a problem L-047 creates rather
+   than for its own sake: three slots means choosing a biome blind, and a slot is permanent. An
+   expedition is how you meet a mountain before you commit to keeping it, and walking away breaks no
+   invariant because it was never yours.
+**Done when** — Each mode is reachable from the home screen, named, and explains itself in one line.
+**Rejected, and why, so they are not re-proposed** — a score-attack mode (the design has no score to
+attack), a mode where terrain resets between runs (invariant 1), and anything asynchronously
+multiplayer (L-024, deliberately out of scope while offline-first).
+
+### L-051 · There is nowhere to see what you have done
+**Why** — Requested 2026-07-26 as "score in settings". The numbers exist — `RunNumber`,
+`LifetimeSediment`, `LifetimeWaterToSea`, secrets found, basin fills, day streak — and are visible
+only as two cramped lines on the HUD and a wall of text in the Almanac.
+**It is a record, not a score, and the difference is the whole design.** `CLAUDE.md`: "There is no
+XP, no level, no currency. All progression is numbers in the arrays inside `HeightField`." So this
+screen **reads off the world and never awards anything**: no points, no rank, no total that goes up
+for playing rather than for doing. If a number here cannot be recomputed from the heightfield and the
+almanac, it does not belong on the screen.
+**Done when** — One screen, per mountain, showing what that mountain has had done to it, with every
+figure traceable to world state.
+
+---
 
 ### L-012 · Hand playtest against the kill criterion
 **Why** — The design document sets an explicit M3 kill criterion: if playtesting does not produce
