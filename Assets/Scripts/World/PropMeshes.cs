@@ -9,6 +9,109 @@ namespace Rill.World
     /// </summary>
     public static class PropMeshes
     {
+        /// <summary>
+        /// A low clustered cushion for moss. The flat disc it replaces read as a decal — a green
+        /// sticker lying on the rock — because it had no thickness and therefore caught the light
+        /// identically to the ground it sat on. Three overlapping domes of slightly different
+        /// height give it a lumpy edge and a top that lights differently from its sides, which is
+        /// the whole difference between ground cover and a coloured patch.
+        /// </summary>
+        public static Mesh Cushion(float radius, int segments = 7)
+        {
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+
+            for (int lobe = 0; lobe < 3; lobe++)
+            {
+                float ang = lobe / 3f * Mathf.PI * 2f;
+                float off = radius * 0.42f;
+                var centre = new Vector3(Mathf.Cos(ang) * off, 0f, Mathf.Sin(ang) * off);
+                float r = radius * (0.62f - lobe * 0.06f);
+                float h = radius * (0.46f - lobe * 0.07f);
+
+                int apex = verts.Count;
+                verts.Add(centre + new Vector3(0f, h, 0f));
+                int ring = verts.Count;
+                for (int i = 0; i < segments; i++)
+                {
+                    float a = (i / (float)segments + lobe * 0.13f) * Mathf.PI * 2f;
+                    verts.Add(centre + new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r));
+                }
+                for (int i = 0; i < segments; i++)
+                {
+                    tris.Add(apex);
+                    tris.Add(ring + (i + 1) % segments);
+                    tris.Add(ring + i);
+                }
+            }
+            return Build("Cushion", verts, tris, 0.58f, 1.06f);
+        }
+
+        /// <summary>
+        /// A clump of reeds rather than one blade. A single crossed quad is a plant; reeds grow in
+        /// stands, and a stand is what the player sees at the water's edge. Five blades at mixed
+        /// heights and lean, which costs twenty triangles and is the difference between a marsh and
+        /// a scattering of green ticks.
+        /// </summary>
+        public static Mesh ReedClump(float width, float height)
+        {
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+
+            for (int i = 0; i < 5; i++)
+            {
+                // Deterministic spread; no RNG, because generation must stay reproducible.
+                float a = i * 2.399f;                       // golden angle, so they never line up
+                float rad = width * (0.5f + i * 0.55f);
+                var at = new Vector3(Mathf.Cos(a) * rad, 0f, Mathf.Sin(a) * rad);
+                float h = height * (0.62f + (i % 3) * 0.19f);
+                float lean = width * 0.35f * ((i % 2 == 0) ? 1f : -1f);
+
+                int b = verts.Count;
+                verts.Add(at + new Vector3(-width * 0.35f, 0f, 0f));
+                verts.Add(at + new Vector3(width * 0.35f, 0f, 0f));
+                verts.Add(at + new Vector3(width * 0.12f + lean, h, 0f));
+                verts.Add(at + new Vector3(-width * 0.12f + lean, h, 0f));
+                tris.Add(b); tris.Add(b + 2); tris.Add(b + 1);
+                tris.Add(b); tris.Add(b + 3); tris.Add(b + 2);
+                tris.Add(b); tris.Add(b + 1); tris.Add(b + 2);
+                tris.Add(b); tris.Add(b + 2); tris.Add(b + 3);
+            }
+            return Build("ReedClump", verts, tris, 0.40f, 1.12f);
+        }
+
+        /// <summary>
+        /// A hut: walls plus a pitched roof. The bare box it replaces was the one prop that read as
+        /// a programmer placeholder from any distance, because nothing in nature or architecture is
+        /// a cuboid with a flat top. The ridge is what makes it a dwelling.
+        /// </summary>
+        public static Mesh Hut(Vector3 size)
+        {
+            float x = size.x * 0.5f, z = size.z * 0.5f;
+            float wall = size.y * 0.62f;
+            float ridge = size.y;
+
+            var verts = new List<Vector3>
+            {
+                new Vector3(-x, 0f, -z), new Vector3(x, 0f, -z), new Vector3(x, 0f, z), new Vector3(-x, 0f, z),
+                new Vector3(-x, wall, -z), new Vector3(x, wall, -z), new Vector3(x, wall, z), new Vector3(-x, wall, z),
+                // Ridge line, overhanging the walls a little so the roof casts an edge.
+                new Vector3(0f, ridge, -z * 1.12f), new Vector3(0f, ridge, z * 1.12f)
+            };
+            var tris = new List<int>
+            {
+                0,2,1, 0,3,2,                 // floor
+                0,1,5, 0,5,4,                 // walls
+                1,2,6, 1,6,5,
+                2,3,7, 2,7,6,
+                3,0,4, 3,4,7,
+                4,5,8, 5,9,8,                 // roof: two slopes and two gables
+                6,7,9, 7,8,9,
+                5,6,9, 4,8,7
+            };
+            return Build("Hut", verts, tris, 0.58f, 1.05f);
+        }
+
         public static Mesh Disc(float radius, int segments = 8)
         {
             var verts = new List<Vector3> { Vector3.zero };
@@ -114,9 +217,11 @@ namespace Rill.World
                     tris.Add(ring + (i + 1) % segments);
                 }
             }
-            // Deep shade under the skirts, full colour at the crown: that contrast is the
-            // whole reason a conifer reads as a tree rather than a green triangle.
-            return Build("Conifer", verts, tris, 0.42f, 1.06f);
+            // Shade under the skirts, full colour at the crown: that contrast is the whole reason
+            // a conifer reads as a tree rather than a green triangle. 0.62 and not 0.42 — at the
+            // lower value the trees rendered as near-black silhouettes, because the base is most of
+            // a conifer's visible mass and that is exactly where this darkens.
+            return Build("Conifer", verts, tris, 0.62f, 1.08f);
         }
 
         /// <summary>

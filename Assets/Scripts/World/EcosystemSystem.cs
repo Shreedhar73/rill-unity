@@ -53,15 +53,20 @@ namespace Rill.World
             _f = world.Field;
             if (_life == null || _life.Length != _f.Count) _life = new float[_f.Count];
 
-            _mossMesh = PropMeshes.Disc(0.9f, 7);
-            _reedMesh = PropMeshes.Blade(0.22f, 1.7f);
+            // Was Disc + Blade: a green decal and a single crossed quad. Both read as exactly
+            // what they were once the capture tool finally put them on screen.
+            _mossMesh = PropMeshes.Cushion(1.0f, 7);
+            _reedMesh = PropMeshes.ReedClump(0.26f, 1.7f);
             // Was a single 6-sided open cone, which reads as a flat paper triangle.
             _bushMesh = PropMeshes.Conifer(1.05f, 3.1f, 7);
-            _hutMesh = PropMeshes.Box(new Vector3(2.2f, 1.8f, 2.4f));
+            _hutMesh = PropMeshes.Hut(new Vector3(2.4f, 2.3f, 2.6f));
 
             _mossMat = Tinted(propMaterialTemplate, new Color(0.35f, 0.55f, 0.32f));
             _reedMat = Tinted(propMaterialTemplate, new Color(0.45f, 0.66f, 0.35f));
-            _bushMat = Tinted(propMaterialTemplate, new Color(0.28f, 0.48f, 0.30f));
+            // Lifted from (0.28, 0.48, 0.30). Rendered against the mountain, conifers at the old
+            // value read as near-black cutouts: the base of a tree is most of its visible mass and
+            // the baked shading darkens exactly there, so the two compounded.
+            _bushMat = Tinted(propMaterialTemplate, new Color(0.34f, 0.58f, 0.34f));
             _hutMat = Tinted(propMaterialTemplate, new Color(0.78f, 0.66f, 0.50f));
 
             RebuildInstances();

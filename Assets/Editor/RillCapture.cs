@@ -115,7 +115,17 @@ namespace Rill.EditorTools
                 Render(world, Path.Combine(dir, "mountain_" + runs + "_channel.png"),
                        cut, 120f, 85f, 30f, 42f);
 
-                Debug.Log("[RILL] capture: wrote 2 PNGs to " + dir);
+                // Close on the thickest life. Moss, reeds and huts are one to two metres tall on a
+                // 512 m mountain, so the two framings above can be honestly rendered and still say
+                // nothing at all about whether a prop reads as its thing — which is the entire
+                // question L-016 asks.
+                Vector3 grove = RichestLifeWorld(world, eco);
+                // 34 m back at 15 m up put the camera inside the hillside. Far enough out to see a
+                // shoreline, close enough that a two-metre prop is still tens of pixels.
+                Render(world, Path.Combine(dir, "mountain_" + runs + "_life.png"),
+                       grove, 72f, 34f, 30f, 40f);
+
+                Debug.Log("[RILL] capture: wrote 3 PNGs to " + dir);
             }
             finally
             {
@@ -152,6 +162,32 @@ namespace Rill.EditorTools
                 runs, world.LifetimeSediment, MinDelta(world), MaxDelta(world),
                 eco != null ? EcosystemSystem.Describe(eco.HighestTier) : "n/a",
                 eco != null ? eco.LivingCells : 0));
+        }
+
+        /// <summary>Centre of the densest patch of life, by a coarse box sum over the life field.</summary>
+        static Vector3 RichestLifeWorld(RillWorld w, EcosystemSystem eco)
+        {
+            var life = eco.LifeField;
+            var f = w.Field;
+            if (life == null) return w.SummitWorld;
+
+            const int R = 6;
+            int best = -1;
+            float bestSum = 0f;
+            for (int z = R; z < f.Size - R; z += 3)
+            {
+                for (int x = R; x < f.Size - R; x += 3)
+                {
+                    float sum = 0f;
+                    for (int dz = -R; dz <= R; dz += 2)
+                        for (int dx = -R; dx <= R; dx += 2)
+                            sum += life[(z + dz) * f.Size + (x + dx)];
+                    if (sum > bestSum) { bestSum = sum; best = z * f.Size + x; }
+                }
+            }
+            if (best < 0) return w.SummitWorld;
+            Debug.Log(string.Format("[RILL] capture: richest life patch scores {0:0}", bestSum));
+            return f.GridToWorld(best % f.Size, best / f.Size);
         }
 
         static Vector3 DeepestCutWorld(RillWorld w)
