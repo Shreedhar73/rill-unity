@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **34** (23 archived)
+Last updated: **2026-07-26** · Open loops: **18** · Closed this cycle: **34** (23 archived)
 
 ---
 
@@ -43,6 +43,22 @@ Every loop has:
 ---
 
 ## Now
+
+### L-052 · "Close game" was built as quit, and meant end the session
+**Why** — L-046 shipped a "Close game" button that called `Application.Quit`. The request was for a
+control that **ends the current game and returns to the main screen**. L-046's evidence is not wrong
+— the 18 navigation assertions and the invariant-6 fix all still hold — so this is a separate loop
+rather than an edit to a closed one.
+**Fixed 2026-07-26, unobserved.** The button is now "End game" and sits on the mountain rather than
+on the main screen, because "take me back" is meaningless on the screen it takes you back to. It
+aborts any run in flight through the same path that leaves the run's water on the mountain, saves,
+clears queued cascades and any held report, and goes home. `Application.Quit` survives only on
+Android's hardware back at the root, reachable from no button at all.
+**Done when** — Someone presses it mid-run and lands on the main screen with their mountain intact.
+**Worth keeping in view** — this is the second requirement in this batch I inferred rather than
+asked about; the first was reading "score in settings" as a records screen, which was a deliberate
+call against the design's no-score rule and stands. This one was simply wrong, and the tell was that
+I wrote a paragraph justifying iOS quit-button policy for a feature nobody had asked for.
 
 **Order for this batch, and the reasoning.** L-046 first because it is the container: back, quit,
 three mountains and three modes all need a level above the run loop that does not exist yet.
