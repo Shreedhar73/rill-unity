@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
@@ -46,6 +47,71 @@ namespace Rill.EditorTools
             foreach (Biome b in System.Enum.GetValues(typeof(Biome)))
                 log.Append(PlayBiome(24, b));
             Debug.Log(log.ToString());
+        }
+
+        /// <summary>
+        /// Glacier freeze *and* thaw. Weather is derived from the date, and the default seed lands
+        /// on Drought every run, so the thaw branch — meltwater as real volume, the entire point of
+        /// a glacier — had never executed anywhere. This drives both halves explicitly.
+        /// </summary>
+        [MenuItem("RILL/Run Headless Glacier Thaw", false, 63)]
+        public static void RunHeadlessGlacierThaw()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL glacier freeze/thaw ===");
+
+            var config = new GameConfig { Biome = Biome.Glacier };
+            var world = RillWorld.Create(config, 20260726u, Biome.Glacier);
+            var sim = new FlowSimulation(world);
+            var weather = new Rill.World.WeatherSystem(world.Seed);
+            var headlines = new List<string>();
+
+            DateTime freezeDay = FindWeather(weather, Rill.World.WeatherKind.Drought);
+            DateTime thawDay = FindWeather(weather, Rill.World.WeatherKind.Snowmelt);
+            log.AppendFormat("freeze weather {0}, thaw weather {1}\n", freezeDay.ToString("yyyy-MM-dd HH"), thawDay.ToString("yyyy-MM-dd HH"));
+
+            for (int phase = 0; phase < 2; phase++)
+            {
+                weather.Evaluate(phase == 0 ? freezeDay : thawDay);
+                headlines.Clear();
+
+                for (int run = 1; run <= 12; run++)
+                {
+                    world.BeginRun();
+                    var rng = new Rng(Noise.Hash((uint)(run + phase * 100) * 2654435761u ^ world.Seed));
+                    Vector3 spawn = world.SpawnPoint(ref rng);
+                    sim.Begin(spawn, config.StartVolume);
+                    int steps = 0;
+                    while (sim.Running && steps++ < 20000)
+                    {
+                        if (steps % 30 == 0)
+                            sim.SetSteer(rng.Next01() < 0.45f, sim.Head.Pos + new Vector2(rng.Range(-25f, 25f), rng.Range(-25f, 25f)));
+                        sim.Advance(config.SimStep);
+                    }
+                    world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+                    world.Basins.Rebuild();
+                    world.ApplyBetweenRunDrift();
+                    Rill.World.BiomeRules.BetweenRuns(world, weather, headlines);
+                }
+
+                log.AppendFormat("after 12 runs of {0,-9} ice cells {1,5}  basin water {2,7:n0} m³   headlines: {3}\n",
+                    weather.Kind, IceCells(world), world.Basins.TotalWater(),
+                    headlines.Count == 0 ? "NONE" : string.Join(" | ", headlines.ToArray()));
+            }
+
+            Debug.Log(log.ToString());
+        }
+
+        static DateTime FindWeather(Rill.World.WeatherSystem w, Rill.World.WeatherKind want)
+        {
+            var d = new DateTime(2026, 3, 1, 6, 0, 0, DateTimeKind.Utc);
+            for (int i = 0; i < 900; i++)
+            {
+                w.Evaluate(d);
+                if (w.Kind == want) return d;
+                d = d.AddHours(12);
+            }
+            return d;
         }
 
         static void Play(int Runs) { Debug.Log(PlayBiome(Runs, Biome.Sandstone).ToString()); }

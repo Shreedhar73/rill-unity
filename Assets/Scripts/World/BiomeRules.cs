@@ -16,6 +16,30 @@ namespace Rill.World
     ///
     /// All of it runs between runs, never during flow, so the simulation stays one thing.
     /// </summary>
+    /// <summary>
+    /// Collects meltwater per cell and hands it to the basin system in one pass. Kept separate so
+    /// the melt loop stays a loop over ice and does not do a downhill walk per cell inline.
+    /// </summary>
+    sealed class MeltBatch
+    {
+        readonly List<int> _cells = new List<int>(512);
+        readonly List<float> _volumes = new List<float>(512);
+
+        public void Add(int cell, float volume) { _cells.Add(cell); _volumes.Add(volume); }
+
+        public float Flush(RillWorld world)
+        {
+            float total = 0f;
+            for (int k = 0; k < _cells.Count; k++)
+            {
+                // AddWater routes downhill to a basin when the cell is not already in one, and
+                // returns null only when the water genuinely leaves the map at the sea.
+                if (world.Basins.AddWater(_cells[k], _volumes[k]) != null) total += _volumes[k];
+            }
+            return total;
+        }
+    }
+
     public static class BiomeRules
     {
         public const float FreezeRate = 0.16f;
@@ -41,6 +65,7 @@ namespace Rill.World
                            (weather.Kind == WeatherKind.Snowmelt || weather.Kind == WeatherKind.Storm);
 
             float frozenCells = 0f, thawedVolume = 0f;
+            var meltCells = new MeltBatch();
             float cellArea = f.CellSize * f.CellSize;
 
             for (int i = 0; i < f.Count; i++)
@@ -52,9 +77,17 @@ namespace Rill.World
                     if (f.Ice[i] <= 0f) continue;
                     float melted = Mathf.Min(f.Ice[i], MeltRate);
                     f.Ice[i] -= melted;
-                    // Meltwater is real water: a thaw is a free run's worth of volume, spread out.
                     f.Wet[i] = Mathf.Min(1f, f.Wet[i] + melted * 0.5f);
-                    thawedVolume += melted * 0.12f * cellArea;
+
+                    // Meltwater is real water: a thaw is a free run's worth of volume, spread out.
+                    // It used to be neither — thawedVolume was accumulated purely to build the
+                    // headline string, so the game announced "The thaw released 187 m³" and then
+                    // delivered nothing. Announcing water the player never receives is exactly the
+                    // kind of thing this design cannot afford to do. It now goes into the world,
+                    // routed downhill to a basin like any other water.
+                    float v = melted * 0.12f * cellArea;
+                    thawedVolume += v;
+                    if (v > 0.05f) meltCells.Add(i, v);
                 }
                 else
                 {
@@ -67,10 +100,14 @@ namespace Rill.World
                 }
             }
 
+            // Deliver the meltwater before anything reads basin levels again.
+            float delivered = meltCells.Flush(world);
+
             f.MarkAllDirty();
 
             if (thawing && thawedVolume > 1f)
-                headlines.Add(string.Format("The thaw released {0:n0} m³", thawedVolume));
+                headlines.Add(string.Format("The thaw released {0:n0} m³ ({1:n0} m³ reached the basins)",
+                    thawedVolume, delivered));
             else if (frozenCells > f.Count * 0.02f)
                 headlines.Add("Channels froze overnight");
         }

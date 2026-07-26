@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **18** · Closed this cycle: **16** (4 archived)
+Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **18** (4 archived)
 
 ---
 
@@ -161,14 +161,29 @@ other and against terrain.
 
 ## Next
 
-### L-033 · Glacier thaw has never run
-**Why** — Weather is derived from the world seed, and on the default seed it is `Drought` for every
-run, so the glacier's freeze branch is the only one ever exercised. The thaw branch — which releases
-meltwater as real volume and is the entire point of a glacier biome — has never executed in any test
-or any session. 1,705 cells are being frozen and nothing has ever melted them.
-**Done when** — A test drives `Snowmelt` and `Storm` weather and reports meltwater volume released
-and ice cells cleared, both non-zero.
-**Evidence needed** — `The thaw released N m³` headline plus an ice-cell count that falls.
+### L-033 · Glacier thaw has never run — closed 2026-07-26
+Weather is derived from the date, and the default seed lands on `Drought` every run, so only the
+freeze branch had ever executed. Added a test that searches for dates producing specific weather and
+drives both halves explicitly.
+**Evidence** — `after 12 runs of Drought   ice cells 870   headlines: NONE` then
+`after 12 runs of Snowmelt  ice cells 0   headlines: The thaw released 187 m³ | 142 m³ | 96 m³`.
+Ice cleared 870 → 0, meltwater non-zero. Both *Done when* conditions met.
+**Weaker than asked in one respect** — the loop said "Snowmelt **and** Storm". Only Snowmelt was
+driven. Both set the same `thawing` flag on the same branch, so the code path is identical, but
+Storm has not literally been run and this entry should not be read as saying it has.
+**Defect found while closing, fixed** — the thaw announced meltwater it never delivered. See L-035.
+
+### L-035 · The thaw announced water it never delivered — closed 2026-07-26
+`thawedVolume` was accumulated solely to build the headline string. The game told the player
+"The thaw released 187 m³" and put nothing anywhere: no basin gained volume, no run gained volume,
+only `Wet` was nudged. The code's own comment claimed "Meltwater is real water: a thaw is a free
+run's worth of volume, spread out" — it was neither. A game whose entire trust contract is that the
+world honestly records what you did cannot announce water the player never receives.
+Meltwater now goes into the world, routed downhill to a basin by the same `AddWater` path as every
+other drop, and the headline reports what actually arrived rather than what melted.
+**Evidence** — glacier thaw test, basin water **656 m³ → 1,203 m³** across the thaw phase, and the
+headline now reads `The thaw released 187 m³ (132 m³ reached the basins)`. Before the fix the same
+run reported the same 187 m³ with basin water unchanged by the thaw.
 
 ### L-034 · Ice is decoration
 **Why** — `Field.Ice` is written by `BiomeRules.Glacier` and read only by `TerrainMeshBuilder` as a
