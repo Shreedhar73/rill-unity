@@ -663,6 +663,20 @@ namespace Rill.EditorTools
             log.AppendFormat("  dam breaks       {0} overflows, {1:n0} m³ over the lip\n", overflows, overflowVolume);
             log.AppendFormat("  fullest basin    {0:0.0}%\n", FullestBasin(world) * 100f);
             log.AppendFormat("  polished cells   {0} ({1:0.0}% of field)\n", PolishedCells(world), PolishedCells(world) * 100f / world.Field.Count);
+            {
+                // Polish decays between runs; the cut does not. If old channels are to read as
+                // channels with no water in them (L-015), the permanent record is this, not polish,
+                // and the cue is worth nothing if there is nothing to draw.
+                int half = 0, deep = 0;
+                for (int i = 0; i < world.Field.Count; i++)
+                {
+                    float cut = world.Field.Virgin[i] - world.Field.Height[i];
+                    if (cut > 0.5f) half++;
+                    if (cut > 1.5f) deep++;
+                }
+                log.AppendFormat("  incised cells    {0:n0} cut over 0.5 m, {1:n0} over 1.5 m ({2:0.0}% / {3:0.0}% of field)\n",
+                    half, deep, half * 100f / world.Field.Count, deep * 100f / world.Field.Count);
+            }
             log.AppendFormat("  secrets revealed {0} of {1}\n", RevealedCount(world), world.Secrets.Count);
             {
                 // "0 revealed" has two opposite causes: sites the water never crosses (a placement

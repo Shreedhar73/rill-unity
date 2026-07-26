@@ -64,6 +64,12 @@ namespace Rill.Flow
         // Session-scoped: an existing save has no record of whether its owner ever learned to steer.
         bool _hasSteered;
 
+        // Speed at which the stream starts throwing spray. Near the terminal speed of fresh rock
+        // on a steep face, so spray means "faster than un-carved ground allows" — the reward for
+        // having carved, made visible without a meter.
+        const float SpraySpeed = 12f;
+        float _sprayTimer;
+
         // The pause between the run ending and the report card.
         const float SettleSeconds = 1.1f;
         CarveReport _settleReport;
@@ -285,6 +291,7 @@ namespace Rill.Flow
 
             Ribbon.SetPath(_sim.Path, _sim.Head.World, _sim.Head.Speed);
             Cam.Follow(_sim.Head.World, _sim.Head.Vel);
+            EmitSpray(Time.deltaTime);
 
             if (Audio != null)
             {
@@ -293,6 +300,30 @@ namespace Rill.Flow
             }
 
             if (!_sim.Running) FinishRun();
+        }
+
+        /// <summary>
+        /// Spray, which is the cue the momentum economy was missing. The camera already widens and
+        /// drops toward the bed with speed, but nothing in the world itself changed: 24 m/s looked
+        /// the same as 9 m/s, so the player could not see the thing they were optimising without
+        /// reading the HUD meter.
+        ///
+        /// Deliberately gated rather than proportional from zero. Spray that is always present is
+        /// weather; spray that starts when the stream gets fast is information, and the threshold is
+        /// roughly the terminal speed of fresh rock on a steep face — i.e. it appears exactly when
+        /// the water is going faster than un-carved ground would allow, which is the whole reward
+        /// for having carved.
+        /// </summary>
+        void EmitSpray(float dt)
+        {
+            if (Fx == null) return;
+            float over = (_sim.Head.Speed - SpraySpeed) / Mathf.Max(1f, Config.MaxSpeed - SpraySpeed);
+            if (over <= 0f) { _sprayTimer = 0f; return; }
+
+            _sprayTimer -= dt * (1f + over * 5f);
+            if (_sprayTimer > 0f) return;
+            _sprayTimer = 0.1f;
+            Fx.Burst(_sim.Head.World, 0.10f + over * 0.30f, new Color(0.86f, 0.95f, 1f, 0.5f));
         }
 
         void UpdateTimeLapse()

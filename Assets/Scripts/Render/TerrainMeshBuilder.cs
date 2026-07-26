@@ -160,6 +160,19 @@ namespace Rill.Render
                         col = Color.Lerp(col, dampRock, k);
                     }
 
+                    // The cut itself, which is the only permanent record the mountain keeps.
+                    // Polish decays at PolishDecayPerRun and wetness faster still, so a channel
+                    // the player abandoned twenty runs ago has neither left and is *still a
+                    // channel* — the rock is gone. Nothing was drawing that, so the oldest work
+                    // on the mountain was the least visible, which is exactly backwards for a
+                    // game whose whole premise is that nothing ever resets.
+                    float cut = _f.Virgin[gi] - hgt;
+                    if (cut > 0.05f)
+                    {
+                        float k = Mathf.Clamp01(cut / 2.0f);
+                        col = Color.Lerp(col, col * 0.60f + new Color(0.02f, 0.04f, 0.07f), k * 0.55f);
+                    }
+
                     if (wet > 0.001f) col = Color.Lerp(col, StrataPalette.WetColor, wet * 0.30f);
 
                     // Dye is a mineral stain, not paint: it tints the rock it soaked into and
@@ -203,9 +216,16 @@ namespace Rill.Render
             if (samples == 0) return 1f;
 
             // Metres of surrounding rock standing above this point, normalised to the depth of
-            // channel worth shading (about 4 m).
+            // channel worth shading.
+            //
+            // 4 m was a guess and it was calibrated for channels this game does not make. Measured
+            // over 150 runs: 613 cells are cut more than 0.5 m below virgin and only 191 more than
+            // 1.5 m. Against a 4 m normaliser a real channel produced an occlusion of about 0.93,
+            // i.e. a 7% darkening before _AOStrength scaled it down further — which is why a dry
+            // channel could not be made out from the idle camera. 1.6 m is the depth the mountain
+            // actually reaches, so the shading covers the range that exists.
             float mean = above / samples;
-            return Mathf.Clamp01(1f - mean / 4f);
+            return Mathf.Clamp01(1f - mean / 1.6f);
         }
 
         public void MarkAll()
