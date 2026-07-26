@@ -122,16 +122,13 @@ the radius/depth ranges beside it, and the `FillFraction > 0.5f` through-flow th
 
 ## Known-bad tuning
 
-### Secret discovery rate — the revelation track is dead
-`0 of 60` found in 24 runs. A run polishes ~1.6% of the field; 60 sites × 1.6% ≈ one hit per 24
-runs at best, and only if burial depth happens to be shallow enough. Options, roughly in order of
-preference:
-
-1. Lock placement to the drainage network rather than biasing toward it (`Concavity` currently only
-   biases, and 20% of sites are still placed anywhere).
-2. Reveal on *proximity* to sufficient erosion rather than requiring the exact cell.
-3. Shallower burial for the common kinds (currently 0.8–6 m).
-4. More sites.
+### ~~Secret discovery rate — the revelation track is dead~~ — fixed (L-010, 2026-07-26)
+`0 of 60` became **3 of 60 after 24 runs and 11 of 60 after 150** — a curve, not an exhausted track,
+and inside the 2–5 the loop asked for at session length. Options 1 and 2 in the original list were
+the fix; the burial depths were never the problem. Kept here because the *reasoning* that led to the
+wrong first two attempts is the useful part: a run polishes ~1.6% of the field, so a rate argument
+made it look like a pricing problem, when the real cause was that 45 of 51 sites sat where water
+never went at all. Placement, not price.
 
 ### Daily glyph reads as empty
 
