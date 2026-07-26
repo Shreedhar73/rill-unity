@@ -174,12 +174,22 @@ form however you rotate it. Vertex colour was the only per-vertex channel availa
 shader spent nothing on it; `PropMeshes` now bakes a vertical gradient into it — deep shade under a
 conifer's skirts, full colour at the crown — and `Prop.shader` multiplies by it. Still one material,
 still instanced, no runtime cost.
-**Still open, and this is what is left** — moss is a flat disc, reeds are single blades, huts are
-boxes; all three read as what they are. Conifers are the only prop with a real silhouette. And
-`RevelationSystem` markers are still invisible to the capture tool, since only the ecosystem got a
-bake path.
+**Then all three placeholders were replaced**, because with the props on screen they read as exactly
+what they were: a decal, a stroke and a cuboid. Moss is a cushion of three overlapping domes (a flat
+disc has no thickness and lights identically to the ground, which is what a decal *is*); reeds are a
+clump of five blades on the golden angle rather than one crossed quad; a hut has walls and a pitched
+roof. Conifers were also lifted out of near-black — the base is most of a tree's visible mass and
+the baked shading darkens exactly there, so a 0.42 base and a dark tint compounded into silhouettes.
+**Evidence** — six renders in [`docs/shots/`](docs/shots/), including a third framing on the densest
+life, added because these props are one to two metres tall on a 512 m mountain and the wider shots
+can be honestly rendered while saying nothing about them. Moss cushions, reed clumps and conifers
+all read as their thing at 24 and at 150 runs, and the pair is a progression story by itself: a few
+tufts round a new tarn, against a forest tracing the channel from summit to sea.
+**Still open, and it is now a short list** — the 12 huts at 150 runs do not appear in any archived
+framing, so the pitched roof is built and unobserved. `RevelationSystem` markers are still invisible
+to the capture tool, since only the ecosystem got a bake path.
 **Done when** — Every prop type reads as its thing at the idle camera, and a render is archived that
-shows it.
+shows it. Four of five types are there; huts and secret markers are not.
 
 ### L-014 · Sense of speed
 **Why** — The momentum economy is the game's skill ceiling, and at 24 m/s it currently looks the

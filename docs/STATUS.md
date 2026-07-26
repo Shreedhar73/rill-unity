@@ -163,8 +163,9 @@ but the spectacle it exists for is invisible in a first session, and nobody has 
    `OPEN-LOOPS.md` that a terminal cannot advance. Protocol is written at
    [PLAYTEST.md](PLAYTEST.md); run it on a fresh save slot.
 2. **Look at the things that were built and never seen** — the title screen, the settling beat
-   before the report card, onboarding, spray, the drawn channel cut, a dam break, a time-lapse.
-   Seven separate loops are waiting on eyes rather than on work.
+   before the report card, onboarding, spray, a dam break, a time-lapse. These are waiting on
+   *play mode* specifically: `RILL/Capture Mountain PNG` now covers the terrain, water, strata and
+   ecosystem from a terminal, but not UI, per-run state, or anything drawn from `Update`.
 
 ### Presentation
 3. Prop silhouettes beyond conifers and canopies.
