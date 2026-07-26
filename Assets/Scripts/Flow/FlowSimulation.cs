@@ -80,6 +80,10 @@ namespace Rill.Flow
 
         // A run may spill through several lakes on its way down, but not the same one twice — two
         // adjacent basins whose spill cells point at each other would trade the head forever.
+        // Frozen ground: slick underfoot, stubborn under the chisel.
+        const float IceDragFactor = 0.55f;
+        const float IceCarveFactor = 0.25f;
+
         const int MaxCrossingsPerRun = 4;
         readonly HashSet<int> _crossed = new HashSet<int>();
 
@@ -165,6 +169,7 @@ namespace Rill.Flow
             float polish = _f.SamplePolishWorld(Head.Pos.x, Head.Pos.y);
             float waterHere = _f.SampleWaterWorld(Head.Pos.x, Head.Pos.y);
             float hardness = _world.HardnessAt(Head.Pos.x, Head.Pos.y);
+            float ice = _f.SampleIceWorld(Head.Pos.x, Head.Pos.y);
 
             // --- gravity. sin(theta) form so a 100% slope is not twice as fast as a 50% one.
             float slopeAccel = _cfg.Gravity * slope / Mathf.Sqrt(1f + slope * slope);
@@ -185,6 +190,13 @@ namespace Rill.Flow
 
             // --- drag: fresh rock is slow, your own polished channel is fast. The whole economy.
             float drag = Mathf.Lerp(_cfg.DragFresh, _cfg.DragPolished, polish);
+
+            // Ice was written by the glacier rules and read only as a colour tint, so a frozen
+            // channel behaved exactly like an open one and the whole biome was a palette swap.
+            // Ice is slick and ice is armour: you travel faster over it and you cut almost nothing
+            // while it holds. That is what makes a glacier a different game rather than a filter —
+            // fast, and grudging about being carved.
+            if (ice > 0.01f) drag *= Mathf.Lerp(1f, IceDragFactor, ice);
 
             // A lake with room left in it absorbs the run — that is what a basin is for. A lake
             // without room does not: it fills, spills, and the stream leaves by the outlet.
@@ -270,6 +282,7 @@ namespace Rill.Flow
             if (Head.Sediment < capacity)
             {
                 float depth = _cfg.CarveRate * (speed / _cfg.CarveReferenceSpeed) * volumeNorm * (1.15f - hardness) * dt;
+                if (ice > 0.01f) depth *= Mathf.Lerp(1f, IceCarveFactor, ice);
                 depth += drop > 0f ? drop * 0.02f : 0f;                 // plunge pools deepen fast
 
                 // Rock gets harder to move the further below the original surface it sits, so the

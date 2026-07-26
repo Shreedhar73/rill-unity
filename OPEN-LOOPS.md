@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **18** (4 archived)
+Last updated: **2026-07-26** · Open loops: **16** · Closed this cycle: **19** (4 archived)
 
 ---
 
@@ -185,14 +185,20 @@ other drop, and the headline reports what actually arrived rather than what melt
 headline now reads `The thaw released 187 m³ (132 m³ reached the basins)`. Before the fix the same
 run reported the same 187 m³ with basin water unchanged by the thaw.
 
-### L-034 · Ice is decoration
-**Why** — `Field.Ice` is written by `BiomeRules.Glacier` and read only by `TerrainMeshBuilder` as a
-colour tint. It has no effect on flow, carving, drag or infiltration, so a frozen channel behaves
-exactly like an open one. The glacier biome is currently a palette swap with a headline.
-**Done when** — Ice measurably changes a run: frozen ground either resists carving or shifts drag,
-and a smoke test shows a different sediment or distance profile on Glacier than on Sandstone.
-**Careful** — Sandstone and Glacier currently differ by ~4% in sediment moved, which is noise. Any
-change here must be measured against that, not against intent.
+### L-034 · Ice is decoration — closed 2026-07-26
+`Field.Ice` was written by the glacier rules and read only by `TerrainMeshBuilder` as a colour tint,
+so a frozen channel behaved exactly like an open one and the whole biome was a palette swap with a
+headline. Ice now has physical consequences in `FlowSimulation`: slick to travel over
+(`drag × 0.55` at full ice) and armoured against carving (`carve × 0.25`). A glacier should be fast
+and grudging about being cut, which is what makes it a different game rather than a filter.
+**Evidence** — 24 runs, Glacier against Sandstone on the same seed, with 1,725 ice cells present:
+distance **118 → 131 m/run (+11%)**, top speed **24.8 → 28.0 m/s** (now reaching the cap). The loop
+warned that the two biomes already differed by ~4% in sediment, i.e. noise; +11% distance and +13%
+speed are comfortably clear of it.
+**The carve-armour half did not show in the totals** — sediment moved is 63 vs 62 m³/run, a 1.3%
+difference well inside noise. Runs on ice cut less *where the ice is* but travel further and faster,
+so they carve more everywhere else and it nets out. The drag effect is proven; the armour effect is
+not, and a per-cell measurement would be needed to claim it.
 
 ### L-012 · Hand playtest against the kill criterion
 **Why** — The design document sets an explicit M3 kill criterion: if playtesting does not produce
