@@ -156,13 +156,17 @@ namespace Rill.Flow
         /// </summary>
         public bool SwitchToMountain(int slot)
         {
-            if (slot == CurrentSlot && !InDaily) return true;
+            // Step off the Daily's borrowed world before anything is saved. The previous version
+            // cleared the flag first and saved Active second — and if a caller arrived here while
+            // still in the Daily, Active WAS the daily world, so the player's slot was overwritten
+            // with a throwaway mountain. That is the exact loss invariant 1 exists to prevent.
+            LeaveDaily();
+
+            if (slot == CurrentSlot) return true;
             if (!Roster.Occupied(slot)) return false;
 
-            if (InDaily) { InDaily = false; }
-
             // Save first. Everything below replaces the live world.
-            if (Active != null && !InDaily) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
+            if (Active != null) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
             if (_almanac != null) _almanac.Save();
 
             float[] life;
@@ -243,6 +247,13 @@ namespace Rill.Flow
         /// </summary>
         public void EnterTitle(bool arriving)
         {
+            // The main screen never shows the Daily's mountain. Back and End game could both reach
+            // here with InDaily still set and Active still pointing at the borrowed daily world —
+            // and SwitchToMountain would then have saved THAT world over the player's slot, because
+            // it cleared the flag before the save guard read it. Leaving the Daily at the door
+            // makes the whole class impossible: anything at the title is the player's own mountain.
+            LeaveDaily();
+
             Current = State.Title;
             if (arriving) Cam.SetTitleArriving(Active.SummitWorld);
             else Cam.SetTitle(Active.SummitWorld);
@@ -377,7 +388,11 @@ namespace Rill.Flow
                 FinishRun();
             }
 
-            if (!InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
+            // Leave the Daily before saving, so what gets written is the player's mountain and not
+            // the borrowed daily world. EnterTitle would do this anyway; doing it before the save
+            // is the part that matters.
+            LeaveDaily();
+            if (Active != null) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
 
             _cascades.Clear();
             _heldReport = null;
@@ -850,15 +865,27 @@ namespace Rill.Flow
             Current = State.TimeLapse;
         }
 
+        /// <summary>
+        /// Steps off the Daily's borrowed world and back onto the player's own mountain: flag,
+        /// lighting, renderers, life field. Safe to call when not in the Daily — it does nothing.
+        /// Every route that can leave the Daily goes through here, because the one that did not
+        /// (Back, then picking a mountain) saved the daily world over the player's slot.
+        /// </summary>
+        void LeaveDaily()
+        {
+            if (!InDaily) return;
+            InDaily = false;
+            if (Sky != null) Sky.UseFixedHour = false;
+            RebindRenderers(Home, _homeLife ?? new float[Home.Field.Count]);
+        }
+
         void OnDailyToggle()
         {
             if (Current != State.Idle) return;
 
             if (InDaily)
             {
-                InDaily = false;
-                if (Sky != null) Sky.UseFixedHour = false;
-                RebindRenderers(Home, _homeLife);
+                LeaveDaily();
                 EnterIdle();
                 return;
             }
@@ -921,12 +948,22 @@ namespace Rill.Flow
 
         void OnApplicationPause(bool paused)
         {
-            if (paused && !InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
+            if (paused && !InDaily && Active != null)
+            {
+                SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
+                // The world and the almanac go together. Quitting mid-run saved a RunNumber the
+                // almanac had never heard of — five phantom runs in one evening of testing.
+                if (_almanac != null) _almanac.Save();
+            }
         }
 
         void OnApplicationQuit()
         {
-            if (!InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
+            if (!InDaily && Active != null)
+            {
+                SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
+                if (_almanac != null) _almanac.Save();
+            }
         }
     }
 }
