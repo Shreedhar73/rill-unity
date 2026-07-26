@@ -24,7 +24,8 @@ namespace Rill.App
         [Header("Startup")]
         public bool LoadSavedMountain = true;
         public int SaveSlot = 0;
-        [Tooltip("Wipes the saved mountain on play. Only for development — this is somebody's world.")]
+        [Tooltip("Wipes the saved mountain on play. Development only — this is somebody's world, " +
+                 "and it is compiled out of player builds entirely.")]
         public bool ResetWorldOnPlay = false;
 
         public RillWorld World { get; private set; }
@@ -102,9 +103,22 @@ namespace Rill.App
 
         void LoadOrCreateWorld()
         {
-            if (ResetWorldOnPlay) SaveSystem.DeleteSlot(SaveSlot);
+            // A serialised bool that deletes somebody's mountain is exactly the shape invariant 1
+            // forbids — "no new game that touches an existing slot" — and it was one mis-click in
+            // the inspector away from doing it. Now that there are three mountains to lose rather
+            // than one, it is compiled out of player builds and says what it did on the way past.
+            bool wipe = false;
+#if UNITY_EDITOR
+            wipe = ResetWorldOnPlay;
+            if (wipe)
+            {
+                Debug.LogWarning("[RILL] ResetWorldOnPlay is ON — deleting the mountain in slot "
+                                 + SaveSlot + ". This is a development flag and never ships.");
+                SaveSystem.DeleteSlot(SaveSlot);
+            }
+#endif
 
-            if (LoadSavedMountain && !ResetWorldOnPlay)
+            if (LoadSavedMountain && !wipe)
             {
                 World = SaveSystem.Load(Config, out _restoredLife, SaveSlot);
                 if (World != null)

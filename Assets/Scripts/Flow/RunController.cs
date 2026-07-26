@@ -49,6 +49,12 @@ namespace Rill.Flow
         /// there is more than one mountain to choose between (L-047).
         /// </summary>
         public readonly Navigator Nav = new Navigator();
+
+        /// <summary>The three mountains, and the only sanctioned way to make or destroy one.</summary>
+        public readonly MountainRoster Roster = new MountainRoster();
+
+        /// <summary>Which of the three the player is on. Every per-slot system keys off this.</summary>
+        public int CurrentSlot { get; private set; }
         public RillWorld Home { get; private set; }
         public RillWorld Active { get; private set; }
         public bool InDaily { get; private set; }
@@ -92,8 +98,10 @@ namespace Rill.Flow
         }
 
         public void Initialise(RillWorld home, Almanac almanac, DailyRill daily, TimeLapseArchive archive,
-                               TimeLapsePlayer player, ConfluenceQueue confluence, WeatherSystem weather)
+                               TimeLapsePlayer player, ConfluenceQueue confluence, WeatherSystem weather,
+                               int slot = 0)
         {
+            CurrentSlot = slot;
             Home = home;
             Active = home;
             _almanac = almanac;
@@ -129,6 +137,67 @@ namespace Rill.Flow
             // Boot into the title, not into a playable mountain. Opening straight into the run
             // state gave the app no front door at all — it simply appeared, mid-game.
             EnterTitle();
+        }
+
+        /// <summary>
+        /// Moves the player to another of their mountains.
+        ///
+        /// The order here is the whole job. The mountain being left is written to disk BEFORE
+        /// anything is rebound, because every later step overwrites the live world; a switch that
+        /// saves afterwards saves the wrong one. Every per-slot system — almanac, time-lapse
+        /// archive, confluence queue — is rebuilt for the new slot, because they are keyed by slot
+        /// on disk and would otherwise keep writing the previous mountain's history into the new
+        /// one's files.
+        ///
+        /// Returns false if the slot is empty; making a mountain is MountainRoster.Create's job and
+        /// deliberately not something a "switch to" call can do by accident.
+        /// </summary>
+        public bool SwitchToMountain(int slot)
+        {
+            if (slot == CurrentSlot && !InDaily) return true;
+            if (!Roster.Occupied(slot)) return false;
+
+            if (InDaily) { InDaily = false; }
+
+            // Save first. Everything below replaces the live world.
+            if (Active != null && !InDaily) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
+            if (_almanac != null) _almanac.Save();
+
+            float[] life;
+            var loaded = SaveSystem.Load(Config, out life, slot);
+            if (loaded == null) return false;
+
+            CurrentSlot = slot;
+            Home = loaded;
+            _almanac = Almanac.Load(slot);
+            _archive = new TimeLapseArchive(slot);
+            _confluence = new ConfluenceQueue(slot);
+            _homeLife = life;
+
+            RebindRenderers(loaded, life ?? new float[loaded.Field.Count]);
+            _projects.Refresh(loaded, Ecosystem, Revelation, _almanac);
+
+            if (!_archive.Exists) _archive.Append(loaded.Field, loaded.RunNumber);
+            if (Audio != null) Audio.SetAmbientWater(loaded.Basins.TotalWater());
+
+            Roster.Refresh();
+            Nav.GoHome();
+            EnterTitle();
+            return true;
+        }
+
+        /// <summary>
+        /// Starts a mountain in an empty slot and moves to it. Refuses on an occupied slot, because
+        /// MountainRoster.Create refuses — there is no overwrite anywhere in this path.
+        /// </summary>
+        public bool StartMountain(int slot, Biome biome)
+        {
+            if (Roster.Occupied(slot)) return false;
+
+            uint seed = (uint)System.DateTime.UtcNow.Ticks ^ (uint)(slot * 2654435761u);
+            var made = Roster.Create(slot, biome, seed, Config);
+            if (made == null) return false;
+            return SwitchToMountain(slot);
         }
 
         /// <summary>Points every renderer and system at a world. Used to swap in the Daily mountain.</summary>
@@ -251,7 +320,7 @@ namespace Rill.Flow
                 FinishRun();
             }
 
-            if (!InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField);
+            if (!InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
 
             _cascades.Clear();
             _heldReport = null;
@@ -266,7 +335,7 @@ namespace Rill.Flow
             if (!Nav.CanQuit) return;
             // Save first. Quitting is the one exit that does not go through OnApplicationQuit on
             // every platform, and this game's entire premise is that the world remembers.
-            if (!InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField);
+            if (!InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
 
             // No UnityEditor branch here on purpose: a runtime assembly that references UnityEditor
             // compiles in the editor and breaks the player build, guarded or not. Application.Quit
@@ -560,7 +629,7 @@ namespace Rill.Flow
 
                 _confluence.Enqueue(field, _beforeHeights, Active.RunNumber, Active.Seed);
                 if (Active.RunNumber % TimeLapseEveryRuns == 0) _archive.Append(field, Active.RunNumber);
-                if (Active.RunNumber % AutosaveEveryRuns == 0) SaveSystem.Save(Active, Ecosystem.LifeField);
+                if (Active.RunNumber % AutosaveEveryRuns == 0) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
             }
 
             RefreshTopLine();
@@ -776,12 +845,12 @@ namespace Rill.Flow
 
         void OnApplicationPause(bool paused)
         {
-            if (paused && !InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField);
+            if (paused && !InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
         }
 
         void OnApplicationQuit()
         {
-            if (!InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField);
+            if (!InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
         }
     }
 }

@@ -93,7 +93,11 @@ namespace Rill.Meta
             }
         }
 
-        public static void Save(RillWorld world, float[] lifeField, int slot = 0)
+        // No default on `slot`. It used to be 0, and a defaulted slot silently means "the first
+        // mountain" — RunController had two save calls that had quietly kept it, so ending a
+        // session on mountain 3 would have written mountain 3 over mountain 1. Making the argument
+        // mandatory turns that entire class of bug into a compile error instead of a lost world.
+        public static void Save(RillWorld world, float[] lifeField, int slot)
         {
             string path = WorldPath(slot);
             string tmp = path + ".tmp";
@@ -145,7 +149,7 @@ namespace Rill.Meta
             File.Move(tmp, path);
         }
 
-        public static RillWorld Load(GameConfig config, out float[] lifeField, int slot = 0)
+        public static RillWorld Load(GameConfig config, out float[] lifeField, int slot)
         {
             lifeField = null;
             string path = WorldPath(slot);
