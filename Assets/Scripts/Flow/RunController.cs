@@ -733,6 +733,18 @@ namespace Rill.Flow
                     var held = _heldReport;
                     _heldReport = null;
                     if (Config.ShowCarveOverlay) Terrain.ShowCarveOverlay(_beforeHeights);
+
+                    // Give the settle beat back to the PLAYER'S run, not to the dam break that just
+                    // played over it. The cascade re-aimed the camera at its own deepest cut and
+                    // overwrote the ribbon with its own path, so on a mountain that overflows often
+                    // — which a mature one does after every second run — the player never saw the
+                    // path their own water took before the card arrived. Reported exactly that way.
+                    if (_lastPath.Count > 1)
+                        Ribbon.SetPath(_lastPath, _lastPath[_lastPath.Count - 1], 0f);
+                    Cam.FrameReport(held.DeepestCarve > 0.01f
+                        ? held.DeepestCarveWorld
+                        : (_lastPath.Count > 0 ? _lastPath[_lastPath.Count - 1] : Active.SummitWorld));
+
                     BeginSettle(held);
                     return;
                 }
