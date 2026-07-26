@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **29** (19 archived)
+Last updated: **2026-07-26** · Open loops: **14** · Closed this cycle: **30** (19 archived)
 
 ---
 
@@ -135,29 +135,8 @@ rests on and is stronger than L-027's original 85%. The other two rows are the l
   can be steered down it", which is the same distinction that made `aimed miss` useless in L-030.
 - **#3 did not stay unfilled — it ceased to exist.** It took 17 deliveries and the basin count fell
   from 5 to 3. Filling a tarn and depositing around it merges or erases the depression, so a
-  campaign can consume its own objective. See **L-044**, because that is a separate question from
-  this one and possibly a feature.
-
-### L-044 · A basin can be erased by being filled
-**Why** — Found while testing L-043: a 500-run campaign against basin #3 delivered water 17 times
-and ended with the basin **gone**, the lattice having dropped from 5 basins to 3. Water and sediment
-raise the floor and deposits build the surroundings, and at some point the depression stops being a
-depression. The player's target disappears mid-campaign.
-**This may be the best thing in the game or the worst, and the difference is entirely in the
-telling.** A tarn silting up into a meadow after a hundred runs of your water is exactly the geology
-the design promises, and it is the kind of thing players make videos about. The same event with no
-announcement is a progress bar that vanishes, and the game's whole trust contract is that the world
-honestly records what you did — L-035 was closed for announcing water it never delivered, and this
-is the inverse: delivering a change and never mentioning it.
-**Done when** — Filling a basin out of existence produces a headline, an almanac entry and a name
-for what the place became, or it is prevented and the reason is written down.
-**Evidence needed** — The basin-count line falling in a normal (non-campaign) season, plus the
-headline text. Currently `basin count 5 throughout` at 24, 150 and 500 runs of ordinary play, so
-this needs a campaign to provoke — which means it will happen to exactly the most invested players.
-**Already caused a harness bug**, which is how it was found: basin ids come from a rescan every run,
-`stop basins:` indexed a session's worth of collected ids into a list rebuilt every run, and it
-threw `ArgumentOutOfRangeException` the first time anything ran 500 runs. Fixed, and the count range
-is now printed so no index-based comparison can silently lose its meaning again.
+  campaign can consume its own objective — and the mountain now says so out loud (L-044, closed).
+  What that does *not* solve is this loop: a lattice that shrinks has less left to offer, not more.
 
 ### L-018 · Onboarding — the first 30 seconds explain nothing
 **Why** — There is no button and nothing moves on its own to suggest steering exists, so a player
@@ -223,6 +202,43 @@ term saturating at 2 m.
 ---
 
 ## Recently closed
+
+### L-044 · A basin can be erased by being filled — closed 2026-07-26
+A 500-run campaign against one basin ends with the lattice down from 5 to 3. The player's target
+disappears mid-campaign and nothing anywhere said so. L-035 was closed for announcing water it never
+delivered; this is the inverse — delivering a change and never mentioning it — and the trust
+contract only survives if both directions hold.
+`BasinSystem` now identifies each basin by its **deepest cell** across a rebuild (ids are assigned by
+scan order every time and are *not* stable) and raises `Lost` when that cell is no longer inside any
+depression. `RillWorld` turns it into a headline that says where the water went, because it is not
+gone — `GatherExistingWater` routes anything outside a depression downhill until it finds one, and
+saying so is the difference between an ending and a bug.
+**Evidence** — 500-run campaign: `2 silted out of existence, 0 merges — raised by the world: 2 and
+0; as the card's title 1 (all appear in its body)`, with the text
+`"West basin silted up for good — its 80 m³ moved on downhill"` and the same for North basin at
+39 m³. The one that lost the title lost it to a dam break in the same run and is still on screen,
+since `HudController` lists every headline under the title. 24 and 500 runs of *ordinary* play both
+report `basin count 5 throughout` and zero lattice changes, so this only fires for players who
+campaign hard enough to earn it.
+**Three things had to be fixed before any of it was visible, and each looked like the previous one
+working.**
+1. **The detection appeared to do nothing** — zero events across a season in which the lattice
+   demonstrably shrank. The fault was in the *harness*: the smoke test called `EndRun` **before**
+   `Basins.Rebuild()`, the opposite of `RunController.FinishRun`, so every headline a rebuild raises
+   was cleared by the next `BeginRun` before anything read it. This is the fifth time a
+   silently-does-nothing result in this project has turned out to be the test rather than the game.
+2. **Merge detection was built on a wrong inference.** Seeing the count fall with no `Lost` events,
+   I concluded the basins were merging rather than vanishing. They were vanishing. The merge path
+   has since fired **zero** times in any test and is kept as unproven code, labelled as such,
+   because it is a real event that can happen and the check is two lines.
+3. **The headline was invisible to the player.** `CarveReport.Summary()` — the card's title — checks
+   `Overflowed`, `Revealed`, `BasinChanges` and `DeepestCarve`, and would never have shown a lattice
+   change at all. It now ranks one just under a dam break.
+**Closed on weaker evidence than it asked for in one respect.** *Done when* wanted "a name for what
+the place became". The headline says the tarn silted up and where its water went; it does not name
+the successor landform. Nothing in the world currently knows whether a filled tarn became meadow,
+gravel flat or bog — the ecosystem tracks moisture but not history — so naming it would be a
+fabrication, which is the exact failure L-035 was closed for. Left undone deliberately.
 
 ### L-042 · The mountain silts up its own approaches — closed 2026-07-26
 Opened the same day on one end-of-test number: the lattice was `5 of 5` reachable downhill at
