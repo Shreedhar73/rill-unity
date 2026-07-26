@@ -59,6 +59,8 @@ namespace Rill.Flow
         CarveReport _lastReport;
         readonly List<Vector3> _lastPath = new List<Vector3>();
         readonly Queue<Cascade> _cascades = new Queue<Cascade>();
+        // The player's report, held back while their dam break plays out first.
+        CarveReport _heldReport;
         bool _autoRun;
         Vector2 _lastThumbPos;
 
@@ -273,7 +275,10 @@ namespace Rill.Flow
         void StartCascade(Cascade c)
         {
             Active.BeginRun();
-            Active.Field.CopyHeightTo(_beforeHeights);
+            // Do not reset the carve baseline while the player's report is waiting behind this
+            // cascade, or the overlay they finally see would show the dam break only, with their
+            // own run's carving already subtracted out.
+            if (_heldReport == null) Active.Field.CopyHeightTo(_beforeHeights);
             _sim.Begin(c.Origin, c.Volume);
             _sim.SetSteer(false, Vector2.zero);
             _autoRun = true;
@@ -344,10 +349,34 @@ namespace Rill.Flow
 
             if (_autoRun)
             {
-                // Cascades do not interrupt with a card; they just happen, then hand back control.
+                // A cascade just finished. Chain into the next one, or hand back the report that
+                // was held for the player's own run.
                 _autoRun = false;
-                if (_cascades.Count > 0) StartCascade(_cascades.Dequeue());
-                else EnterIdle();
+                if (_cascades.Count > 0) { StartCascade(_cascades.Dequeue()); return; }
+
+                if (_heldReport != null)
+                {
+                    var held = _heldReport;
+                    _heldReport = null;
+                    if (Config.ShowCarveOverlay) Terrain.ShowCarveOverlay(_beforeHeights);
+                    Current = State.Report;
+                    Hud.ShowReport(held, Revelation.RevealedCount(), Active.Secrets.Count);
+                    return;
+                }
+
+                EnterIdle();
+                return;
+            }
+
+            // The dam break plays *before* the report, not after. It used to run off the tap that
+            // dismissed the report card — a tap indistinguishable from the one that starts a run —
+            // so the player believed their own run had begun inside a lake with dead controls.
+            // Consequence rather than interruption: your water filled the basin, the basin broke,
+            // and only then do you get told what the run did.
+            if (_cascades.Count > 0)
+            {
+                _heldReport = report;
+                StartCascade(_cascades.Dequeue());
                 return;
             }
 
@@ -357,12 +386,9 @@ namespace Rill.Flow
 
         void OnReportDismissed()
         {
+            // Nothing to chain into any more: cascades have already played by the time the report
+            // is on screen, so dismissing it always returns to idle at the summit.
             Terrain.ClearOverlay();
-            if (_cascades.Count > 0)
-            {
-                StartCascade(_cascades.Dequeue());
-                return;
-            }
             EnterIdle();
         }
 

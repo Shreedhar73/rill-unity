@@ -83,6 +83,16 @@ namespace Rill.Flow
         const int MaxCrossingsPerRun = 4;
         readonly HashSet<int> _crossed = new HashSet<int>();
 
+        // Mid-traverse of a lake: the head is swimming to the outlet rather than obeying terrain.
+        bool _crossing;
+        Vector2 _crossingTo;
+        float _crossingExitSpeed;
+
+        // Drift speed while swimming a lake, m/s. Fast enough not to eat the run clock — an
+        // earlier version decayed toward StartSpeed and took ~27 s to cross a 40 m lake, which
+        // halved what a run could reach afterwards — slow enough to read as water, not a shortcut.
+        const float CrossingDriftSpeed = 6f;
+
         float _accum;
         float _poolTimer;
         float _fallTimer;
@@ -119,6 +129,7 @@ namespace Rill.Flow
             DistanceAfterCrossing = _distanceAtLastCrossing = 0f;
             CrossedAnyBasin = false;
             _crossed.Clear();
+            _crossing = false;
             _accum = _poolTimer = _fallTimer = 0f;
             Path.Clear();
             Path.Add(Head.World);
@@ -146,6 +157,8 @@ namespace Rill.Flow
         void Step(float dt)
         {
             Elapsed += dt;
+
+            if (_crossing) { StepCrossing(dt); return; }
 
             float slope;
             Vector2 down = _f.DownhillWorld(Head.Pos.x, Head.Pos.y, out slope);
@@ -369,24 +382,70 @@ namespace Rill.Flow
                 _world.Basins.AddWater(b.Cells[0], given);
             }
 
+            // Aim the head at the outlet and let it swim there under its own steam. Setting
+            // Head.Pos to the outlet directly was correct as physics and wrong as a picture: it is
+            // a hard jump across open water, drawn by the ribbon as a straight line, and it reads
+            // to a player as the stream teleporting. Observed and reported as exactly that.
             Vector2Int sp = b.SpillXZ(_f.Size);
-            Vector2 outlet = _f.GridToWorldXZ(sp.x, sp.y);
+            _crossingTo = _f.GridToWorldXZ(sp.x, sp.y);
+            _crossing = true;
+
+            // Exit speed is banked here from the arrival speed, not carried through the traverse.
+            // Momentum across a lake is not what decides the run's reach on the far side; letting
+            // the drift decide it cost 40% of the distance travelled after a crossing.
             float speedIn = Head.Vel.magnitude;
+            _crossingExitSpeed = Mathf.Max(_cfg.StartSpeed, speedIn * 0.35f);
 
-            Head.Pos = outlet;
-            Head.Height = _f.SampleHeightWorld(outlet.x, outlet.y);
-
-            // Leaving over the lip, the stream has lost its line: it restarts from the outlet
-            // pointing downhill. Keep a third of the speed it arrived with so a fast run still
-            // exits fast, but never below StartSpeed or the run re-pools on the spot.
-            float slope;
-            Vector2 down = _f.DownhillWorld(outlet.x, outlet.y, out slope);
-            if (down.sqrMagnitude < 1e-6f) down = new Vector2(0f, -1f);
-            Head.Vel = down.normalized * Mathf.Max(_cfg.StartSpeed, speedIn * 0.35f);
+            Vector2 toOutlet = _crossingTo - Head.Pos;
+            if (toOutlet.sqrMagnitude < 1e-6f) toOutlet = new Vector2(0f, -1f);
+            Head.Vel = toOutlet.normalized * CrossingDriftSpeed;
 
             _poolTimer = 0f;
-            Path.Add(Head.World);
             if (Splash != null) Splash(Head.World, 0.6f);
+        }
+
+        /// <summary>
+        /// Swimming across a full lake to its outlet. Terrain is ignored deliberately — the head is
+        /// on water, and the bed beneath it slopes back toward the middle of the basin, which is
+        /// what made every earlier attempt at "steer toward the spill" fail. No carving happens
+        /// here either: a lake bed is not being cut by water drifting over it.
+        /// </summary>
+        void StepCrossing(float dt)
+        {
+            Vector2 toOutlet = _crossingTo - Head.Pos;
+            float remaining = toOutlet.magnitude;
+
+            // Arrived: hand the head back to gravity, pointing downhill off the lip.
+            if (remaining <= _f.CellSize)
+            {
+                _crossing = false;
+                Head.Pos = _crossingTo;
+                Head.Height = _f.SampleHeightWorld(Head.Pos.x, Head.Pos.y);
+
+                float slope;
+                Vector2 down = _f.DownhillWorld(Head.Pos.x, Head.Pos.y, out slope);
+                if (down.sqrMagnitude < 1e-6f) down = new Vector2(0f, -1f);
+                Head.Vel = down.normalized * _crossingExitSpeed;
+
+                _distanceAtLastCrossing = Distance;   // measure the run's reach from the outlet
+                Path.Add(Head.World);
+                return;
+            }
+
+            // Steady drift toward the outlet, no acceleration and no decay.
+            float speed = CrossingDriftSpeed;
+            Head.Vel = toOutlet / remaining * speed;
+            Head.Pos += Head.Vel * dt;
+            Distance += speed * dt;
+
+            // The surface it is travelling on, not the bed below it.
+            float bed = _f.SampleHeightWorld(Head.Pos.x, Head.Pos.y);
+            Head.Height = bed + Mathf.Max(0f, _f.SampleWaterWorld(Head.Pos.x, Head.Pos.y));
+
+            Head.Volume -= _cfg.InfiltrationRate * 0.05f * dt;   // open water barely drinks
+            if (Head.Volume <= _cfg.MinVolume) { _crossing = false; Finish(RunEnding.SoakedAway, false); return; }
+
+            if ((Head.World - Path[Path.Count - 1]).sqrMagnitude > 0.36f) Path.Add(Head.World);
         }
 
         void Finish(RunEnding ending, bool deliverVolume)

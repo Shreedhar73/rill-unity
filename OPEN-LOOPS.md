@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **15** (4 archived)
+Last updated: **2026-07-26** · Open loops: **17** · Closed this cycle: **15** (4 archived)
 
 ---
 
@@ -44,6 +44,54 @@ Every loop has:
 
 ## Now
 
+### L-031 · A cascade steals the player's next run
+**Why** — Observed in play 2026-07-26: "on restart it starts on basin not on top of mountain."
+`RunController.OnReportDismissed` dequeues a pending cascade and calls `StartCascade`, which runs
+`Active.BeginRun()` (consuming a run number), spawns at the basin's spill cell instead of the summit,
+and calls `SetSteer(false, ...)` so the player has no control. The tap that dismissed the report
+looks exactly like the tap that starts a run, so the player believes their run began in a lake and
+that the controls are dead.
+This code is not new. It was **dormant** because basins never filled; the L-009/L-026/L-028 work made
+overflow routine (`North basin broke its banks` now appears regularly), which turned a rare
+set-piece into the common case. A latent design decision became a bug by being exercised.
+**Done when** — After a basin overflows, the player's next tap starts *their* run from the summit
+with full control, and the dam break is legible as a separate event rather than a stolen turn.
+**Evidence needed** — Someone plays through an overflow and does not think the game broke.
+**Fix chosen 2026-07-26 (by the project owner): play it before the report.** The dam break now runs
+between the player's run ending and their report card appearing, so it reads as a *consequence* of
+the run rather than as the next run. Dismissing the report always returns to idle at the summit;
+nothing chains off that tap any more. The carve baseline is deliberately not reset while a report is
+held, or the overlay would show only the cascade with the player's own carving subtracted out.
+**Still open** — nobody has played through an overflow since the change. Also unresolved: a cascade
+still calls `Active.BeginRun()`, so it consumes a run number and the report card can read "run 12"
+while the world has moved to 13. Left deliberately, as changing run-number semantics is a separate
+decision from the ordering one.
+
+### L-032 · Basin crossing teleports the stream
+**Why** — Observed in play 2026-07-26: "when water reaches the large basin, it kinda gets teleported
+to next side." Accurate. `FlowSimulation.CrossBasin` sets `Head.Pos = outlet` in a single step — a
+hard positional jump across the lake, with one `Path.Add` so the ribbon draws a straight line across
+open water. The *simulation* is right (water is conserved, the lake fills to its spill and the
+stream continues from the outlet, measured in L-029) but the *presentation* is a teleport.
+**L-029 closed on measurement alone and its evidence stands** — 23 crossings, 5 sea arrivals, 42 m
+travelled after crossing were all real. What that evidence could not show is what it looks like,
+which is exactly the gap `docs/FEATURES.md` marks with Built vs Done. This loop says so rather than
+editing a closed loop.
+**Done when** — The stream visibly traverses the lake surface to the outlet instead of jumping, and
+nobody watching calls it a teleport.
+**Evidence needed** — Someone watches a crossing and does not flinch.
+**Implemented 2026-07-26, unobserved.** The head now swims to the outlet: a `_crossing` state that
+drifts across the *water surface* (bed height plus water depth), ignores terrain — the bed slopes
+back toward the basin centre, which is what defeated every earlier "steer toward the spill" attempt
+— and carves nothing on the way.
+First attempt at it decayed speed by `0.98` per **sub-step** at 90 Hz, reaching `StartSpeed` within a
+second, so a 40 m lake ate ~27 s of the 75 s run clock. Measured cost: crossings reaching the sea
+5 → 2, distance after crossing 42 m → 25 m. Fixed by separating the drift speed (flat 6 m/s) from
+the exit speed off the lip (banked at crossing time from arrival speed). After: `ReachedSea` 35,
+`delivered to sea 1,808 m³` — both at or above the teleport baseline — with distance after crossing
+at 33 m against 42 m before. That remaining ~20% is the honest price of the traverse taking real
+time instead of being instantaneous, and is not a defect to chase.
+
 ### L-030 · An aimed run arrives about 40% of the time
 **Why** — L-027 established that a player who commits a campaign to a basin can fill it. What it also
 measured is that individual aimed runs are unreliable, and the ones that miss get within an average
@@ -70,6 +118,17 @@ for a game whose whole skill ceiling is restraint; that is a feel question and L
 the subject of the entire game and currently looks like placeholder geometry.
 **Done when** — Lakes have a depth gradient and a soft shoreline; the sea has a shoreline
 treatment; the ribbon reads as the brightest thing in frame.
+**Attempt 1 failed — observed 2026-07-26.** Shore alpha was ramped to zero at the waterline (it had
+been floored at 0.25, drawing a hard rim) and the sea was subdivided 96² so each vertex carries its
+real depth instead of being a 4-vertex quad with one flat tone. Both changes are reasoned from how
+the shader consumes vertex colour, both compile — and the verdict from watching it was **"it's a
+negative"**. So the rim was not the whole story, or not the story at all.
+**Do not attempt 2 blind.** Two shader-side theories are now spent. Next step is to look at what is
+actually on screen — a still of a lake edge and of the coastline — and work from that rather than
+from reasoning about vertex colours. Candidates not yet examined: `SurfaceLift` may push the surface
+above the shoreline so the mesh visibly floats; `MinDepth` may cull the feather ring entirely; the
+transparent queue writes no depth, so lake and sea surfaces may be compositing wrongly against each
+other and against terrain.
 
 ---
 
