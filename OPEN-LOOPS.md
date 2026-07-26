@@ -79,7 +79,21 @@ which is exactly the gap `docs/FEATURES.md` marks with Built vs Done. This loop 
 editing a closed loop.
 **Done when** — The stream visibly traverses the lake surface to the outlet instead of jumping, and
 nobody watching calls it a teleport.
-**Evidence needed** — Someone watches a crossing and does not flinch.
+**Evidence needed** — Someone watches a crossing and does not flinch. The simulation half is now
+measured; only the picture is unconfirmed.
+**Outlet fix measured 2026-07-26** — crossings were also stalling, not just cascades. Aiming the
+traverse past the lip instead of at the saddle:
+
+| | before | after |
+|---|---|---|
+| ReachedSea (150 runs) | 35 | **45** |
+| delivered to sea | 1,808 m³ | **2,322 m³** |
+| crossings reaching the sea | 3 of 22 | **16 of 24** |
+| distance after crossing | 33 m | **103 m** |
+
+Post-crossing reach tripled. This is the strongest single number produced by any change this cycle,
+and it came from a defect that was only visible because someone played the game and said "there is
+no way out".
 **Implemented 2026-07-26, unobserved.** The head now swims to the outlet: a `_crossing` state that
 drifts across the *water surface* (bed height plus water depth), ignores terrain — the bed slopes
 back toward the basin centre, which is what defeated every earlier "steer toward the spill" attempt
