@@ -112,6 +112,17 @@ namespace Rill.UI
 
         public static Button MakeButton(Transform parent, string name, string label, int size = 30)
         {
+            Text ignored;
+            return MakeButton(parent, name, label, size, out ignored);
+        }
+
+        /// <summary>
+        /// As above, but hands back the label so a caller can re-label the button later. A menu
+        /// that destroys and rebuilds its own buttons to change their text is a menu that loses a
+        /// click, so the three mountain rows are built once and re-labelled.
+        /// </summary>
+        public static Button MakeButton(Transform parent, string name, string label, int size, out Text labelText)
+        {
             var img = MakePanel(parent, name, new Color(0.14f, 0.16f, 0.19f, 0.78f));
             var btn = img.gameObject.AddComponent<Button>();
             var colors = btn.colors;
@@ -122,6 +133,7 @@ namespace Rill.UI
             btn.colors = colors;
 
             var text = MakeText(img.transform, "Label", label, size, TextAnchor.MiddleCenter, Ink);
+            labelText = text;
             var rt = Rect(text.gameObject);
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;

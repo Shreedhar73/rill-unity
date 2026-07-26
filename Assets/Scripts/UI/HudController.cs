@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
+using Rill.App;
 using Rill.Flow;
 using Rill.Meta;
 
@@ -24,6 +25,8 @@ namespace Rill.UI
         public event Action BackRequested;
         /// <summary>Leave the mountain and go back to the main screen. Not an app quit.</summary>
         public event Action EndGameRequested;
+        /// <summary>A mountain row on the main screen was chosen. Argument is the slot index.</summary>
+        public event Action<int> MountainPicked;
 
         Canvas _canvas;
         Text _topLeft, _topRight, _hint, _reportTitle, _reportBody, _panelBody, _panelTitle;
@@ -31,6 +34,8 @@ namespace Rill.UI
         CanvasGroup _reportGroup, _panelGroup, _buttonsGroup, _speedGroup, _titleGroup;
         Text _titleWord, _titleTag, _titleRecord;
         Button _startButton, _backButton, _endButton;
+        Button[] _slotButtons;
+        Text[] _slotLabels;
         CanvasGroup _backGroup, _endGroup;
         bool _titleShown;
         float _titleFade;
@@ -102,7 +107,53 @@ namespace Rill.UI
             _startButton = UIFactory.MakeButton(holder.transform, "Start", "Begin", 40);
             UIFactory.Place(_startButton.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -50f), new Vector2(420f, 108f));
 
+            // One row per mountain, stacked under the name. Built once and re-labelled, because a
+            // menu that destroys and rebuilds its own buttons is a menu that loses a click.
+            _slotButtons = new Button[MountainRoster.Slots];
+            _slotLabels = new Text[MountainRoster.Slots];
+            for (int i = 0; i < MountainRoster.Slots; i++)
+            {
+                Text label;
+                var b = UIFactory.MakeButton(holder.transform, "Slot" + i, "", 26, out label);
+                UIFactory.Place(b.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                                new Vector2(0f, -60f - i * 104f), new Vector2(900f, 92f));
+                _slotButtons[i] = b;
+                _slotLabels[i] = label;
+                int index = i;
+                b.onClick.AddListener(() => { if (MountainPicked != null) MountainPicked(index); });
+            }
+            SetMountainsVisible(false);
+
             _titleGroup = UIFactory.Group(holder);
+        }
+
+        /// <summary>
+        /// The three mountains, on the main screen. Each row says what has been done to that
+        /// mountain — read off the world, never awarded — or that the slot is empty.
+        ///
+        /// There is no delete button here on purpose. Destroying a mountain goes through
+        /// MountainRoster.Delete, which demands the seed of the thing being destroyed, and a
+        /// control that sits one mis-tap away from six months of somebody's play does not belong
+        /// on the screen they see every time they open the app.
+        /// </summary>
+        public void SetMountains(string[] rows)
+        {
+            if (_slotButtons == null) return;
+            for (int i = 0; i < _slotButtons.Length; i++)
+            {
+                bool has = rows != null && i < rows.Length && !string.IsNullOrEmpty(rows[i]);
+                _slotButtons[i].gameObject.SetActive(has);
+                if (has && _slotLabels[i] != null) _slotLabels[i].text = rows[i];
+            }
+            // The three rows replace the single Begin button once there is a choice to make.
+            if (_startButton != null) _startButton.gameObject.SetActive(false);
+        }
+
+        public void SetMountainsVisible(bool visible)
+        {
+            if (_slotButtons == null) return;
+            for (int i = 0; i < _slotButtons.Length; i++)
+                if (_slotButtons[i] != null) _slotButtons[i].gameObject.SetActive(visible);
         }
 
         /// <summary>

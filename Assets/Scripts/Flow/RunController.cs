@@ -121,6 +121,7 @@ namespace Rill.Flow
             Hud.PanelClosed += () => { if (Current == State.Panel) Current = State.Idle; };
             Hud.BackRequested += GoBack;
             Hud.EndGameRequested += EndGame;
+            Hud.MountainPicked += OnMountainPicked;
 
             // The hardware back key at the root closes the app on Android, which is that platform's
             // convention and the only place an app should ever close itself. Apple's guidelines are
@@ -248,6 +249,54 @@ namespace Rill.Flow
                                 Active.RunNumber, Active.LifetimeSediment, Active.LifetimeWaterToSea)
                 : "A new mountain, untouched";
             Hud.SetTitle(true, record, StartFromTitle);
+
+            // The three mountains, each saying what has been done to it. The one being stood on is
+            // marked rather than hidden, so the list is always the same shape and the row a player
+            // reaches for does not move.
+            Roster.Refresh();
+            var rows = new string[MountainRoster.Slots];
+            for (int i = 0; i < MountainRoster.Slots; i++)
+                rows[i] = (i == CurrentSlot && Roster.Occupied(i) ? "▸  " : "    ") + Roster.Describe(i);
+            Hud.SetMountains(rows);
+        }
+
+        /// <summary>
+        /// A mountain row was chosen. An occupied slot is entered; an empty one is started with the
+        /// biome that slot does not have yet, so a player who takes all three ends up with three
+        /// different games rather than three copies of the same one.
+        /// </summary>
+        void OnMountainPicked(int slot)
+        {
+            if (Current != State.Title) return;
+
+            if (Roster.Occupied(slot))
+            {
+                if (slot != CurrentSlot) SwitchToMountain(slot);
+                else StartFromTitle();
+                return;
+            }
+
+            StartMountain(slot, BiomeForNewSlot(slot));
+        }
+
+        /// <summary>
+        /// Which rock a new mountain gets. The biomes are genuinely different games — glacier is
+        /// fast and grudging, volcanic builds terrain an order of magnitude faster than anything
+        /// else, granite keeps what you cut — and a player who fills all three slots should meet
+        /// three of them rather than the same one three times. Picked by what is missing, so the
+        /// choice needs no menu.
+        /// </summary>
+        Biome BiomeForNewSlot(int slot)
+        {
+            var wanted = new[] { Biome.Sandstone, Biome.Glacier, Biome.Volcanic };
+            for (int i = 0; i < wanted.Length; i++)
+            {
+                bool taken = false;
+                for (int k = 0; k < MountainRoster.Slots && !taken; k++)
+                    if (Roster.Occupied(k) && Roster[k].Biome == wanted[i]) taken = true;
+                if (!taken) return wanted[i];
+            }
+            return wanted[slot % wanted.Length];
         }
 
         void StartFromTitle()
