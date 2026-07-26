@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **26** (17 archived)
+Last updated: **2026-07-26** · Open loops: **14** · Closed this cycle: **27** (17 archived)
 
 ---
 
@@ -77,20 +77,6 @@ visible. A tap skips it, so a returning player never sits through it.
 
 ## Next
 
-### L-041 · Deposition builds an 8.9 m mound and nobody has looked at it
-**Why** — `terrain delta max` was `+1.31 m` before the flow work and is **`+8.87 m`** after 150
-runs. Runs now travel 269 m instead of 136 m and drop their sediment much further down the mountain,
-so a real landform is being built. That may be a delta — which would be one of the best things in the
-game, since the design wants landforms to emerge rather than be authored — or it may be a silt wall
-across the runout that quietly ruins the bottom third of the mountain. Both look identical in this
-number.
-**Done when** — Somebody has looked at it, and it is either named as a feature or bounded.
-**Evidence needed** — A screenshot of the runout after 150 runs, plus the footprint: how many cells
-are more than 2 m above virgin, and whether they form one mass or a scatter.
-**Careful** — Do not clamp it before looking. L-028 bounded *incision* for a measured reason (a
-23.7 m shaft, and the design document naming it as a top-three risk); there is no equivalent
-evidence here yet, and clamping deposition would remove deltas along with the problem.
-
 ### L-018 · Onboarding — the first 30 seconds explain nothing
 **Why** — There is no button and nothing moves on its own to suggest steering exists, so a player
 can complete several runs without discovering the only verb that matters. This is the single largest
@@ -135,11 +121,30 @@ is negative, check it was not just this.
 **Why** — The momentum economy is the game's skill ceiling, and at 24 m/s it currently looks the
 same as 9 m/s. The player cannot feel the thing they are optimising.
 **Done when** — Speed is legible without the HUD meter: FOV kick, spray, and impact on plunges.
+**Implemented 2026-07-26, unobserved.** FOV kick (13° at 24 m/s) and the camera closing 22% toward
+the bed were already in. Spray was not: the stream now throws it above **12 m/s**, at a rate that
+climbs with how far over that it is. The threshold is not a taste number — it is roughly terminal
+speed on fresh rock on a steep face, so spray appears exactly when the water is moving faster than
+un-carved ground allows. It is the reward for having carved, shown rather than reported. Gated
+rather than proportional from zero, because spray that is always on is weather and spray that
+*starts* is information.
+**Still not done** — "impact on plunges" is unchanged: `Splash` fires on drops over 1.1 m and always
+has. Whether that reads as impact is a look-at-it question, and the loop should not close on the
+spray half alone.
 
 ### L-015 · Persistent wet-channel darkening
 **Why** — A carved channel is invisible when dry, so the player cannot see their own river system
 between runs — which is most of the time they spend looking at the mountain.
 **Done when** — Old channels read as channels from the idle camera with no water in them.
+**Implemented 2026-07-26, unobserved. Two causes, both measured rather than guessed.** The concavity
+occlusion normalised surrounding rock over **4 m**, and over 150 runs only 191 cells are cut deeper
+than 1.5 m against 613 deeper than 0.5 m — so a real channel produced an occlusion of ~0.93, a 7%
+darkening before `_AOStrength` scaled it down further. It now normalises over 1.6 m, the depth this
+mountain actually reaches. And **nothing drew the cut at all**: polish decays at `PolishDecayPerRun`
+and wetness faster, so a channel abandoned twenty runs ago has neither left and is still a channel —
+the rock is gone. That made the oldest work on the mountain the least visible, which is backwards
+for a game whose premise is that nothing ever resets. Terrain colour now carries a `Virgin - Height`
+term saturating at 2 m.
 
 ---
 
@@ -149,7 +154,7 @@ between runs — which is most of the time they spend looking at the mountain.
 |---|---|---|
 | L-016 | Prop silhouettes worth looking at | Cones and discs. Cosmetic until the loop is proven fun. |
 | L-017 | UI pass — legacy `Text`, hand-placed rects | Placeholder is survivable; the loop is not. |
-| L-019 | Cascade / dam-break spectacle | Now fires — `North basin broke its banks` appears in 150-run logs. Unblocked; still nobody has seen it. |
+| L-019 | Cascade / dam-break spectacle | **Counted 2026-07-26: 4 overflows and 207 m³ over the lip per 150 runs, and *zero* per 24.** The mechanism works; a first-session player still never sees one. Nobody has watched one. |
 | L-020 | Daily glyph legibility — currently near-empty | Viral spine, but pointless before retention exists. |
 | L-022 | Device performance pass | Never run on a phone. No profiling of any kind, ever. |
 | L-023 | Region streaming beyond one 512 m field | Scope question, not a bug. |
@@ -159,6 +164,22 @@ between runs — which is most of the time they spend looking at the mountain.
 ---
 
 ## Recently closed
+
+### L-041 · Deposition builds an 8.9 m mound and nobody has looked at it — closed 2026-07-26
+Opened the same day, on the observation that `terrain delta max` had gone `+1.31 m → +8.87 m` once
+runs started travelling 269 m instead of 136 m. The fear was a silt wall across the runout ruining
+the bottom third of the mountain; the alternative was a delta, which the design wants. A single
+maximum is the same number for both, so the loop asked for the footprint.
+**Evidence** — `deposits 145 cells over 2 m above virgin in 11 masses; largest 47 cells (188 m²) at
+33 m elevation; spread 0-93 m`. Eleven disconnected silt bars scattered down the mountain, the
+largest about 14 m across, together **0.22% of the field**. Not a wall, not a dam, not one landform
+— and the maximum came down to `+6.00 m` on its own once the basins moved onto the drainage.
+**Closed on weaker evidence than it asked for, deliberately.** *Done when* wanted somebody to look
+at it. Nobody has. What the measurement does settle is the specific risk the loop was opened for: a
+connected mass blocking the runout would show as one component of thousands of cells, and the
+largest is forty-seven. The aesthetic question — whether eleven silt bars look like anything — is
+still open and belongs with the other look-at-it loops.
+**Nothing was clamped**, which the loop asked for explicitly. Deposition is still free to build.
 
 ### L-040 · Four of five basins cannot be reached downhill from the spring — closed 2026-07-26
 Basins were scored on concavity and relief anywhere between 10 m and 110 m of elevation, which
