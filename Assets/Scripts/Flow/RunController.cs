@@ -138,7 +138,7 @@ namespace Rill.Flow
 
             // Boot into the title, not into a playable mountain. Opening straight into the run
             // state gave the app no front door at all — it simply appeared, mid-game.
-            EnterTitle();
+            EnterTitle(arriving: true);
         }
 
         /// <summary>
@@ -235,10 +235,17 @@ namespace Rill.Flow
         /// the save file, so the honest splash screen for this game is the river system the player
         /// built last time, and a returning player sees their own work before they see a button.
         /// </summary>
-        public void EnterTitle()
+        public void EnterTitle() { EnterTitle(false); }
+
+        /// <summary>
+        /// <paramref name="arriving"/> plays the opening camera move. Only true once, on launch:
+        /// an arrival you sit through every time you press Back is an obstacle, not an arrival.
+        /// </summary>
+        public void EnterTitle(bool arriving)
         {
             Current = State.Title;
-            Cam.SetTitle(Active.SummitWorld);
+            if (arriving) Cam.SetTitleArriving(Active.SummitWorld);
+            else Cam.SetTitle(Active.SummitWorld);
             Ribbon.Clear();
             Hud.SetIdleUI(false);
             Hud.SetHint("");
@@ -462,7 +469,7 @@ namespace Rill.Flow
 
             switch (Current)
             {
-                case State.Title: break;
+                case State.Title: UpdateTitle(); break;
                 case State.Idle: UpdateIdle(); break;
                 case State.Flowing: UpdateFlowing(); break;
                 case State.Settling: UpdateSettling(); break;
@@ -475,6 +482,16 @@ namespace Rill.Flow
                 Audio.SetFlowState(false, 0f, Config.MaxSpeed, 0f, Config.StartVolume, 0f);
 
             Hud.SetSpeed(Current == State.Flowing ? _sim.Head.Speed / Config.MaxSpeed : 0f, Current == State.Flowing);
+        }
+
+        /// <summary>
+        /// The main screen. Nothing here does anything except let the player cut the opening short
+        /// — the launch is skippable from the first frame, because the second time somebody sees it
+        /// they have already arrived.
+        /// </summary>
+        void UpdateTitle()
+        {
+            if (Cam.Arriving && Thumb.WasTap()) Cam.SkipArrival();
         }
 
         void UpdateIdle()

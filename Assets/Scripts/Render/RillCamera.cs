@@ -31,6 +31,20 @@ namespace Rill.Render
         float _speed01;
         float _baseFov;
 
+        /// <summary>
+        /// The arrival. The camera starts far out and high, and comes to rest at the title framing
+        /// over a few seconds.
+        ///
+        /// Deliberately not a logo sting: the honest opening for this game is its own premise. The
+        /// mountain IS the save file, so the app opens on the world the player left and the camera
+        /// travels to it. A returning player watches their own river system resolve out of the
+        /// distance before they are asked to do anything.
+        /// </summary>
+        public float ArrivalSeconds = 3.4f;
+        public float ArrivalDistanceMultiplier = 2.6f;
+        public float ArrivalHeightMultiplier = 2.2f;
+        float _arrival;      // 1 at the start of the approach, 0 once it has landed
+
         [Header("Title framing")]
         public float TitleDistance = 190f;
         public float TitleHeight = 78f;
@@ -71,6 +85,25 @@ namespace Rill.Render
             _currentTarget = worldCentre;
             _panOffset = Vector3.zero;
         }
+
+        /// <summary>
+        /// Title framing, arrived at rather than cut to. Called once on launch; every later return
+        /// to the main screen uses SetTitle, because an opening you sit through twice is an
+        /// obstacle rather than an arrival.
+        /// </summary>
+        public void SetTitleArriving(Vector3 worldCentre)
+        {
+            SetTitle(worldCentre);
+            _arrival = 1f;
+            _distance = TitleDistance * ArrivalDistanceMultiplier;
+            _height = TitleHeight * ArrivalHeightMultiplier;
+        }
+
+        /// <summary>True while the opening camera move is still running.</summary>
+        public bool Arriving => _arrival > 0.001f;
+
+        /// <summary>Cuts the arrival short. A player who taps has asked to get on with it.</summary>
+        public void SkipArrival() { _arrival = 0f; }
 
         public void SetOverview(Vector3 worldCentre)
         {
@@ -128,6 +161,16 @@ namespace Rill.Render
                     _speed01 = 0f;
                     wantDistance = TitleDistance;
                     wantHeight = TitleHeight;
+                    // Ease the approach out rather than letting the existing damping do it: plain
+                    // exponential damping never quite lands, and an arrival that is still creeping
+                    // when the player reaches for the screen reads as drift, not as a destination.
+                    if (_arrival > 0f)
+                    {
+                        _arrival = Mathf.Max(0f, _arrival - Time.deltaTime / Mathf.Max(0.01f, ArrivalSeconds));
+                        float e = _arrival * _arrival * _arrival;   // most of the travel happens early
+                        wantDistance = Mathf.Lerp(TitleDistance, TitleDistance * ArrivalDistanceMultiplier, e);
+                        wantHeight = Mathf.Lerp(TitleHeight, TitleHeight * ArrivalHeightMultiplier, e);
+                    }
                     _overviewSpin += Time.deltaTime * TitleOrbitSpeed;
                     break;
                 default:
