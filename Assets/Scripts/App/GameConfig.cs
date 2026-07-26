@@ -41,6 +41,18 @@ namespace Rill.App
         public float SteerRange = 22f;
         [Tooltip("Fraction of speed bled per second at full steer. Fighting gravity must cost.")]
         public float SteerSpeedCost = 0.55f;
+        [Tooltip("Speed at which the thumb has full authority. Below it, steering fades out with " +
+                 "speed: you can only lean water that is already moving. Without this, SteerAccel " +
+                 "(20) exceeds downhill acceleration on a 30° face (30·sin30° = 15), so a held " +
+                 "lean could spiral the stream in place indefinitely — traced doing exactly that " +
+                 "for 70 of one run's 75 seconds, descending 4 m in the process. It also makes " +
+                 "speed mean two things instead of one: reach, and control.\n\n" +
+                 "11 is the knee measured over 150 runs per arm: timeouts go 15 / 7 / 4 / 0 / 0 at " +
+                 "7 / 9 / 10 / 11 / 12, so it is the most authority the player can keep while a " +
+                 "held lean is still incapable of stopping the descent. Closest approach to an " +
+                 "aimed basin is unchanged from unscaled steering (59 m vs 59 m), so this costs " +
+                 "nothing in routing — only in the ability to fight the mountain to a draw.")]
+        public float SteerFullSpeed = 11f;
 
         [Header("Carving")]
         public float CarveRate = 0.055f;         // metres per second at reference speed/volume

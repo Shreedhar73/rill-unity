@@ -116,10 +116,71 @@ namespace Rill.EditorTools
 
         static void Play(int Runs) { Debug.Log(PlayBiome(Runs, Biome.Sandstone).ToString()); }
 
-        static StringBuilder PlayBiome(int Runs, Biome biome)
+        /// <summary>
+        /// The headline numbers of a session, so one tuning constant can be swept without reading
+        /// forty lines of prose per arm.
+        /// </summary>
+        public class Summary
+        {
+            public int Sea, TimedOut, Pooled, AimedRuns, AimedDelivered, StoppedInBasin;
+            public float DistancePerRun, Descent, SedimentPerRun, ToSea, AimedMiss, AimedClosest, HollowVolume;
+        }
+
+        /// <summary>
+        /// Steering authority against the momentum that buys it. SteerAccel is 20 m/s² and downhill
+        /// acceleration on a 30° face is 30·sin30° = 15, so an unscaled thumb outmuscles the
+        /// mountain and a held lean spirals the stream in place — traced doing that for 70 of one
+        /// run's 75 seconds. Scaling authority by speed fixes it, but it also costs the player the
+        /// ability to route water deliberately, which is the other half of the game. This measures
+        /// both halves against each other instead of trading one away by eye.
+        ///
+        /// SteerFullSpeed = 0 is the unscaled arm, i.e. the behaviour before any of this.
+        /// </summary>
+        [MenuItem("RILL/Run Headless Steering Sweep", false, 64)]
+        public static void RunHeadlessSteerSweep() { SweepSteering(24, new[] { 0f, 3f, 5f, 7f, 9f, 12f }); }
+
+        /// <summary>
+        /// The same sweep at session length. A 24-run arm contains about 5 aimed runs, so every
+        /// aiming number in the short sweep is noise — and aiming is exactly the half of the game
+        /// that scaling steering authority is suspected of costing. 150 runs gives ~36.
+        /// </summary>
+        [MenuItem("RILL/Run Headless Steering Sweep (long)", false, 65)]
+        public static void RunHeadlessSteerSweepLong() { SweepSteering(150, new[] { 0f, 7f, 11f }); }
+
+        static void SweepSteering(int runs, float[] arms)
         {
             var log = new StringBuilder();
-            var config = new GameConfig();
+            log.AppendFormat("=== steering authority sweep — {0} runs per arm, same seed, same bot ===\n", runs);
+            log.AppendLine("  full@   sea  timeout  pooled  inBasin   dist/run  descent  sed/run   toSea   aimedMiss  aimedNear  delivered");
+            foreach (float s in arms)
+            {
+                var cfg = new GameConfig { SteerFullSpeed = s };
+                var sum = new Summary();
+                PlayBiome(runs, Biome.Sandstone, cfg, sum);
+                log.AppendFormat("  {0,5:0.0}  {1,4}  {2,7}  {3,6}  {4,7}   {5,7:0} m  {6,6:0} m  {7,6:0} m³  {8,6:0} m³  {9,8:0} m  {10,8:0} m  {11,7}/{12}\n",
+                    s, sum.Sea, sum.TimedOut, sum.Pooled, sum.StoppedInBasin, sum.DistancePerRun, sum.Descent,
+                    sum.SedimentPerRun, sum.ToSea, sum.AimedMiss, sum.AimedClosest, sum.AimedDelivered, sum.AimedRuns);
+            }
+            Debug.Log(log.ToString());
+        }
+
+        static float SlopeAt(RillWorld w, Vector2 xz)
+        {
+            float slope;
+            w.Field.DownhillWorld(xz.x, xz.y, out slope);
+            return slope;
+        }
+
+        class StopStats
+        {
+            public int Count, InBasin;
+            public float Slope, Water, Polish, Crawl, Volume;
+        }
+
+        static StringBuilder PlayBiome(int Runs, Biome biome, GameConfig config = null, Summary summary = null)
+        {
+            var log = new StringBuilder();
+            if (config == null) config = new GameConfig();
             config.Biome = biome;
             var world = RillWorld.Create(config, 20260726u, biome);
 
@@ -156,8 +217,17 @@ namespace Rill.EditorTools
             float distanceAfterCrossing = 0f;
             float aimedMissDistance = 0f;
             float strandedVolume = 0f, totalDescent = 0f, totalStopSlope = 0f;
+            int hollowsFilled = 0, runsThatFilled = 0;
+            float hollowVolume = 0f;
             var stopBasinHits = new Dictionary<int, int>();
             var biomeHeadlineCounts = new Dictionary<string, int>();
+            // A "Pooled" ending covers three different failures — sat down in a lake, sank into a
+            // pit it dug, or seized up on a slope the terminal-speed identity says should still
+            // carry it at ~6 m/s — and they need opposite fixes. Split the ending by what the
+            // ground under the stop point was actually doing.
+            var stopDetail = new Dictionary<RunEnding, StopStats>();
+            var trace = new List<string>(128);
+            int tracesPrinted = 0;
 
             for (int run = 1; run <= Runs; run++)
             {
@@ -220,8 +290,19 @@ namespace Rill.EditorTools
 
                 int steps = 0;
                 float closestApproach = float.MaxValue;
+                // A once-a-second trace of the head, kept for every run and printed only for the
+                // first couple that end badly. End-of-run aggregates said two contradictory things
+                // about a TimedOut run — terminal speed 23 m/s where it stopped, 2.1 m/s averaged
+                // over its 75 s — and no summary statistic can tell you which second went wrong.
+                trace.Clear();
                 while (sim.Running && steps++ < 20000)
                 {
+                    if (steps % 90 == 1)
+                        trace.Add(string.Format("{0,5:0.0}s {1,6:0.0} m/s  vol {2,4:0} m³  h {3,6:0.0} m  at ({4,7:0.0},{5,7:0.0})  slope {6:0.00}  polish {7:0.00}  water {8:0.00}",
+                            sim.Elapsed, sim.Head.Speed, sim.Head.Volume, sim.Head.Height,
+                            sim.Head.Pos.x, sim.Head.Pos.y,
+                            SlopeAt(world, sim.Head.Pos), world.Field.SamplePolishWorld(sim.Head.Pos.x, sim.Head.Pos.y),
+                            world.Field.SampleWaterWorld(sim.Head.Pos.x, sim.Head.Pos.y)));
                     if (intentional)
                     {
                         float d = (sim.Head.Pos - destination).magnitude;
@@ -246,12 +327,35 @@ namespace Rill.EditorTools
                 strandedVolume += sim.VolumeAtEnd;
                 inWater += sim.InWaterSteps;
                 throughFlow += sim.ThroughFlowSteps;
+                hollowsFilled += sim.HollowsFilled;
+                hollowVolume += sim.HollowVolume;
+                if (sim.HollowsFilled > 0) runsThatFilled++;
                 if (sim.CrossedAnyBasin)
                 {
                     crossingRuns++;
                     distanceAfterCrossing += sim.DistanceAfterCrossing;
                     if (sim.Ending == RunEnding.ReachedSea) crossingToSea++;
                 }
+                if (sim.Ending == RunEnding.TimedOut && tracesPrinted < 2)
+                {
+                    tracesPrinted++;
+                    log.AppendFormat("--- trace of run {0} ({1}, {2:0} m travelled) ---\n", run, sim.Ending, sim.Distance);
+                    for (int t = 0; t < trace.Count; t++) log.Append("    ").AppendLine(trace[t]);
+                    log.AppendLine("--- end trace ---");
+                }
+
+                if (!stopDetail.ContainsKey(sim.Ending)) stopDetail[sim.Ending] = new StopStats();
+                {
+                    var ss = stopDetail[sim.Ending];
+                    ss.Count++;
+                    ss.Slope += sim.SlopeAtEnd;
+                    ss.Water += sim.WaterAtEnd;
+                    ss.Polish += sim.PolishAtEnd;
+                    ss.Crawl += sim.CrawlSeconds;
+                    ss.Volume += sim.VolumeAtEnd;
+                    if (stopBasin != null) ss.InBasin++;
+                }
+
                 if (stopBasin != null)
                 {
                     stoppedInBasin++;
@@ -310,6 +414,26 @@ namespace Rill.EditorTools
                 }
             }
 
+            if (summary != null)
+            {
+                foreach (var kv in endings)
+                {
+                    if (kv.Key == RunEnding.ReachedSea) summary.Sea = kv.Value;
+                    else if (kv.Key == RunEnding.TimedOut) summary.TimedOut = kv.Value;
+                    else if (kv.Key == RunEnding.Pooled) summary.Pooled = kv.Value;
+                }
+                summary.StoppedInBasin = stoppedInBasin;
+                summary.DistancePerRun = totalDistance / Runs;
+                summary.Descent = totalDescent / Runs;
+                summary.SedimentPerRun = totalSediment / Runs;
+                summary.ToSea = toSea;
+                summary.AimedRuns = aimedRuns;
+                summary.AimedDelivered = aimedDelivered;
+                summary.AimedMiss = aimedRuns > aimedHits ? aimedMissDistance / (aimedRuns - aimedHits) : 0f;
+                summary.AimedClosest = aimedRuns > 0 ? aimedClosest / aimedRuns : 0f;
+                summary.HollowVolume = hollowVolume;
+            }
+
             log.AppendLine("--- after " + Runs + " runs ---");
             foreach (var kv in endings) log.AppendFormat("  {0,-12} {1}\n", kv.Key, kv.Value);
             log.AppendFormat("  sediment moved   {0:n0} m³ (avg {1:n0}/run)\n", totalSediment, totalSediment / Runs);
@@ -322,7 +446,24 @@ namespace Rill.EditorTools
             log.AppendFormat("  descent          avg {0:0.0} m of {1:0.0} m available\n",
                 totalDescent / Runs, world.SummitWorld.y - world.Field.SeaLevel);
             log.AppendFormat("  slope at stop    avg {0:0.000} (tan)\n", totalStopSlope / Runs);
+            foreach (var kv in stopDetail)
+            {
+                var s = kv.Value;
+                // Terminal speed on this ground, from the identity the flow constants were chosen
+                // from: g*sin(theta)/drag. If a run stopped where this number is several m/s, the
+                // stop is not physics — it is something eating the momentum that is not in the model.
+                float sl = s.Slope / s.Count;
+                float drag = Mathf.Lerp(config.DragFresh, config.DragPolished, s.Polish / s.Count)
+                             + (s.Water / s.Count > 0.05f ? 2.5f : 0f);
+                float terminal = config.Gravity * sl / Mathf.Sqrt(1f + sl * sl) / Mathf.Max(drag, 1e-3f);
+                log.AppendFormat("    {0,-11} x{1,-3} in basin {2,-3} slope {3:0.000}  water {4:0.00} m  polish {5:0.00}  " +
+                                 "terminal {6:0.0} m/s  crawled {7:0.0}s  left {8:0} m³\n",
+                    kv.Key, s.Count, s.InBasin, sl, s.Water / s.Count, s.Polish / s.Count,
+                    terminal, s.Crawl / s.Count, s.Volume / s.Count);
+            }
             log.AppendFormat("  steps in water   {0:n0}, of which through-flow {1:n0}\n", inWater, throughFlow);
+            log.AppendFormat("  hollows filled   {0} across {1} of {2} runs, {3:n0} m³ of the runs' own water spent ({4:0.0}/run)\n",
+                hollowsFilled, runsThatFilled, Runs, hollowVolume, hollowVolume / Runs);
             log.AppendFormat("  basin crossings  {0} runs crossed a full lake; {1} of those reached the sea; avg {2:0} m travelled after crossing\n",
                 crossingRuns, crossingToSea, crossingRuns > 0 ? distanceAfterCrossing / crossingRuns : 0f);
             log.AppendFormat("  aimed at a basin {0} runs, reached it {1} ({2:0}%), avg miss {3:0} m\n",
@@ -354,6 +495,19 @@ namespace Rill.EditorTools
                 var probe = new Rng(world.Seed);
                 var reach = DownhillReachable(world, world.SpawnPoint(ref probe), climb);
                 int reachable = 0;
+                // The load-bearing structural question, and it has never been asked: is the sea
+                // reachable from the spring at all without climbing? "Water reaches the sea 2 times
+                // in 24" is a tuning result if the answer is yes and a generation bug if it is no,
+                // and every flow constant in the game would be tuned against the wrong problem.
+                int seaCells = 0, reachedSeaCells = 0;
+                for (int i = 0; i < world.Field.Count; i++)
+                {
+                    if (world.Field.Height[i] > world.Field.SeaLevel + config.SeaMargin) continue;
+                    seaCells++;
+                    if (reach[i]) reachedSeaCells++;
+                }
+                log.AppendFormat("  sea (climb {0:0} m): {1} of {2:n0} shore cells reachable from the spring\n",
+                    climb, reachedSeaCells, seaCells);
                 log.AppendFormat("  reach (climb {0:0} m): ", climb);
                 for (int i = 0; i < world.Basins.Basins.Count; i++)
                 {
@@ -414,6 +568,25 @@ namespace Rill.EditorTools
             }
             log.AppendLine();
             log.AppendFormat("  terrain delta    min {0:0.00} m, max {1:0.00} m vs virgin\n", MinDelta(world), MaxDelta(world));
+            {
+                // Closed depressions too small for the basin lattice to name (under 24 cells). The
+                // lattice ignores them on purpose — 47 nameless puddles is not a progression track —
+                // but the flow simulation does not, and a head that falls into one has no fill-and-
+                // spill to get it out again. They are the traps, and nothing has ever counted them.
+                var filled = world.Basins.FilledSurface;
+                int cells = 0; float deepest = 0f;
+                for (int i = 0; i < world.Field.Count; i++)
+                {
+                    if (world.Field.Height[i] <= world.Field.SeaLevel) continue;
+                    if (world.Basins.BasinIdAt(i) >= 0) continue;
+                    float d = filled[i] - world.Field.Height[i];
+                    if (d <= 0.15f) continue;
+                    cells++;
+                    if (d > deepest) deepest = d;
+                }
+                log.AppendFormat("  unnamed sinks    {0:n0} cells outside every named basin hold water, deepest {1:0.00} m\n",
+                    cells, deepest);
+            }
             log.AppendFormat("  weather          {0}\n", weather.Kind);
             if (biomeHeadlineCounts.Count == 0) log.AppendLine("  biome events     NONE — biome rules produced nothing");
             else

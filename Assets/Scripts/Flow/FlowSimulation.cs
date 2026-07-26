@@ -57,6 +57,60 @@ namespace Rill.Flow
         public int ThroughFlowSteps { get; private set; }
 
         /// <summary>
+        /// Conditions at the exact cell the run died on, and how long it had been crawling before
+        /// it did. A "Pooled" ending is the same log line whether the water sat down in a lake, sank
+        /// into a pit it dug, or ground to a halt on a slope that the terminal-speed identity says
+        /// should still have carried it at 5 m/s — three failures with three different fixes.
+        /// </summary>
+        public float SlopeAtEnd { get; private set; }
+        public float WaterAtEnd { get; private set; }
+        public float PolishAtEnd { get; private set; }
+        /// <summary>Seconds between the last moment the head was moving usefully and the ending.</summary>
+        public float CrawlSeconds { get; private set; }
+
+        const float CrawlSpeed = 3f;
+        float _lastSlope, _lastWater, _lastPolish, _lastFastElapsed;
+
+        /// <summary>Hollows this run filled to their lip and left over, and what that cost in water.</summary>
+        public int HollowsFilled { get; private set; }
+        public float HollowVolume { get; private set; }
+
+        // A run that stops is a run that ended. A run that neither moves nor ends is the worst
+        // thing this game can do with seventy-five seconds, and it was happening to 4 runs in 24.
+        // Traced: run 3 spent 68 of its 75 s oscillating between 69 m and 84 m of elevation at
+        // 0.1-3 m/s, polishing the same two metres of ground from 0.10 to 0.99, and never once
+        // spent a continuous 0.9 s under PoolSpeedThreshold — so the Pooled ending never fired
+        // either. Run 10 was worse: its stall elevation *rose* every second, because a slow head
+        // is over its sediment capacity and deposits, which buries it deeper.
+        //
+        // The cause is that 675 cells of this mountain sit in closed depressions too small for the
+        // basin lattice to name (it ignores anything under 24 cells, on purpose), plus whatever
+        // potholes a run digs mid-flight that no Rebuild has seen yet. Real water in a hollow does
+        // not oscillate: it fills the hollow and leaves over the lowest point of the rim. The basin
+        // lattice already models exactly that; this is the same thing for the hollows it declines
+        // to name.
+        // Stuck is measured as net displacement, not as speed. The first version of this tested
+        // instantaneous speed and missed the case it was written for: a head oscillating across a
+        // hollow reads 0.5-2.7 m/s the whole time and never spends a continuous second slow, while
+        // covering four metres of ground in forty seconds. Path length is not progress.
+        const float StuckWindow = 2.5f;
+        const float StuckRadius = 5f;    // less than 2 m/s of net progress over the window
+        const int MaxEscapesPerRun = 24;
+        const int EscapeSearchCells = 900;
+        const float EscapeMaxRise = 6f;      // above this it is a real basin, and a lake should swallow the run
+        const float EscapeMinDrop = 0.25f;   // the lip has to actually lead somewhere downhill
+        // Overtopping a lip cuts it. This is rule 2 at the scale of a pothole, and it is what stops
+        // a trap being a trap forever: the hollow that ate three runs is breached by the fourth.
+        const float LipBreachDepth = 0.22f;
+
+        Vector2 _stuckAnchor;
+        float _stuckAnchorTime;
+        int _escapes;
+        MinHeap _escapeHeap;
+        readonly List<int> _escapeVisited = new List<int>(1024);
+        readonly HashSet<int> _escapeSeen = new HashSet<int>();
+
+        /// <summary>
         /// Distance travelled after the run's last basin crossing. A crossing count only proves the
         /// branch ran; this proves it *carried the run somewhere*, which is the distinction that
         /// cost this project the most time (see docs/VERIFICATION.md).
@@ -130,6 +184,13 @@ namespace Rill.Flow
             Ending = RunEnding.Abandoned;
             Elapsed = Distance = TopSpeed = WaterToSea = SedimentMoved = VolumeAtEnd = 0f;
             InWaterSteps = ThroughFlowSteps = 0;
+            SlopeAtEnd = WaterAtEnd = PolishAtEnd = CrawlSeconds = 0f;
+            _lastSlope = _lastWater = _lastPolish = _lastFastElapsed = 0f;
+            HollowsFilled = 0;
+            HollowVolume = 0f;
+            _stuckAnchor = Head.Pos;
+            _stuckAnchorTime = 0f;
+            _escapes = 0;
             DistanceAfterCrossing = _distanceAtLastCrossing = 0f;
             CrossedAnyBasin = false;
             _crossed.Clear();
@@ -170,6 +231,7 @@ namespace Rill.Flow
             float waterHere = _f.SampleWaterWorld(Head.Pos.x, Head.Pos.y);
             float hardness = _world.HardnessAt(Head.Pos.x, Head.Pos.y);
             float ice = _f.SampleIceWorld(Head.Pos.x, Head.Pos.y);
+            _lastSlope = slope; _lastWater = waterHere; _lastPolish = polish;
 
             // --- gravity. sin(theta) form so a 100% slope is not twice as fast as a 50% one.
             float slopeAccel = _cfg.Gravity * slope / Mathf.Sqrt(1f + slope * slope);
@@ -182,7 +244,13 @@ namespace Rill.Flow
                 Vector2 right = new Vector2(fwd.y, -fwd.x);
                 Vector2 offset = _steerTarget - Head.Pos;
                 float lateral = Mathf.Clamp(Vector2.Dot(offset, right) / _cfg.SteerRange, -1f, 1f);
-                Head.Vel += right * (lateral * _cfg.SteerAccel * dt);
+                // Authority is bought with momentum. Slow water is stubborn; fast water is
+                // responsive. Without this the thumb outmuscles the mountain — SteerAccel is 20
+                // against 15 m/s² of downhill pull on a 30° face — and a held lean spirals the
+                // stream in place instead of steering it, which is not a punishment the player can
+                // read, only a run that stops happening.
+                float authority = Mathf.Clamp01(Head.Vel.magnitude / Mathf.Max(_cfg.SteerFullSpeed, 0.01f));
+                Head.Vel += right * (lateral * _cfg.SteerAccel * authority * dt);
                 // Fighting gravity bleeds momentum. Expert play is knowing when NOT to touch.
                 float bleed = 1f - _cfg.SteerSpeedCost * Mathf.Abs(lateral) * dt;
                 Head.Vel *= Mathf.Max(0f, bleed);
@@ -232,6 +300,7 @@ namespace Rill.Flow
                 speed = _cfg.MaxSpeed;
             }
             if (speed > TopSpeed) TopSpeed = speed;
+            if (speed > CrawlSpeed) _lastFastElapsed = Elapsed;
 
             // --- move
             Vector2 next = Head.Pos + Head.Vel * dt;
@@ -344,6 +413,18 @@ namespace Rill.Flow
                 Finish(RunEnding.SoakedAway, deliverVolume: false);
                 return;
             }
+            // Gone nowhere for two and a half seconds: the head is in a hollow, not on a journey.
+            // Give it the fill-and-spill that real water gets, before the 75-second clock is the
+            // thing that resolves it. Checked before the pool ending because a hollow the run can
+            // afford to fill is not an ending at all.
+            if (Elapsed - _stuckAnchorTime >= StuckWindow)
+            {
+                bool stuck = (Head.Pos - _stuckAnchor).sqrMagnitude < StuckRadius * StuckRadius;
+                _stuckAnchor = Head.Pos;
+                _stuckAnchorTime = Elapsed;
+                if (stuck && _escapes < MaxEscapesPerRun && EscapeHollow()) return;
+            }
+
             if (speed < _cfg.PoolSpeedThreshold)
             {
                 _poolTimer += dt;
@@ -464,12 +545,179 @@ namespace Rill.Flow
             if ((Head.World - Path[Path.Count - 1]).sqrMagnitude > 0.36f) Path.Add(Head.World);
         }
 
+        /// <summary>
+        /// The head has stalled in a hollow. Find the lowest point of the rim by a minimax flood
+        /// outward — the classic "least maximum elevation" path, which is what a rising water
+        /// surface finds — fill the hollow to that level out of the run's own volume, cut the lip,
+        /// and let the stream swim across the new pond and leave over it.
+        ///
+        /// Returns true when it has taken responsibility for the step, including the case where the
+        /// run cannot afford to fill the hollow, which is a genuine ending rather than a stall.
+        /// </summary>
+        bool EscapeHollow()
+        {
+            int n = _f.Size;
+
+            // Walk down to the floor of the hollow before flooding out of it. Seeding the flood at
+            // wherever the head happened to be caught — usually part-way up one side, since it is
+            // oscillating — makes the search find the hollow's *own* floor as an outlet and
+            // conclude there is no rim to cross. Measured: the escape fired 4 times in 24 runs
+            // instead of the ~95 the same runs needed.
+            //
+            // The walk is deliberately short. A head on an open slope has no floor within a few
+            // cells, and steepest descent would happily wander off to some real depression tens of
+            // metres away and fill a hollow the run is not in.
+            int start = _f.NearestIndex(Head.Pos.x, Head.Pos.y);
+            bool atFloor = false;
+            for (int s = 0; s < 6 && !atFloor; s++)
+            {
+                int cx = start % n, cz = start / n;
+                int low = -1;
+                float lowH = _f.Height[start];
+                for (int k = 0; k < 8; k++)
+                {
+                    int nx = cx + (k == 0 || k == 4 || k == 5 ? 1 : k == 1 || k == 6 || k == 7 ? -1 : 0);
+                    int nz = cz + (k == 2 || k == 4 || k == 6 ? 1 : k == 3 || k == 5 || k == 7 ? -1 : 0);
+                    if (nx < 0 || nz < 0 || nx >= n || nz >= n) continue;
+                    int ni = nz * n + nx;
+                    if (_f.Height[ni] < lowH) { lowH = _f.Height[ni]; low = ni; }
+                }
+                if (low < 0) atFloor = true; else start = low;
+            }
+            if (!atFloor) return false;   // still descending after six cells: an open slope, not a pit
+
+            float startH = _f.Height[start];
+
+            if (_escapeHeap == null) _escapeHeap = new MinHeap(1024);
+            _escapeHeap.Clear();
+            _escapeSeen.Clear();
+            _escapeVisited.Clear();
+            _escapeHeap.Push(startH, start);
+            _escapeSeen.Add(start);
+
+            int outlet = -1;
+            float lipLevel = startH;
+            float lvl;
+            int c;
+            while (_escapeHeap.Pop(out lvl, out c))
+            {
+                // Higher than a pothole rim: this is a real basin, and a lake is supposed to
+                // swallow the run rather than hand it a staircase out.
+                if (lvl - startH > EscapeMaxRise) break;
+
+                // Below the level the water had to reach to get here, and below where the head
+                // started: over the lip and heading down. This is where the pond would drain.
+                if (c != start && _f.Height[c] <= startH - EscapeMinDrop && _f.Height[c] < lvl - 1e-3f)
+                {
+                    outlet = c;
+                    lipLevel = lvl;
+                    break;
+                }
+
+                _escapeVisited.Add(c);
+                if (_escapeVisited.Count >= EscapeSearchCells) break;
+
+                int cx = c % n, cz = c / n;
+                for (int k = 0; k < 8; k++)
+                {
+                    int nx = cx + (k == 0 || k == 4 || k == 5 ? 1 : k == 1 || k == 6 || k == 7 ? -1 : 0);
+                    int nz = cz + (k == 2 || k == 4 || k == 6 ? 1 : k == 3 || k == 5 || k == 7 ? -1 : 0);
+                    if (nx < 0 || nz < 0 || nx >= n || nz >= n) continue;
+                    int ni = nz * n + nx;
+                    if (!_escapeSeen.Add(ni)) continue;
+                    float h = _f.Height[ni];
+                    _escapeHeap.Push(h > lvl ? h : lvl, ni);
+                }
+            }
+
+            // No rim within reach: the water genuinely cannot leave here. That is an ending, and
+            // saying so is the whole point — the alternative is the run grinding out its clock.
+            if (outlet < 0)
+            {
+                Finish(RunEnding.Pooled, deliverVolume: false);
+                return true;
+            }
+
+            // The water never had to climb to get out, so this is not a hollow — the head is merely
+            // slow, on ground that still leads downhill. Leaving it alone matters: without this
+            // test a stuck-looking head on an open slope would be handed a free hop to the nearest
+            // lower cell, which is a speed boost the player did not earn and physics did not offer.
+            if (lipLevel <= startH + 1e-3f) return false;
+
+            // Water already standing in the hollow counts toward the fill. Without this, a head
+            // that falls back into a pond it just paid for is charged for the same water twice,
+            // which would quietly create volume from nothing.
+            float cellArea = _f.CellSize * _f.CellSize;
+            float fill = 0f;
+            for (int i = 0; i < _escapeVisited.Count; i++)
+            {
+                int cell = _escapeVisited[i];
+                float d = lipLevel - _f.Height[cell] - _f.Water[cell];
+                if (d > 0f) fill += d * cellArea;
+            }
+
+            // Filling costs real water. A run that keeps falling into holes runs out, which is the
+            // honest price and is also the lesson: the hollow you filled is shallower for next time.
+            if (fill > Head.Volume - _cfg.MinVolume)
+            {
+                Finish(RunEnding.Pooled, deliverVolume: false);
+                return true;
+            }
+
+            Head.Volume -= fill;
+            HollowsFilled++;
+            HollowVolume += fill;
+            _escapes++;
+
+            // The pond is real while the run lasts. At the next Rebuild, GatherExistingWater routes
+            // any of it that is not inside a named basin downhill into one, so the volume is
+            // conserved rather than quietly deleted.
+            int minX = int.MaxValue, minZ = int.MaxValue, maxX = int.MinValue, maxZ = int.MinValue;
+            for (int i = 0; i < _escapeVisited.Count; i++)
+            {
+                int cell = _escapeVisited[i];
+                float d = lipLevel - _f.Height[cell];
+                if (d <= 0f) continue;
+                if (d > _f.Water[cell]) _f.Water[cell] = d;
+                int x = cell % n, z = cell / n;
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+            }
+            if (minX <= maxX) _f.MarkDirty(minX, minZ, maxX, maxZ);
+
+            Vector2 outletXZ = _f.GridToWorldXZ(outlet % n, outlet / n);
+
+            // Overtopping cuts the lip. Rule 2 at the scale of a pothole, and the reason a trap
+            // stops being a trap: the hollow that ate three runs is breached by the fourth.
+            SedimentMoved += _f.AddBrush(_f.Height, outletXZ.x, outletXZ.y, 1.3f, -LipBreachDepth);
+
+            // Swim to the lip rather than jump to it. Setting Head.Pos directly is correct as
+            // physics and reads as a teleport — the same defect that had to be fixed for basin
+            // crossings, so this reuses that machinery rather than reintroducing it.
+            _crossingTo = outletXZ;
+            _crossing = true;
+            float drop = Mathf.Max(0f, lipLevel - _f.Height[outlet]);
+            _crossingExitSpeed = Mathf.Clamp(Mathf.Sqrt(2f * 9.81f * drop), _cfg.StartSpeed, _cfg.MaxSpeed * 0.5f);
+
+            Vector2 toOutlet = _crossingTo - Head.Pos;
+            if (toOutlet.sqrMagnitude < 1e-6f) toOutlet = new Vector2(0f, -1f);
+            Head.Vel = toOutlet.normalized * CrossingDriftSpeed;
+
+            _poolTimer = 0f;
+            if (Splash != null) Splash(Head.World, 0.35f);
+            return true;
+        }
+
         void Finish(RunEnding ending, bool deliverVolume)
         {
             Running = false;
             Ending = ending;
             VolumeAtEnd = Mathf.Max(0f, Head.Volume);
             DistanceAfterCrossing = CrossedAnyBasin ? Distance - _distanceAtLastCrossing : 0f;
+            SlopeAtEnd = _lastSlope;
+            WaterAtEnd = _lastWater;
+            PolishAtEnd = _lastPolish;
+            CrawlSeconds = Mathf.Max(0f, Elapsed - _lastFastElapsed);
 
             // Whatever rock is still in suspension settles where the water stopped.
             if (Head.Sediment > 1e-4f)
