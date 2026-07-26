@@ -78,10 +78,24 @@ treatment; the ribbon reads as the brightest thing in frame.
 ### L-012 · Hand playtest against the kill criterion
 **Why** — The design document sets an explicit M3 kill criterion: if playtesting does not produce
 unprompted "one more run" behaviour, redesign *before* art exists. Nothing in this repo speaks to
-it. Every metric so far is a proxy for fun, and proxies have been wrong before.
+it. Every metric so far is a proxy for fun, and in this project proxies have been wrong repeatedly —
+three separate "the simulation is broken" conclusions were flaws in the test harness.
 **Done when** — At least one person has played 20+ runs unprompted, and the reaction is recorded
 honestly — including if it is boring.
-**Evidence needed** — Written notes. Negative results are the valuable ones here.
+**Evidence needed** — Written notes, pasted verbatim into the close entry. Negative results are the
+valuable ones here.
+**Blocked by** — **A human.** This is the one loop that cannot be closed from a terminal, and it
+cannot be closed by the person who built the thing playing it themselves either: the tester must not
+already know that the mountain remembers, because discovering that *is* the game.
+**Ready** — Protocol written at [`docs/PLAYTEST.md`](docs/PLAYTEST.md): what not to say (most of it),
+the single control hint that is allowed, a recording template, and a table of known confounds so
+placeholder art and missing onboarding are not misread as the loop failing. Run it on a **fresh save
+slot** — a mountain with 150 runs of channels already carved is a different game from a virgin one,
+and first-session feel is what the criterion is about.
+**Risk of a false negative** — L-018 (nothing explains the first 30 seconds) is still open, and a
+tester who never discovers they can steer will find the game boring for a reason that has nothing to
+do with the core loop. The protocol's one permitted sentence exists to isolate that. If the result
+is negative, check it was not just this.
 
 ### L-014 · Sense of speed
 **Why** — The momentum economy is the game's skill ceiling, and at 24 m/s it currently looks the
