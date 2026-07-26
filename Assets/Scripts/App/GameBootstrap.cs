@@ -225,15 +225,58 @@ namespace Rill.App
             go.transform.SetParent(transform, false);
             float e = Config.WorldExtent * 3f;
 
-            var mesh = new Mesh { name = "Sea" };
-            mesh.vertices = new[]
+            // Subdivided, not a single quad. The shader reads depth and coverage from vertex
+            // colour, so four corners could only ever produce one flat tone across the whole sea —
+            // which is exactly what it looked like. On a grid, each vertex can carry its own real
+            // depth (sea level minus the ground beneath it), giving the coast the same
+            // shallow-to-deep gradient and soft edge the lakes get, for free, from the same shader.
+            const int Grid = 96;
+            var verts = new Vector3[(Grid + 1) * (Grid + 1)];
+            var cols = new Color32[verts.Length];
+            float half = World.Field.WorldExtent * 0.5f;
+            float seaLevel = World.Field.SeaLevel;
+
+            for (int gz = 0; gz <= Grid; gz++)
             {
-                new Vector3(-e, 0f, -e), new Vector3(e, 0f, -e),
-                new Vector3(e, 0f, e), new Vector3(-e, 0f, e)
-            };
-            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
-            var deep = new Color32(255, 235, 255, 235);
-            mesh.colors32 = new[] { deep, deep, deep, deep };
+                for (int gx = 0; gx <= Grid; gx++)
+                {
+                    float wx = Mathf.Lerp(-e, e, gx / (float)Grid);
+                    float wz = Mathf.Lerp(-e, e, gz / (float)Grid);
+                    verts[gz * (Grid + 1) + gx] = new Vector3(wx, 0f, wz);
+
+                    // Beyond the heightfield there is no ground to sample: open ocean, full depth.
+                    float depth = 40f;
+                    if (Mathf.Abs(wx) < half && Mathf.Abs(wz) < half)
+                        depth = seaLevel - World.Field.SampleHeightWorld(wx, wz);
+
+                    byte d = (byte)(Mathf.Clamp01(depth / 6f) * 255f);
+                    byte a = (byte)(Mathf.Clamp01(depth / 1.5f) * Mathf.Clamp01(0.45f + depth * 0.3f) * 255f);
+                    cols[gz * (Grid + 1) + gx] = new Color32(255, d, 255, a);
+                }
+            }
+
+            var tris = new int[Grid * Grid * 6];
+            int t = 0;
+            for (int gz = 0; gz < Grid; gz++)
+            {
+                for (int gx = 0; gx < Grid; gx++)
+                {
+                    int v0 = gz * (Grid + 1) + gx;
+                    int v1 = v0 + 1;
+                    int v2 = v0 + Grid + 1;
+                    int v3 = v2 + 1;
+                    tris[t++] = v0; tris[t++] = v3; tris[t++] = v1;
+                    tris[t++] = v0; tris[t++] = v2; tris[t++] = v3;
+                }
+            }
+
+            var mesh = new Mesh { name = "Sea" };
+            mesh.indexFormat = verts.Length > 65535
+                ? UnityEngine.Rendering.IndexFormat.UInt32
+                : UnityEngine.Rendering.IndexFormat.UInt16;
+            mesh.vertices = verts;
+            mesh.triangles = tris;
+            mesh.colors32 = cols;
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
 

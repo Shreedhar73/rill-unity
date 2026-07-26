@@ -84,7 +84,14 @@ namespace Rill.Render
                     _verts.Add(new Vector3((x - n * 0.5f) * _f.CellSize, surface, (z - n * 0.5f) * _f.CellSize));
 
                     // Alpha carries depth: shallows are translucent, deep water is dense.
-                    byte a = (byte)(Mathf.Clamp01(0.25f + d * 0.55f) * 255f);
+                    //
+                    // The ring of vertices that only exist because a *neighbour* holds water sits
+                    // at d = 0, and a flat 0.25 floor there drew the lake edge at 25% opacity —
+                    // a visible hard rim, which is why lakes read as discs laid on the mountain
+                    // rather than water lying in it. The first factor takes alpha to zero exactly
+                    // at the waterline, so the edge dissolves instead of stopping.
+                    float shore = Mathf.Clamp01(d / 0.75f);
+                    byte a = (byte)(shore * Mathf.Clamp01(0.45f + d * 0.45f) * 255f);
                     byte depthByte = (byte)(Mathf.Clamp01(d / 6f) * 255f);
                     _colors.Add(new Color32(255, depthByte, 255, a));
                 }

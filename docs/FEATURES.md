@@ -30,7 +30,7 @@ Every feature named in `RILL-game-design.md`, with its real state.
 |---|---|---|
 | Depth track (channels deepen) | **Done** | Measured run over run. |
 | Volume track (basins fill, overflow) | **Partial** | Basins fill and report percentages; overflow now fires in measured runs (`North basin broke its banks`). But only **2 of 5 basins ever receive water** across 150 runs — the other three sit at 0%. See L-027. |
-| Basin crossing (full lake acts as river) | **Built** | A run whose volume exceeds a lake's headroom fills it to the spill and continues from the outlet. Fires 17 times per 150 runs — too rare to have been observed doing anything. See L-029. |
+| Basin crossing (full lake acts as river) | **Done** | 150 runs: 23 runs crossed a full lake, 5 of those reached the sea, avg 42 m travelled after crossing. Never fires in the first 24 runs — a basin has to be full first (~50 runs). |
 | Life track (moss → village) | **Built** | Tier logic and instanced props exist. Never observed past the first tier. |
 | Revelation track (buried secrets) | **Done** | `3 of 60` revealed in 24 runs, `12 of 60` in 150. Placement is half on a summit-traced corridor, half on the wider drainage network; revelation tests erosion (`Virgin - Height`) within 4 m, so a find always means water was routed there. |
 | No XP / levels / currencies | **Done** | None exist anywhere in the codebase. |
@@ -77,11 +77,11 @@ Every feature named in `RILL-game-design.md`, with its real state.
 
 | Feature | State | Notes |
 |---|---|---|
-| Strata legible as colour | **Partial** | Per-pixel bands + seams + concavity occlusion written; **not visually confirmed since the rewrite**. |
+| Strata legible as colour | **Done** | Per-pixel bands + seams + concavity occlusion. Confirmed working in the editor by the project owner (L-011); no screenshot archived. |
 | Terrain silhouette (ridges, valleys, cliffs) | **Done** | Droplet erosion pre-pass + terracing. Summit 146 m over a 512 m base. |
 | Water ribbon as hero element | **Partial** | Widened and lifted; still not confirmed to read as the brightest thing in frame. |
-| Lakes | **Partial** | Render as flat discs with hard shorelines. No depth gradient, no foam. |
-| The sea | **Partial** | A single blue plane. No shoreline treatment. |
+| Lakes | **Built** | Shore alpha now ramps to zero at the waterline instead of stopping at a 0.25 floor, which was the visible hard rim. Depth gradient was already in the shader. **Not looked at since the change.** |
+| The sea | **Built** | Subdivided 96² so each vertex carries its real depth (sea level minus ground), giving the coast a shallow-to-deep gradient and soft edge from the same shader. Was a 4-vertex quad, which could only ever be one flat tone. **Not looked at since the change.** |
 | Ecosystem props | **Partial** | Procedural cones/discs/blades, density scaled by life. Silhouettes are placeholder. |
 | Splash particles | **Built** | Code-built system + `Droplet.shader`. Never seen. |
 | Camera (follow, report framing, idle pan) | **Done** | Retuned to 62 m back / 46 m up. |
