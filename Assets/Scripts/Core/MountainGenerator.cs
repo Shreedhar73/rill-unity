@@ -448,30 +448,66 @@ namespace Rill.Core
             }
         }
 
+        /// <summary>
+        /// D8 flow accumulation: how many cells drain through each cell. This is the mountain's
+        /// drainage network, and it is where runs actually go.
+        /// </summary>
+        static float[] FlowAccumulation(HeightField f)
+        {
+            int n = f.Size;
+            var h = f.Height;
+            var acc = new float[f.Count];
+            for (int i = 0; i < acc.Length; i++) acc[i] = 1f;
+
+            // Highest first, so a cell's own total is final before it donates downstream.
+            var order = new int[f.Count];
+            for (int i = 0; i < order.Length; i++) order[i] = i;
+            System.Array.Sort(order, (a, b) => h[b].CompareTo(h[a]));
+
+            for (int k = 0; k < order.Length; k++)
+            {
+                int c = order[k];
+                int cx = c % n, cz = c / n;
+                int best = -1;
+                float bestDrop = 0f;
+                for (int q = 0; q < 8; q++)
+                {
+                    int nx = cx + (q == 0 || q == 4 || q == 5 ? 1 : q == 1 || q == 6 || q == 7 ? -1 : 0);
+                    int nz = cz + (q == 2 || q == 4 || q == 6 ? 1 : q == 3 || q == 5 || q == 7 ? -1 : 0);
+                    if (nx < 0 || nz < 0 || nx >= n || nz >= n) continue;
+                    int ni = nz * n + nx;
+                    float drop = h[c] - h[ni];
+                    if (drop > bestDrop) { bestDrop = drop; best = ni; }
+                }
+                if (best >= 0) acc[best] += acc[c];
+            }
+            return acc;
+        }
+
         static List<SecretSite> PlaceSecrets(HeightField f, StrataBand[] bands, Settings s, ref Rng rng)
         {
+            // Placement is locked to the drainage network, not biased toward it. The old rule
+            // accepted any concave cell, and accepted non-route cells 20% of the time anyway, so
+            // most sites sat where no run would ever pass: 0 of 60 were found in 24 runs, and the
+            // revelation track — one of the design's four — was invisible over any real session.
+            var acc = FlowAccumulation(f);
+            var sorted = new float[acc.Length];
+            System.Array.Copy(acc, sorted, acc.Length);
+            System.Array.Sort(sorted);
+            // Top 2% of cells by drainage area. On a 256² field that is ~1,300 cells of channel.
+            float channelThreshold = sorted[(int)(sorted.Length * 0.98f)];
+
             var list = new List<SecretSite>(s.SecretCount);
             int guard = 0;
-            while (list.Count < s.SecretCount && guard++ < s.SecretCount * 60)
+            while (list.Count < s.SecretCount && guard++ < s.SecretCount * 400)
             {
                 int x = rng.Range(8, f.Size - 8);
                 int z = rng.Range(8, f.Size - 8);
                 int i = z * f.Size + x;
                 float h = f.Height[i];
-                if (h < 6f) continue; // not under the sea
+                if (h < 6f) continue;                    // not under the sea
+                if (acc[i] < channelThreshold) continue; // not on a channel: nothing would ever find it
 
-                // Bias toward ground water plausibly crosses. Secrets scattered uniformly sit
-                // mostly on ridge tops and cliff faces, where no run will ever pass — a reveal
-                // the player cannot reach is not a secret, it is a rounding error. Concave ground
-                // is where channels form, so that is where things get buried.
-                Vector3 nrm = f.NormalAt(x, z);
-                float concavity = Concavity(f, x, z);
-                bool onLikelyRoute = concavity > 0.35f && nrm.y > 0.72f;
-                if (!onLikelyRoute && rng.Next01() < 0.8f) continue;
-
-                // Burial depth sets the price in play: under a metre for a lucky early find,
-                // up to six for something that takes weeks of routing the same channel.
-                float depth = rng.Range(0.8f, 6.0f);
                 SecretKind kind;
                 float roll = rng.Next01();
                 if (roll < 0.44f) kind = SecretKind.Fossil;
@@ -480,15 +516,25 @@ namespace Rill.Core
                 else if (roll < 0.93f) kind = SecretKind.Spring;
                 else kind = SecretKind.CaveMouth;
 
-                // Deep-plumbing secrets sit deeper: they are month-scale rewards.
-                if (kind == SecretKind.Spring || kind == SecretKind.CaveMouth) depth += 2.5f;
+                // Burial depth is the price in play, and it has to be payable. A run carves
+                // ~0.3-0.5 m at a cell it crosses, so a 0.8-6.0 m spread priced even the commonest
+                // find at several perfect repeats of the same line. Common kinds are now findable
+                // in a session; the plumbing-changing ones stay month-scale on purpose.
+                float depth;
+                switch (kind)
+                {
+                    case SecretKind.Fossil:
+                    case SecretKind.Geode: depth = rng.Range(0.35f, 1.6f); break;
+                    case SecretKind.Ruin: depth = rng.Range(1.2f, 3.0f); break;
+                    default: depth = rng.Range(3.5f, 6.5f); break;
+                }
 
                 bool tooClose = false;
                 for (int k = 0; k < list.Count; k++)
                 {
                     int c = list[k].Cell;
                     int ox = c % f.Size, oz = c / f.Size;
-                    if ((ox - x) * (ox - x) + (oz - z) * (oz - z) < 100) { tooClose = true; break; }
+                    if ((ox - x) * (ox - x) + (oz - z) * (oz - z) < 36) { tooClose = true; break; }
                 }
                 if (tooClose) continue;
 
