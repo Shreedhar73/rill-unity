@@ -111,23 +111,50 @@ namespace Rill.World
             int n = _f.Size;
             LifeTier before = _highestSeen;
 
-            for (int i = 0; i < _f.Count; i++)
+            for (int z = 0; z < n; z++)
             {
-                float moisture = Mathf.Max(_f.Wet[i], Mathf.Clamp01(_f.Water[i] * 2f));
-                float h = _f.Height[i];
-                if (h <= _f.SeaLevel) { _life[i] = 0f; continue; }
+                for (int x = 0; x < n; x++)
+                {
+                    int i = z * n + x;
+                    float h = _f.Height[i];
+                    if (h <= _f.SeaLevel) { _life[i] = 0f; continue; }
 
-                if (moisture >= cfg.LifeMoistureThreshold)
-                {
-                    // Growth accelerates near standing water and slows at altitude: the valley
-                    // greens first, exactly as the player expects, without being told.
-                    float altitudeFactor = Mathf.Clamp01(1f - h / Mathf.Max(cfg.PeakHeight, 1f) * 0.85f);
-                    float lakeBonus = _f.Water[i] > 0.05f ? 1.7f : 1f;
-                    _life[i] = Mathf.Min(6f, _life[i] + GrowthPerRun * moisture * altitudeFactor * lakeBonus);
-                }
-                else
-                {
-                    _life[i] = Mathf.Max(0f, _life[i] - DecayPerRun);
+                    // A filled basin drowns what grew in it. The old rule was the opposite — cells
+                    // under a lake counted as maximally moist and grew to tier 6 — but RebuildInstances
+                    // rightly refuses to draw props underwater, so a basin campaign ended with the
+                    // mountain's entire visible forest sunk out of sight: observed on a real save,
+                    // 128 living cells, every one of them under the brim-full North basin, and not a
+                    // tree on screen anywhere. Reported as "the trees are gone", which it was.
+                    float standing = _f.Water[i];
+                    if (standing > 0.25f)
+                    {
+                        _life[i] = Mathf.Max(0f, _life[i] - GrowthPerRun);
+                        continue;
+                    }
+
+                    float moisture = Mathf.Max(_f.Wet[i], Mathf.Clamp01(standing * 2f));
+
+                    // The shore drinks from the lake. This is where the drowned forest's growth
+                    // goes instead: a ring of reeds and trees at the waterline, which is the thing
+                    // a player who filled a basin can actually see.
+                    bool shore = (x > 0 && _f.Water[i - 1] > 0.1f)
+                              || (x < n - 1 && _f.Water[i + 1] > 0.1f)
+                              || (z > 0 && _f.Water[i - n] > 0.1f)
+                              || (z < n - 1 && _f.Water[i + n] > 0.1f);
+                    if (shore) moisture = 1f;
+
+                    if (moisture >= cfg.LifeMoistureThreshold)
+                    {
+                        // Growth accelerates near standing water and slows at altitude: the valley
+                        // greens first, exactly as the player expects, without being told.
+                        float altitudeFactor = Mathf.Clamp01(1f - h / Mathf.Max(cfg.PeakHeight, 1f) * 0.85f);
+                        float lakeBonus = (shore || standing > 0.05f) ? 1.7f : 1f;
+                        _life[i] = Mathf.Min(6f, _life[i] + GrowthPerRun * moisture * altitudeFactor * lakeBonus);
+                    }
+                    else
+                    {
+                        _life[i] = Mathf.Max(0f, _life[i] - DecayPerRun);
+                    }
                 }
             }
 
