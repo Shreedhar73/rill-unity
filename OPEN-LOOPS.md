@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **16** · Closed this cycle: **36** (26 archived)
+Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **37** (26 archived)
 
 ---
 
@@ -75,18 +75,6 @@ building outward if the core does not compel. The core loop is measurably much s
 this morning — 378 of 500 runs reach the sea, no run fails to end — but nobody has still ever wanted
 one more run in front of a witness. If the playtest goes badly, this batch is the work most likely to
 be wasted. Recorded here so that is a known bet rather than a surprise.
-
-### L-049 · The app appears rather than opens
-**Why** — Requested 2026-07-26. L-037 gave the game a title screen; it still has no launch. The
-title fades up over an already-built mountain, which is a screen rather than an arrival.
-**Done when** — Opening the app is a moment: something happens before the title settles, and it is
-skippable on the second run of the day.
-**Do not use a logo sting** — the honest launch for this game is its own premise. The mountain is the
-save file, so the app should open *on the world the player left*, and the camera should arrive at it.
-Dawn breaking over your own river system costs nothing once L-050 exists and says the whole design in
-four seconds.
-**Blocked by** — L-046 (there is nowhere for a launch sequence to hand off to) and improved enormously
-by L-050.
 
 ### L-048 · There is one mode and it is unnamed
 **Why** — Requested 2026-07-26. Daily Rill exists and is reachable only as a toggle button on the
@@ -263,6 +251,24 @@ spray half alone.
 ---
 
 ## Recently closed
+
+### L-049 · The app appears rather than opens — closed 2026-07-26
+L-037 gave the game a title screen; it still had no launch. The title faded up over an already-built
+mountain, which is a screen rather than an arrival.
+**No logo sting, on purpose.** The honest opening for this game is its own premise: the mountain *is*
+the save file, so the app opens on the world the player left and the camera travels to it. A
+returning player watches their own river system resolve out of the distance before anything is asked
+of them.
+**Built** — the camera starts 2.6× out and 2.2× up and eases to the title framing over 3.4 s. The
+easing is cubic and explicit rather than left to the existing exponential damping, because
+exponential damping never quite lands: an approach still creeping when the player reaches for the
+screen reads as drift rather than as a destination.
+**It plays exactly once.** Every later return to the main screen — Back, End game, switching
+mountains — cuts straight to the framing, because an arrival you sit through every time is an
+obstacle. A tap skips it from the first frame, since the second time somebody sees an opening they
+have already arrived.
+**Unobserved.** Nobody has watched it, and the thing most likely to be wrong is the duration: 3.4 s
+is a guess, and the difference between an arrival and a wait is about a second either way.
 
 ### L-050 · The sun does not move — closed 2026-07-26
 One fixed directional at `Euler(46, 35, 0)`, set once at boot and never touched, so every session of
