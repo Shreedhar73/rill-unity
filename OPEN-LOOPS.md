@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **14** · Closed this cycle: **28** (19 archived)
+Last updated: **2026-07-26** · Open loops: **14** · Closed this cycle: **29** (19 archived)
 
 ---
 
@@ -105,29 +105,30 @@ visible. A tap skips it, so a returning player never sits through it.
 
 ## Next
 
-### L-042 · The mountain silts up its own approaches
-**Why** — Measured 2026-07-26, and only visible because L-040 made it measurable: downhill
-reachability of the basin lattice is `5 of 5` on a freshly generated mountain and **`4 of 5` after
-150 runs**. Basin #1 — the largest, and 93% full — became unreachable without climbing. Nothing
-carved it off; deposition did. The river builds bars and levees along its own corridor, and one of
-them closed the door.
-**Why it matters more than one basin** — this game's entire premise is that nothing resets and you
-play the same mountain for months. A lattice that quietly becomes unreachable is a slow death that
-would only show up in week six, which is exactly the horizon the design document names as its
-top-three risk ("a boring local minimum by week 6"). L-028 fixed the *incision* half of that. This
-is the deposition half, and it was not visible until basins were placed somewhere water could get to.
-**Do not assume it is a defect.** A river silting up an old channel and finding a new one is the
-game working — rule 2 in reverse — and `HealingPerRun` exists precisely so abandoned ground recovers.
-The question is whether the process ever *removes* more of the lattice than it opens, and over 150
-runs the answer was net −1 with nothing new opened.
-**Done when** — Either reachability is stable or improving over 500 runs, or there is a mechanism
-that reopens what silts closed, and the count is reported every run so it cannot decay in silence.
-**Evidence needed** — `reach (climb 0 m)` at 0, 150 and 500 runs, plus which basin was lost and what
-closed it: a deposit ridge (compare `Height - Virgin` along the approach) or a filled lake.
-**Careful** — Do not fix this by clamping deposition. L-041 measured the deposits as 11 scattered
-silt bars totalling 0.22% of the field, which is a landform budget, not a runaway. If one 14 m bar in
-the wrong place can close a basin, the fragility is in how narrow the approach is, not in how much
-silt exists.
+### L-043 · The basin lattice is finished by run 500
+**Why** — Measured 2026-07-26 over a 500-run season, and it is the first time this game has been run
+far enough to see its own endgame. Four of five basins sit at **100%** and the fifth at 0%; runs
+stopping on open ground are `404 of 500` against `96` in a basin; and `378 of 500` reach the sea.
+The mountain has matured into a well-drained river system, which is the carve → speed → reach loop
+succeeding completely — and it means the retention mechanic the design leans on hardest, "north
+basin 87% full", has no unfinished loop left to offer.
+**Why it matters** — the design document's whole retention argument is Zeigarnik: an open loop the
+brain refuses to put down, resolved by ordinary play. At run 500 there are no open loops left on
+this mountain except one basin the player has apparently never been able to fill. Secrets are at
+`17 of 60` and still climbing, so *that* track survives; the basin track does not.
+**Done when** — There is something a 500-run mountain is still unfinished at, and it is named. Either
+the lattice regenerates (a filled tarn silts up and becomes fillable again, which the deposition
+already does to *approaches* — see L-042), or the world grows (L-023), or basins are deeper than a
+season's water.
+**Evidence needed** — The 500-run lattice line, plus the same at 1,000 runs to check whether
+anything reopens on its own before designing something that duplicates it.
+**Do not confuse this with L-042.** That loop asked whether the player can still *reach* the basins;
+the answer was yes, on momentum, always. This asks whether there is anything left to *do* when they
+get there.
+**Careful with the 0% basin.** #2 sits at 0% for 375 runs while nominally reachable. That may be a
+real gap or it may be the test bot, which picks its campaign target by largest headroom and so
+spends the whole session on the 2,038 m³ basin and only turns to the 363 m³ one at the very end.
+The bot has been the answer three times before. Check it first.
 
 ### L-018 · Onboarding — the first 30 seconds explain nothing
 **Why** — There is no button and nothing moves on its own to suggest steering exists, so a player
@@ -193,6 +194,41 @@ term saturating at 2 m.
 ---
 
 ## Recently closed
+
+### L-042 · The mountain silts up its own approaches — closed 2026-07-26
+Opened the same day on one end-of-test number: the lattice was `5 of 5` reachable downhill at
+generation and `4 of 5` after 150 runs. The fear was a slow death — a game meant to be played for
+months whose basin lattice quietly closes, which is the "boring local minimum by week 6" the design
+document names as a top-three risk. L-028 fixed the incision half of that; this was the deposition
+half.
+**Evidence — 500 runs, sampled every 25.** The mountain does do this to itself: the virgin-rock
+control reads `5 of 5` at every single sample, so generation is correct and it is the river
+reorganising.
+
+```
+run    1   downhill 5/5, on momentum 5/5, on virgin rock 5/5   no downhill route: none
+run   50   downhill 2/5, on momentum 5/5, on virgin rock 5/5   #0 0%  #3 5%  #4 100%   <- 2 still had room
+run  100   downhill 2/5, on momentum 5/5, on virgin rock 5/5   #1 84%  #3 32%  #4 100% <- 2 still had room
+run  125   downhill 4/5, on momentum 5/5, on virgin rock 5/5   #1 100%
+run  500   downhill 4/5, on momentum 5/5, on virgin rock 5/5   #1 100%
+```
+
+**Three findings, and the last one is the answer.**
+1. It is not a decay. Strict downhill access collapses to `2 of 5` by run 50 and **reopens to
+   `4 of 5` by run 125**, then holds flat for the remaining 375 runs. Something reopens what silts
+   closed, which the loop asked for as an alternative to stability and which turns out to be both.
+2. In the steady state the single basin with no downhill route is **the one at 100% full**. The
+   mountain closes the door on lakes it has finished with. Every basin that still had room was
+   reachable at every sample from run 125 to run 500.
+3. **On momentum the answer is `5 of 5` at every sample, without exception.** Strictly-downhill was
+   always a lower bound the simulation does not obey — water here tops 25 m/s and `v²/2g` at that
+   speed is tens of metres of climb. The player never loses a basin at all.
+**The real cost, recorded rather than rounded away** — between runs 50 and 100 there is a window
+where two *unfinished* basins have no downhill route and can only be reached on momentum. That is a
+harder game for fifty runs, not a broken one, and it is arguably the design working: the river
+reorganises and the player has to carve a new way in. Nobody has played through that window, so
+whether it reads as the mountain changing or as the mountain cheating is unknown.
+**Nothing was clamped**, which the loop asked for explicitly. Deposition is still free to build.
 
 ### L-020 · Daily glyph legibility — closed 2026-07-26
 The share unit was a scatter of marks on a void, and the cause was a count rather than a matter of
