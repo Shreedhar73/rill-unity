@@ -59,6 +59,42 @@ namespace Rill.Core
             _heap = new MinHeap(field.Size * 8);
         }
 
+        /// <summary>
+        /// Where a spilling basin's water actually gets going: the first cell downhill of the lip
+        /// that sits a real distance below the spill level.
+        ///
+        /// `SpillCell` is the saddle — the lowest neighbour just *outside* the basin — so it is at
+        /// spill elevation by construction, with essentially zero slope, and when the basin is full
+        /// it is at water level too. Anything started there gets `down * StartSpeed` ≈ 0 and pools
+        /// on the rim immediately. Observed in play as an overflow that begins at the lake and has
+        /// "no way out".
+        /// </summary>
+        public int OutletCell(Basin b, float dropBelowSpill = 1.5f, int maxSteps = 48)
+        {
+            int c = b.SpillCell;
+            for (int step = 0; step < maxSteps; step++)
+            {
+                if (_f.Height[c] <= b.SpillLevel - dropBelowSpill) return c;
+                if (_f.Height[c] <= _f.SeaLevel) return c;
+
+                int cx = c % _n, cz = c / _n;
+                int best = -1;
+                float bestH = _f.Height[c];
+                for (int k = 0; k < 8; k++)
+                {
+                    int nx = cx + (k == 0 || k == 4 || k == 5 ? 1 : k == 1 || k == 6 || k == 7 ? -1 : 0);
+                    int nz = cz + (k == 2 || k == 4 || k == 6 ? 1 : k == 3 || k == 5 || k == 7 ? -1 : 0);
+                    if (nx < 0 || nz < 0 || nx >= _n || nz >= _n) continue;
+                    int ni = nz * _n + nx;
+                    if (_basinOf[ni] == b.Id) continue;          // never walk back into the lake
+                    if (_f.Height[ni] < bestH) { bestH = _f.Height[ni]; best = ni; }
+                }
+                if (best < 0) return c;                          // a shelf; nothing lower nearby
+                c = best;
+            }
+            return c;
+        }
+
         public int BasinIdAt(int cell) => (cell >= 0 && cell < _basinOf.Length) ? _basinOf[cell] : -1;
 
         public Basin BasinAt(int cell)

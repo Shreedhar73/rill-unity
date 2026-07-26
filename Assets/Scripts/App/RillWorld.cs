@@ -126,6 +126,21 @@ namespace Rill.App
         public void BeginRun()
         {
             RunNumber++;
+            Snapshot();
+        }
+
+        /// <summary>
+        /// Same snapshot, no run number. A dam break is something the mountain does, not something
+        /// the player did: counting it as a run made the report card read "run 12" while the world
+        /// had moved to 13, and wrote automatic events into the player's own history.
+        /// </summary>
+        public void BeginAutomaticEvent()
+        {
+            Snapshot();
+        }
+
+        void Snapshot()
+        {
             Field.CopyHeightTo(_preRunHeight);
             _pendingHeadlines.Clear();
 

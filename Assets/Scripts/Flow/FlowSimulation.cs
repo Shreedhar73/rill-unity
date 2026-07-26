@@ -399,8 +399,11 @@ namespace Rill.Flow
             // Head.Pos to the outlet directly was correct as physics and wrong as a picture: it is
             // a hard jump across open water, drawn by the ribbon as a straight line, and it reads
             // to a player as the stream teleporting. Observed and reported as exactly that.
-            Vector2Int sp = b.SpillXZ(_f.Size);
-            _crossingTo = _f.GridToWorldXZ(sp.x, sp.y);
+            // Aim past the lip. The spill cell is the saddle itself — flat, and at water level
+            // when the basin is full — so arriving there left the head with no slope to work with
+            // and it pooled on the rim instead of leaving.
+            int outlet = _world.Basins.OutletCell(b);
+            _crossingTo = _f.GridToWorldXZ(outlet % _f.Size, outlet / _f.Size);
             _crossing = true;
 
             // Exit speed is banked here from the arrival speed, not carried through the traverse.

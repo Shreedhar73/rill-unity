@@ -288,7 +288,7 @@ namespace Rill.Flow
         /// <summary>An overflow or a cascade runs itself: the player watches their own dam break.</summary>
         void StartCascade(Cascade c)
         {
-            Active.BeginRun();
+            Active.BeginAutomaticEvent();
             // Do not reset the carve baseline while the player's report is waiting behind this
             // cascade, or the overlay they finally see would show the dam break only, with their
             // own run's carving already subtracted out.
@@ -344,7 +344,14 @@ namespace Rill.Flow
                 if (report.DeepestCarve > 0.15f) Audio.DepthNote(Mathf.RoundToInt(report.DeepestCarve * 10f));
             }
 
-            if (InDaily)
+            // A cascade is the mountain acting, not the player. It must not enter the daily, the
+            // almanac, the confluence queue or the time-lapse, or an automatic event ends up in the
+            // player's own history and consumes one of their daily runs.
+            if (_autoRun)
+            {
+                // terrain changes persist; the bookkeeping does not
+            }
+            else if (InDaily)
             {
                 _daily.RecordRun(_sim.Path, _sim.Ending == RunEnding.ReachedSea, _sim.WaterToSea, field.WorldExtent);
             }
@@ -412,9 +419,12 @@ namespace Rill.Flow
             // spectacle; more than that is a cutscene the player did not ask for.
             if (_cascades.Count >= 3) return;
 
+            // Start the dam break below the lip, not on it. SpillCell is the saddle: zero slope,
+            // at water level once the basin is full, so a cascade launched there stalled on the rim
+            // and the overflow had, in the player's words, "no way out".
             var f = Active.Field;
-            var spill = basin.SpillXZ(f.Size);
-            Vector3 origin = f.GridToWorld(spill.x, spill.y);
+            int outlet = Active.Basins.OutletCell(basin);
+            Vector3 origin = f.GridToWorld(outlet % f.Size, outlet / f.Size);
             _cascades.Enqueue(new Cascade
             {
                 Origin = origin,
