@@ -57,7 +57,7 @@ namespace Rill.EditorTools
             // Can a player who wants to fill a particular basin actually fill it? The whole basin
             // lattice as a progression track assumes yes, and nothing has ever tested it.
             int aimedRuns = 0, aimedHits = 0, seaRuns = 0, seaHits = 0;
-            int crossingRuns = 0, crossingToSea = 0;
+            int crossingRuns = 0, crossingToSea = 0, aimedDelivered = 0;
             float aimedClosest = 0f;
             float distanceAfterCrossing = 0f;
             float aimedMissDistance = 0f;
@@ -117,6 +117,12 @@ namespace Rill.EditorTools
                 }
                 bool intentional = aimBasin || aimSea;
 
+                // Volume in the target basin before the run. The existing "hit" test asks whether
+                // the run STOPPED in the basin it was aimed at, which scores a run that delivers
+                // water and flows onward as a miss — so it undercounts arrival by construction.
+                float targetVolumeBefore = intendedBasin >= 0 && intendedBasin < world.Basins.Basins.Count
+                    ? world.Basins.Basins[intendedBasin].Volume : 0f;
+
                 int steps = 0;
                 float closestApproach = float.MaxValue;
                 while (sim.Running && steps++ < 20000)
@@ -162,6 +168,13 @@ namespace Rill.EditorTools
                 if (aimBasin)
                 {
                     aimedRuns++;
+                    // Basin ids come from a rescan each run. The count has been stable at 5 on this
+                    // seed, but if it ever moves this comparison silently changes meaning.
+                    if (intendedBasin < world.Basins.Basins.Count)
+                    {
+                        float after = world.Basins.Basins[intendedBasin].Volume;
+                        if (after - targetVolumeBefore > 0.5f) aimedDelivered++;
+                    }
                     // Closest approach separates "never got near it" from "passed it and carried
                     // on". A final-distance miss cannot tell those apart, and they need opposite
                     // fixes: more steering authority vs a reason to stop once you arrive.
@@ -215,6 +228,8 @@ namespace Rill.EditorTools
             log.AppendFormat("  aimed at a basin {0} runs, reached it {1} ({2:0}%), avg miss {3:0} m\n",
                 aimedRuns, aimedHits, aimedRuns > 0 ? aimedHits * 100f / aimedRuns : 0f,
                 aimedRuns > aimedHits ? aimedMissDistance / (aimedRuns - aimedHits) : 0f);
+            log.AppendFormat("  aimed delivered  {0} of {1} aimed runs put water in the target ({2:0}%)\n",
+                aimedDelivered, aimedRuns, aimedRuns > 0 ? aimedDelivered * 100f / aimedRuns : 0f);
             log.AppendFormat("  aimed closest    avg {0:0} m (vs avg final miss above)\n",
                 aimedRuns > 0 ? aimedClosest / aimedRuns : 0f);
             log.AppendFormat("  aimed at the sea {0} runs, reached it {1} ({2:0}%)\n",

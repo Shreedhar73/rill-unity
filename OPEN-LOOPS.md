@@ -44,23 +44,26 @@ Every loop has:
 
 ## Now
 
-### L-030 · An aimed run arrives 28% of the time
+### L-030 · An aimed run arrives about 40% of the time
 **Why** — L-027 established that a player who commits a campaign to a basin can fill it. What it also
-measured is that individual aimed runs are unreliable: 28% stop in the basin they were aimed at, and
-the ones that miss get within an average of 56 m before ending 85 m away. The player is being asked
-to spend dozens of runs on a target partly because two runs in three do not arrive. Some of that is
-the design working — the incised channel *should* fight you, and "restraint is the skill ceiling" —
-but 28% is a control-feel question that has never been examined, and `TimedOut 11 per 150 runs` says
-some aimed runs crawl for the full 75 s without getting anywhere.
+measured is that individual aimed runs are unreliable, and the ones that miss get within an average
+of 56 m before ending 122 m away. Some of that is the design working — the incised channel *should*
+fight you, and "restraint is the skill ceiling" — but it has never been examined, and
+`TimedOut 12 per 150 runs` says some aimed runs crawl the full 75 s without getting anywhere.
 **Done when** — Either the aimed-arrival rate is over 50%, or there is a written argument (backed by
-the hand playtest in L-012) that ~30% is the intended difficulty and the loop is closed as
-by-design.
-**Evidence needed** — `aimed at a basin N runs, reached it M` plus `aimed closest`, and for the
-by-design route, a person's account of whether missing feels like their fault or the game's.
-**Careful** — Do not tune `SteerAccel` or `SteerSpeedCost` on the metric alone. The measured "hit"
-requires a run to *stop* in the target basin, so a run that delivers water and flows on counts as a
-miss. Fix the metric before trusting it, or a tuning pass will chase a number that does not mean
-what it says.
+the hand playtest in L-012) that ~40% is the intended difficulty, and the loop closes as by-design.
+**Evidence needed** — `aimed delivered` and `aimed closest`, and for the by-design route, a person's
+account of whether missing feels like their fault or the game's.
+**Measured 2026-07-26** — Two metrics, 150 runs, campaigns in blocks of 50:
+`aimed at a basin 36 runs, reached it 16 (44%)` and `aimed delivered 14 of 36 (39%)`.
+The suspicion recorded when this loop was opened — that the stop-based "hit" *undercounts*, because
+a run delivering water and flowing onward scores as a miss — **was wrong**. Delivery-based arrival
+is slightly *lower*, since a run can stop in a basin that is already full and add nothing. Both
+metrics agree on roughly 40%, so the number can now be trusted. The earlier 28% figure came from a
+diagnostic that pointed every aimed run at one deliberately awkward basin and should not be compared
+against these.
+**Careful** — Still do not tune `SteerAccel` or `SteerSpeedCost` on this alone. 40% may be correct
+for a game whose whole skill ceiling is restraint; that is a feel question and L-012 answers it.
 
 ### L-013 · Water rendering
 **Why** — Lakes render as flat discs with hard shorelines; the sea is a plain blue plane. Water is
