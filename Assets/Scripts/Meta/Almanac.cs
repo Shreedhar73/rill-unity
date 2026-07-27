@@ -60,6 +60,7 @@ namespace Rill.Meta
         public IReadOnlyList<AlmanacEntry> Entries => _file.Entries;
         public IReadOnlyList<RunSummary> Runs => _file.Runs;
         public int DayStreak => _file.DayStreak;
+        public long LastPlayedUtcTicks => _file.LastPlayedUtcTicks;
 
         Almanac(AlmanacFile file, string path)
         {

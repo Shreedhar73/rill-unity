@@ -19,6 +19,7 @@ namespace Rill.UI
         public event Action TimeLapseRequested;
         public event Action DailyRequested;
         public event Action ShareRequested;
+        public event Action BoatRequested;
         public event Action ReportDismissed;
         public event Action PanelClosed;
         /// <summary>The on-screen back affordance. The hardware back key raises the same action.</summary>
@@ -375,21 +376,24 @@ namespace Rill.UI
             // only exists while the mountain is idle, which is exactly when leaving it makes sense,
             // and a control that ends the session should sit with the other deliberate choices
             // rather than hovering over the water.
-            string[] labels = { "Almanac", "Time-lapse", "Daily Rill", "Share", "End game" };
+            string[] labels = { "Almanac", "Time-lapse", "Boat", "Daily Rill", "Share", "End game" };
             Action[] actions =
             {
                 () => { if (AlmanacRequested != null) AlmanacRequested(); },
                 () => { if (TimeLapseRequested != null) TimeLapseRequested(); },
+                () => { if (BoatRequested != null) BoatRequested(); },
                 () => { if (DailyRequested != null) DailyRequested(); },
                 () => { if (ShareRequested != null) ShareRequested(); },
                 () => { if (EndGameRequested != null) EndGameRequested(); }
             };
 
-            float w = 196f, gap = 12f;
+            // Six buttons in the same 1000-wide row the five used: 6×160 + 5×8 = 1000 exactly.
+            float w = 160f, gap = 8f;
             float total = labels.Length * w + (labels.Length - 1) * gap;
             for (int i = 0; i < labels.Length; i++)
             {
-                var btn = UIFactory.MakeButton(holder.transform, "Btn" + labels[i], labels[i], 28);
+                // 25 rather than 28: "Time-lapse" has to fit the narrower six-across cell.
+                var btn = UIFactory.MakeButton(holder.transform, "Btn" + labels[i], labels[i], 25);
                 float x = -total * 0.5f + w * 0.5f + i * (w + gap);
                 UIFactory.Place(btn.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, 0f), new Vector2(w, 88f));
                 var a = actions[i];

@@ -18,7 +18,7 @@ namespace Rill.Flow
     /// </summary>
     public sealed class RunController : MonoBehaviour
     {
-        public enum State { Title, Idle, Flowing, Settling, Report, Panel, TimeLapse }
+        public enum State { Title, Idle, Flowing, Settling, Report, Panel, TimeLapse, Boat }
 
         [Header("Wiring (filled in by GameBootstrap)")]
         public GameConfig Config;
@@ -100,6 +100,9 @@ namespace Rill.Flow
         CarveReport _settleReport;
         float _settleTimer;
         float _lapseGrace;
+        string _awayLine;   // "While you were away…", computed once per session, shown until play starts
+        PaperBoat.Result _boat;
+        float _boatTime;
         bool _autoRun;
         Vector2 _lastThumbPos;
 
@@ -125,12 +128,32 @@ namespace Rill.Flow
             _confluence = confluence;
             _weather = weather;
 
+            // The away report, before the renderers first read the terrain. The drift systems all
+            // already ran silently between runs; a player returning after days was never told the
+            // mountain did anything without them, so it read as paused rather than alive. Applied
+            // once per session, measured, and said out loud on the title.
+            if (_almanac.LastPlayedUtcTicks > 0 && home.RunNumber > 0)
+            {
+                double hoursAway = (System.DateTime.UtcNow
+                    - new System.DateTime(_almanac.LastPlayedUtcTicks, System.DateTimeKind.Utc)).TotalHours;
+                if (hoursAway >= 6.0)
+                {
+                    // One tick per 8 h away, capped hard: a month's absence must read as "the
+                    // mountain settled", never "your channels are gone".
+                    int ticks = Mathf.Clamp((int)(hoursAway / 8.0), 1, 6);
+                    float silt; int dried;
+                    home.ApplyAwayDrift(ticks, out silt, out dried);
+                    _awayLine = AwayLine(hoursAway, silt, dried);
+                }
+            }
+
             BindWorld(home);
 
             Hud.AlmanacRequested += OnAlmanac;
             Hud.TimeLapseRequested += OnTimeLapse;
             Hud.DailyRequested += OnDailyToggle;
             Hud.ShareRequested += OnShare;
+            Hud.BoatRequested += OnBoat;
             Hud.ReportDismissed += OnReportDismissed;
             Hud.PanelClosed += () => { if (Current == State.Panel) Current = State.Idle; };
             Hud.BackRequested += GoBack;
@@ -152,6 +175,26 @@ namespace Rill.Flow
             // Boot into the title, not into a playable mountain. Opening straight into the run
             // state gave the app no front door at all — it simply appeared, mid-game.
             EnterTitle(arriving: true);
+        }
+
+        /// <summary>
+        /// One line about what the drift actually did, or null when it did nothing worth a
+        /// sentence — a report of nothing is worse than silence. Volumes and counts come straight
+        /// from the measured diffs, never estimated.
+        /// </summary>
+        static string AwayLine(double hoursAway, float siltVolume, int driedCells)
+        {
+            string span = hoursAway >= 48.0 ? ((int)(hoursAway / 24.0)) + " days"
+                        : hoursAway >= 24.0 ? "a day"
+                        : ((int)hoursAway) + " hours";
+            if (siltVolume >= 0.5f && driedCells >= 20)
+                return string.Format("While you were away ({0}): {1:0.0} m³ of silt settled in quiet channels, and the rock dried",
+                                     span, siltVolume);
+            if (siltVolume >= 0.5f)
+                return string.Format("While you were away ({0}): {1:0.0} m³ of silt settled in quiet channels", span, siltVolume);
+            if (driedCells >= 20)
+                return string.Format("While you were away ({0}): the wet rock dried in the sun", span);
+            return null;
         }
 
         /// <summary>
@@ -279,6 +322,7 @@ namespace Rill.Flow
             if (Nav.Current == AppScreen.Launch) Nav.FinishLaunch();
 
             Current = State.Title;
+            _boat = null;   // a voyage abandoned by Back or End game must not resume later
             if (arriving) Cam.SetTitleArriving(Active.SummitWorld);
             else Cam.SetTitle(Active.SummitWorld);
             Ribbon.Clear();
@@ -297,7 +341,11 @@ namespace Rill.Flow
             // The forecast is an appointment: weather is derived from the date, so tomorrow is
             // already knowable, and saying it out loud is a true reason to come back tomorrow.
             // Absent while nothing changes — "Tomorrow: the same" is not an appointment.
-            Hud.SetTitleForecast(_weather != null ? _weather.ForecastLine(System.DateTime.UtcNow) : null);
+            // The away report outranks it for the one boot it exists on: what the mountain did
+            // without you beats what the sky will do next.
+            string appointment = _awayLine != null ? _awayLine
+                : (_weather != null ? _weather.ForecastLine(System.DateTime.UtcNow) : null);
+            Hud.SetTitleForecast(appointment);
 
             // The three mountains, each saying what has been done to it. The one being stood on is
             // marked rather than hidden, so the list is always the same shape and the row a player
@@ -526,6 +574,7 @@ namespace Rill.Flow
                 case State.Report: break;
                 case State.Panel: break;
                 case State.TimeLapse: UpdateTimeLapse(); break;
+                case State.Boat: UpdateBoat(); break;
             }
 
             if (Audio != null && Current != State.Flowing)
@@ -659,6 +708,10 @@ namespace Rill.Flow
 
         void StartRun()
         {
+            // The away report has been read (or ignored); either way the session has begun and
+            // "while you were away" would be a lie on every later visit to the title.
+            _awayLine = null;
+
             Active.BeginRun();
             Active.Field.CopyHeightTo(_beforeHeights);
             Terrain.ClearOverlay();
@@ -924,6 +977,55 @@ namespace Rill.Flow
 
             Current = State.Panel;
             Hud.ShowPanel("The Almanac", sb.ToString());
+        }
+
+        /// <summary>
+        /// Releases a paper boat: a no-cost reading of the carved network, sailed live. The whole
+        /// course is computed up front (the sim is plain C# and instant); the state machine then
+        /// plays it back at recorded speed so the player watches their own channels carry it.
+        /// </summary>
+        void OnBoat()
+        {
+            if (Current != State.Idle) return;
+            _boat = PaperBoat.Sail(Active);
+            if (_boat.Path.Count < 2)
+            {
+                Hud.SetHint("The boat went nowhere at all");
+                _boat = null;
+                return;
+            }
+            _boatTime = 0f;
+            Ribbon.Clear();
+            Hud.SetIdleUI(false);
+            Current = State.Boat;
+        }
+
+        void UpdateBoat()
+        {
+            if (_boat == null) { EnterIdle(); return; }
+
+            // Path points were recorded at ~15 per simulated second; playing them back at the
+            // same rate replays the voyage in real time, momentum and stalls included.
+            _boatTime += Time.deltaTime;
+            int i = Mathf.Min((int)(_boatTime * 15f), _boat.Path.Count - 1);
+
+            Ribbon.SetPath(_boat.Path.GetRange(0, i + 1), _boat.Path[i], _boat.Speeds[i]);
+            Vector3 ahead = _boat.Path[Mathf.Min(i + 1, _boat.Path.Count - 1)];
+            Vector2 vel = new Vector2(ahead.x - _boat.Path[i].x, ahead.z - _boat.Path[i].z).normalized
+                          * Mathf.Max(0.5f, _boat.Speeds[i]);
+            Cam.Follow(_boat.Path[i], vel);
+
+            // A tap skips to the reading, same contract as the settle beat and the time-lapse.
+            bool skip = Thumb.WasTap() && _boatTime > 0.4f;
+            if (i >= _boat.Path.Count - 1 || skip)
+            {
+                // After EnterIdle, not before: EnterIdle writes its own hint, and the reading is
+                // the whole point of having sailed.
+                string reading = PaperBoat.Describe(_boat);
+                _boat = null;
+                EnterIdle();
+                Hud.SetHint(reading);
+            }
         }
 
         void OnTimeLapse()

@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **21** · Closed this cycle: **48** (34 archived)
+Last updated: **2026-07-27** · Open loops: **19** · Closed this cycle: **50** (34 archived)
 
 ---
 
@@ -253,24 +253,6 @@ Rejected on the way: anything resembling XP, streaks that punish a missed day, t
 energy systems, and a "prestige" reset (invariant 1 makes the whole genre impossible here, which
 is the design's point). Ordered by implementation order, terminal-verifiable ones first.
 
-### L-064 · Nothing happens while you are away
-**Why** — Between-run drift, seepage, growth and ice all already run — silently. A player who
-returns after three days is never told the mountain did anything without them, so the mountain
-reads as paused rather than alive. "While you were away: the spring seeped 12 m³, moss took the
-east shore" is the return hook, and every word of it is already computed.
-**Done when** — Returning after an absence over ~6 h shows one line of what actually changed,
-diffed from real counters, and a headless test simulates the absence and checks the diff is
-neither empty nor fabricated.
-
-### L-065 · A paper boat to prove the network
-**Why** — There is no way to *use* a carved network except carving it more. A paper boat released
-from the summit with no steering rides whatever the mountain has become; how far it gets is the
-network's grade, read not awarded. It is the design's own "your mountain remembers" claim, made
-into a toy — and the difference between a virgin mountain's boat and a 150-run mountain's boat is
-the whole game, visible in one object.
-**Done when** — A boat can be released on idle, and headlessly a boat on a 150-run mountain
-travels measurably farther than on a virgin one, with the distance printed for both.
-
 ### L-066 · Nothing on the mountain has a name
 **Why** — Six months of carving produces "the deep bit near the left". Gorges past a depth, deltas
 past a size, the first basin to fill — landmarks the player made, nameable deterministically from
@@ -319,6 +301,39 @@ headless mass-balance check accounts for every m³ of shower water.
 ---
 
 ## Recently closed
+
+### L-065 · A paper boat to prove the network — closed 2026-07-27
+`PaperBoat.Sail`: released from the same spring the runs use, no steering, no carving, no water
+spent — a pure reading of the network, plain C# and deterministic. Rough virgin rock eats its
+momentum; polished damp channels carry it. A brim-full tarn is part of the network (the boat
+drifts across toward the spill and sails on); anything less full ends the voyage honestly, by
+name: "The boat sailed 101 m and came to rest on South basin". Played back live on the ribbon
+with the follow camera, tap to skip, from a Boat button in the idle row (six across now, resized
+to fit the same 1000-wide band). Nothing is awarded for any of it.
+**The first assertion was wrong and the failure taught the design.** "Mature carries the boat
+1.5× as far" failed: the mature mountain's own lake ended the voyage at 101 m vs virgin's 82 m
+aground — and resting on a lake you carved is not a worse result than stranding on open rock. The
+network's grade is **speed while moving**, and that gap is enormous and the real reading:
+**virgin 1.20 m/s over 68.6 s; mature 20.48 m/s over 4.9 s — 17×.**
+**Evidence** — headless boat test, 4 assertions: both voyages produce a drawable path; carved
+network moves the boat ≥1.3× as fast (measured 17×); no voyage runs forever; the same mountain
+sails the same boat twice to 0.01 m. Probe green with the six-button row: 0 failed, 0 errors,
+`play_idle.png` shows Boat in the row. The live playback is unobserved — the probe cannot tap the
+world.
+
+### L-064 · Nothing happens while you are away — closed 2026-07-27
+`RillWorld.ApplyAwayDrift`: the same silt-and-dry drift that already ran silently between runs,
+applied once per session after ≥6 h away (one tick per 8 h, hard-capped at 6 — a month's absence
+reads as "the mountain settled", never "your channels are gone") and **measured**, so the title
+can say truthfully what changed: "While you were away (2 days): 1.6 m³ of silt settled in quiet
+channels, and the rock dried". Shown in the forecast slot for the one boot it exists on (it
+outranks the weather), cleared the moment a run starts. Absence timestamp from
+`Almanac.LastPlayedUtcTicks`, which already existed.
+**Evidence** — headless away test, 5 assertions: a virgin mountain reports exactly nothing
+(0.000 m³ — measured zero, not unlooked-at); quiet channels settle (1.59 m³); **the reported
+number is the terrain's actual change** (reported 1.59, independently measured 1.59); wet rock
+dries (153 cells); the longest possible absence returns 5.28 m³ of 746 m³ carved — under 5%.
+The title line itself is unobserved in play (it needs a real absence).
 
 ### L-063 · Weather arrives unannounced — closed 2026-07-27
 Weather was already deterministic from the date; the game just never said what was coming.

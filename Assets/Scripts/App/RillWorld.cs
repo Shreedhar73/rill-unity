@@ -345,6 +345,44 @@ namespace Rill.App
             Field.MarkAllDirty();
         }
 
+        /// <summary>
+        /// The mountain breathing while the app was closed: the same silt-and-dry drift that runs
+        /// between runs, applied once per stretch of absence and *measured*, so the title can say
+        /// truthfully what changed. Capped by the caller — a month away must read as "the mountain
+        /// settled", not "your channels are gone"; the design forbids absence ever being a
+        /// punishment.
+        ///
+        /// Returns the diffs rather than a string because what is worth saying is a UI decision,
+        /// and a measured zero (nothing changed) must be distinguishable from not having looked.
+        /// </summary>
+        public void ApplyAwayDrift(int ticks, out float siltVolume, out int driedCells)
+        {
+            siltVolume = 0f;
+            driedCells = 0;
+            float cellArea = Field.CellSize * Field.CellSize;
+            for (int t = 0; t < ticks; t++)
+            {
+                float heal = Config.HealingPerRun;
+                for (int i = 0; i < Field.Count; i++)
+                {
+                    float polish = Field.Polish[i];
+                    if (polish > 0.001f)
+                    {
+                        float unused = 1f - Field.Wet[i];
+                        float dh = heal * unused * polish;
+                        Field.Height[i] += dh;
+                        siltVolume += dh * cellArea;
+                        Field.Polish[i] = Mathf.Max(0f, polish - Config.PolishDecayPerRun * unused);
+                    }
+                    float wet = Field.Wet[i];
+                    float after = Mathf.Max(0f, wet - Config.WetDecayPerRun);
+                    if (wet > 0.05f && after <= 0.05f) driedCells++;
+                    Field.Wet[i] = after;
+                }
+            }
+            if (ticks > 0) Field.MarkAllDirty();
+        }
+
         public void AddHeadline(string h) => _pendingHeadlines.Add(h);
     }
 }

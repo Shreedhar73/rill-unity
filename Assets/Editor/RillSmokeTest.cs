@@ -464,6 +464,153 @@ namespace Rill.EditorTools
             if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
         }
 
+        /// <summary>
+        /// The away drift: what the mountain does while the app is closed, measured. The claim on
+        /// the title ("2.1 m³ of silt settled") must be the number the terrain actually moved, and
+        /// the drift must stay a settling rather than an erasure — absence is never a punishment.
+        /// (L-064)
+        /// </summary>
+        [MenuItem("RILL/Run Headless Away Test", false, 76)]
+        public static void RunHeadlessAway()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL away drift ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            // A fresh mountain has no channels to settle: the drift must measure zero, not invent.
+            var virgin = RillWorld.Create(new GameConfig(), 808u, Biome.Sandstone);
+            float vSilt; int vDried;
+            virgin.ApplyAwayDrift(3, out vSilt, out vDried);
+            check(vSilt < 0.01f && vDried == 0,
+                  string.Format("a virgin mountain reports nothing: {0:0.000} m³, {1} cells", vSilt, vDried));
+
+            // A played mountain: 8 real runs to carve channels, then the drift.
+            var config = new GameConfig();
+            var world = RillWorld.Create(config, 909u, Biome.Sandstone);
+            var sim = new FlowSimulation(world);
+            for (int run = 1; run <= 8; run++)
+            {
+                world.BeginRun();
+                var rng = new Rng(Noise.Hash((uint)run * 2654435761u ^ world.Seed));
+                sim.Begin(world.SpawnPoint(ref rng), config.StartVolume);
+                int steps = 0;
+                while (sim.Running && steps++ < 20000) sim.Advance(config.SimStep);
+                world.Basins.Rebuild();
+                world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+            }
+
+            float cellArea = world.Field.CellSize * world.Field.CellSize;
+            double before = 0;
+            for (int i = 0; i < world.Field.Count; i++) before += world.Field.Height[i];
+
+            float silt; int dried;
+            world.ApplyAwayDrift(3, out silt, out dried);
+
+            double after = 0;
+            for (int i = 0; i < world.Field.Count; i++) after += world.Field.Height[i];
+            float measured = (float)((after - before) * cellArea);
+
+            log.AppendFormat("  8 runs, then 3 away ticks: silt {0:0.00} m³, dried {1} cells, lifetime sediment {2:0} m³\n",
+                silt, dried, world.LifetimeSediment);
+            check(silt > 0.01f, "quiet channels settle while away: " + silt.ToString("0.00") + " m³");
+            check(Mathf.Abs(measured - silt) < 0.05f,
+                  string.Format("the reported number is the terrain's actual change: reported {0:0.00}, measured {1:0.00}", silt, measured));
+            check(dried > 0, "wet rock dries while away: " + dried + " cells");
+
+            // The cap: even the maximum absence (6 ticks) must be a settling, not an erasure.
+            var world2 = RillWorld.Create(config, 909u, Biome.Sandstone);
+            var sim2 = new FlowSimulation(world2);
+            for (int run = 1; run <= 8; run++)
+            {
+                world2.BeginRun();
+                var rng = new Rng(Noise.Hash((uint)run * 2654435761u ^ world2.Seed));
+                sim2.Begin(world2.SpawnPoint(ref rng), config.StartVolume);
+                int steps = 0;
+                while (sim2.Running && steps++ < 20000) sim2.Advance(config.SimStep);
+                world2.Basins.Rebuild();
+                world2.EndRun(sim2.Ending, sim2.Elapsed, sim2.Distance, sim2.TopSpeed, sim2.WaterToSea);
+            }
+            float siltMax; int driedMax;
+            world2.ApplyAwayDrift(6, out siltMax, out driedMax);
+            check(siltMax < world2.LifetimeSediment * 0.05f,
+                  string.Format("the longest absence returns under 5% of what was carved: {0:0.00} of {1:0} m³",
+                      siltMax, world2.LifetimeSediment));
+
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
+        /// <summary>
+        /// The paper boat is only a toy if the mountain's maturity is legible in its range: a
+        /// virgin mountain must strand it and a played one must carry it. If the two distances
+        /// are close, the boat is a random walk with a nice name. (L-065)
+        /// </summary>
+        [MenuItem("RILL/Run Headless Boat Test", false, 77)]
+        public static void RunHeadlessBoat()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL paper boat ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            var config = new GameConfig();
+            var world = RillWorld.Create(config, 20260726u, Biome.Sandstone);
+
+            var virginBoat = PaperBoat.Sail(world);
+            log.AppendFormat("  virgin:  {0}\n", PaperBoat.Describe(virginBoat));
+
+            // 40 unattended runs, the same bot the smoke test uses, then sail again.
+            var sim = new FlowSimulation(world);
+            for (int run = 1; run <= 40; run++)
+            {
+                world.BeginRun();
+                var rng = new Rng(Noise.Hash((uint)run * 2654435761u ^ world.Seed));
+                sim.Begin(world.SpawnPoint(ref rng), config.StartVolume);
+                int steps = 0;
+                while (sim.Running && steps++ < 20000)
+                {
+                    if (steps % 30 == 0)
+                        sim.SetSteer(rng.Next01() < 0.45f, sim.Head.Pos + new Vector2(rng.Range(-25f, 25f), rng.Range(-25f, 25f)));
+                    sim.Advance(config.SimStep);
+                }
+                world.Basins.Rebuild();
+                world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+                world.ApplyBetweenRunDrift();
+            }
+
+            var maturBoat = PaperBoat.Sail(world);
+            log.AppendFormat("  40 runs: {0}\n", PaperBoat.Describe(maturBoat));
+            log.AppendFormat("  average speed: virgin {0:0.00} m/s over {1:0.0} s, mature {2:0.00} m/s over {3:0.0} s\n",
+                virginBoat.AverageSpeed, virginBoat.Duration, maturBoat.AverageSpeed, maturBoat.Duration);
+
+            check(virginBoat.Path.Count >= 2 && maturBoat.Path.Count >= 2, "both voyages produce a path to draw");
+            // Speed, not distance: a mature mountain's own lakes legitimately end voyages early,
+            // and the first version of this assertion failed for exactly that reason — the boat
+            // rested on a lake the runs had filled, 101 m out. The network's grade is how fast it
+            // moves the boat while the boat is moving.
+            check(maturBoat.AverageSpeed > virginBoat.AverageSpeed * 1.3f,
+                  string.Format("the carved network moves the boat at least 1.3× as fast: {0:0.00} vs {1:0.00} m/s",
+                      maturBoat.AverageSpeed, virginBoat.AverageSpeed));
+            check(virginBoat.Duration < 151f && maturBoat.Duration < 151f, "no voyage runs forever");
+
+            // Determinism: the boat is a reading of the world, so the same world must read the same.
+            var again = PaperBoat.Sail(world);
+            check(Mathf.Abs(again.Distance - maturBoat.Distance) < 0.01f,
+                  "the same mountain sails the same boat: " + again.Distance.ToString("0.0") + " m twice");
+
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
         static string NameOf(Rill.World.WeatherKind k)
         {
             switch (k)
