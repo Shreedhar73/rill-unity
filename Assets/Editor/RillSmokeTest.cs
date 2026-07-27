@@ -701,6 +701,8 @@ namespace Rill.EditorTools
             float hollowVolume = 0f;
             var stopBasinHits = new Dictionary<int, int>();
             var biomeHeadlineCounts = new Dictionary<string, int>();
+            int teaserRuns = 0;
+            var teaserLines = new Dictionary<string, int>();
             var worldHeadlines = new Dictionary<string, int>();
             // A "Pooled" ending covers three different failures — sat down in a lake, sank into a
             // pit it dug, or seized up on a slope the terminal-speed identity says should still
@@ -949,6 +951,18 @@ namespace Rill.EditorTools
                     string key = rep.Headlines[h];
                     if (!worldHeadlines.ContainsKey(key)) worldHeadlines[key] = 1;
                     else worldHeadlines[key]++;
+                }
+
+                // The end-card teaser, computed at the same point in the run lifecycle as
+                // RunController does it (after drift and biome rules). Counted because a teaser
+                // that never fires is a system that silently does nothing — the exact failure
+                // mode this project keeps hitting. (L-060)
+                string tease = Rill.Meta.NextTeaser.For(world);
+                if (tease != null)
+                {
+                    teaserRuns++;
+                    if (!teaserLines.ContainsKey(tease)) teaserLines[tease] = 1;
+                    else teaserLines[tease]++;
                 }
 
                 if (!endings.ContainsKey(sim.Ending)) endings[sim.Ending] = 0;
@@ -1294,6 +1308,17 @@ namespace Rill.EditorTools
                 log.AppendLine();
             }
             log.AppendFormat("  ice cells        {0}\n", IceCells(world));
+
+            // The end-card teaser (L-060). Zero firings over a whole session would mean the card
+            // never has a "next" to offer, which is the silent-nothing failure; every run firing
+            // would mean it is wallpaper. Both are visible here.
+            if (teaserRuns == 0) log.AppendFormat("  next teaser      NONE in {0} runs — the card never had a next to offer\n", Runs);
+            else
+            {
+                log.AppendFormat("  next teaser      on {0} of {1} runs: ", teaserRuns, Runs);
+                foreach (var kv in teaserLines) log.AppendFormat("\"{0}\" x{1}  ", kv.Key, kv.Value);
+                log.AppendLine();
+            }
 
             // Save / load round-trip: the world is the save file, so this is the load-bearing test.
             var life = new float[world.Field.Count];

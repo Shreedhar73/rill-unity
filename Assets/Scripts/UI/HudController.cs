@@ -566,6 +566,14 @@ namespace Rill.UI
             AddReportGap();
             AddReportStat("Uncovered", secretsFound + " of " + secretsTotal);
 
+            // The last thing read is the reason to run again. One line, world-derived, never a
+            // demand — the card states what is close and lets the player decide it matters.
+            if (!string.IsNullOrEmpty(rep.NextLine))
+            {
+                AddReportGap();
+                AddReportEvent("▸ " + rep.NextLine);
+            }
+
             // The card is exactly as tall as what it has to say.
             var rt = UIFactory.Rect(_reportCard.gameObject);
             rt.sizeDelta = new Vector2(900f, Mathf.Clamp(ReportHeader + _reportRowY + ReportFooter, 480f, 1400f));

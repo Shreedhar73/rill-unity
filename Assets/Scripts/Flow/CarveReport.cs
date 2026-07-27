@@ -45,6 +45,13 @@ namespace Rill.Flow
         public bool Overflowed;
         public string OverflowBasin;
 
+        /// <summary>
+        /// The one world-derived line about what is almost about to happen, or null. Set by the
+        /// controller after the run's consequences have all landed, because a teaser computed
+        /// before deposition could promise a basin the run just silted shut.
+        /// </summary>
+        public string NextLine;
+
         // Things the run picked up on the way down. None of them are currency.
         public int SeedsCaught;
         public int FlowersSplashed;

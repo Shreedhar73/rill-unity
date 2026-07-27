@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **25** · Closed this cycle: **44** (34 archived)
+Last updated: **2026-07-27** · Open loops: **24** · Closed this cycle: **45** (34 archived)
 
 ---
 
@@ -253,16 +253,6 @@ Rejected on the way: anything resembling XP, streaks that punish a missed day, t
 energy systems, and a "prestige" reset (invariant 1 makes the whole genre impossible here, which
 is the design's point). Ordered by implementation order, terminal-verifiable ones first.
 
-### L-060 · The end card never says what is almost about to happen
-**Why** — "One more run" is fed by unfinished business, and the card only reports the past. The
-world is full of numbers that are *nearly* something — a basin at 91%, a channel 0.6 m from cutting
-through a ridge to the sea, a secret 0.3 m from daylight — and none of them are ever said. The
-near-miss is the strongest single retention trigger in games that have one; this game's version is
-already true and already computed, just never surfaced.
-**Done when** — The end card carries one world-derived "next" line when one exists ("The North
-basin wants 40 m³ more"), and the smoke test prints the line for 24 runs with a count of how many
-runs had one — a teaser that appears on zero runs is a system that silently does nothing.
-
 ### L-061 · The mountain's own history is invisible
 **Why** — `TimeLapse` has archived a frame of every run since it was written, per slot, and nothing
 plays it back. Watching six months of your own carving in ten seconds is the single strongest
@@ -353,6 +343,25 @@ headless mass-balance check accounts for every m³ of shower water.
 ---
 
 ## Recently closed
+
+### L-060 · The end card never says what is almost about to happen — closed 2026-07-27
+`NextTeaser.For(world)`: one world-derived line on the end card about what is *almost* about to
+happen — a basin near its brim with the exact m³ it still wants, a secret under thin rock, or (only
+when nothing is genuinely close) a basin that sits empty. Reads the world and awards nothing; every
+number is recomputable from the heightfield, so the promise and the progress can never disagree.
+Computed after drift and biome rules so it cannot promise a basin the run just silted shut; never
+on the Daily (its world is discarded — a promise nobody can collect on) and never for cascades.
+**Two failures found by the count, both the silent-nothing kind in reverse.** First version fired
+on 24 of 24 runs with the same line on 23 of them — an *untouched* secret placed shallow by
+generation, a promise that never moved, about a place with no channel to it. Secrets now qualify
+only once the player's water has actually cut toward them (`Virgin - Height > 0.05`). Second: ranked
+purely by urgency the shallowest secret won every run and the card read as a secrets ticker, so the
+basin and secret promises alternate by run number when both exist.
+**Evidence** — smoke test now counts it: `next teaser on 24 of 24 runs`, lines *moving* across the
+session — "Something lies 0.7 m under the rock" ×1 → 0.6 ×2 → 0.4 ×6 → 0.3 ×9 → 0.2 ×1, and "North
+basin wants 173 m³ more" ×1 → "109 m³ more" ×4. Converging numbers are the difference between a
+promise and wallpaper. Play probe after the card change: 0 failed, 0 runtime errors. **Firing on
+every run of this seed is on notice** — if it reads as noise in play, the windows tighten.
 
 ### L-059 · The camera enters the mountains on slots 2 and 3 — closed 2026-07-27
 Reported in play: camera angles break and the camera goes inside the second and third mountains.

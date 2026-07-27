@@ -703,6 +703,11 @@ namespace Rill.Flow
             BiomeRules.BetweenRuns(Active, _weather, report.Headlines);
             _projects.Refresh(Active, Ecosystem, Revelation, InDaily ? null : _almanac);
 
+            // After every consequence has landed — deposition, drift, biome rules — so the teaser
+            // cannot promise a basin the run just silted shut. Not on the Daily: its world is
+            // borrowed and discarded, so "next" there is a promise nobody can collect on.
+            report.NextLine = (InDaily || _autoRun) ? null : Rill.Meta.NextTeaser.For(Active);
+
             if (report.Revealed.Count > 0 || report.Overflowed) Haptics.Event();
 
             _lastReport = report;
