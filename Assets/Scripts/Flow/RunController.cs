@@ -293,6 +293,15 @@ namespace Rill.Flow
             _knownPlaces.Clear();
             var existing = Landmarks.Find(world);
             for (int i = 0; i < existing.Count; i++) _knownPlaces.Add(existing[i].Name);
+
+            // Each mountain is its own room: the ambience rebinds with the world, so switching
+            // slots is audible before the terrain finishes rebuilding.
+            if (Audio != null)
+            {
+                float s, b, w;
+                AmbienceParams.From(world.Field, Ecosystem != null ? Ecosystem.LifeField : null, out s, out b, out w);
+                Audio.SetIdleAmbience(s, b, w);
+            }
             Pooled.SetDirty();
             Revelation.Refresh();
             Terrain.MarkAll();
@@ -824,6 +833,12 @@ namespace Rill.Flow
             {
                 Audio.SetAmbientWater(Active.Basins.TotalWater());
                 if (report.DeepestCarve > 0.15f) Audio.DepthNote(Mathf.RoundToInt(report.DeepestCarve * 10f));
+
+                // The run just changed the world, so the room tone follows it: new channels
+                // murmur, new growth sings, lost growth goes quiet.
+                float s, b, w;
+                AmbienceParams.From(Active.Field, Ecosystem.LifeField, out s, out b, out w);
+                Audio.SetIdleAmbience(s, b, w);
             }
 
             // A cascade is the mountain acting, not the player. It must not enter the daily, the
@@ -1120,6 +1135,15 @@ namespace Rill.Flow
             Ecosystem.Initialise(world, PropMaterial);
             Ecosystem.UseLifeField(lifeField);
             Revelation.Initialise(world, PropMaterial);
+
+            // Again after the life field lands: BindWorld pushed ambience while Ecosystem still
+            // held the PREVIOUS world's life, so a slot switch briefly sang with the wrong birds.
+            if (Audio != null)
+            {
+                float s, b, w;
+                AmbienceParams.From(world.Field, lifeField, out s, out b, out w);
+                Audio.SetIdleAmbience(s, b, w);
+            }
         }
 
         // Materials are handed over by the bootstrap so rebinding can rebuild the renderers.
@@ -1151,6 +1175,22 @@ namespace Rill.Flow
             string shot = System.IO.Path.Combine(SaveSystem.RootDir,
                 string.Format("postcard_run{0}.png", Active.RunNumber));
             ScreenCapture.CaptureScreenshot(shot);
+
+            // The share card: the run's own path over the mountain, composed pixel by pixel so it
+            // is identical on every device and provable headless. Only when there is a run to
+            // show — a card with no path on it is a map, not a share.
+            if (!InDaily && _lastPath.Count > 1 && _lastReport != null)
+            {
+                string title = string.Format("Run {0} — {1}", _lastReport.RunNumber, _lastReport.Summary());
+                string record = string.Format("{0:n0} m³ moved · {1:n0} m³ to the sea",
+                    Active.LifetimeSediment, Active.LifetimeWaterToSea);
+                byte[] png = ShareCard.Render(Active, _lastPath, title, record);
+                string cardPath = System.IO.Path.Combine(SaveSystem.RootDir,
+                    string.Format("card_run{0}.png", _lastReport.RunNumber));
+                System.IO.File.WriteAllBytes(cardPath, png);
+                Hud.SetHint("Copied to clipboard · postcard and card saved");
+                return;
+            }
 
             Hud.SetHint("Copied to clipboard · postcard saved");
         }

@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **18** · Closed this cycle: **51** (34 archived)
+Last updated: **2026-07-27** · Open loops: **16** · Closed this cycle: **53** (34 archived)
 
 ---
 
@@ -253,22 +253,6 @@ Rejected on the way: anything resembling XP, streaks that punish a missed day, t
 energy systems, and a "prestige" reset (invariant 1 makes the whole genre impossible here, which
 is the design's point). Ordered by implementation order, terminal-verifiable ones first.
 
-### L-067 · The mountain is silent between runs
-**Why** — `FlowAudio` sounds during a run; idle is dead air. A mature river system should *sound*
-mature — more streams, more birdsong at the treeline, wind on bare rock — so the mixing desk reads
-off the world like everything else. Sound is the cheapest "it is alive" signal there is, and the
-difference between slots would be audible before it is visible.
-**Done when** — Idle ambience parameters derive from world state, and headlessly a virgin and a
-mature mountain produce measurably different mixes (numbers printed, not vibes).
-
-### L-068 · A finished run cannot be shown to anyone
-**Why** — The report card is the game's proudest moment and it cannot leave the device. One image —
-the run's ribbon over the carve, the glyph, the record line — written to the share sheet, is the
-viral loop. Wordle is the proof that the share *is* the acquisition strategy when the artifact is
-small and personal.
-**Done when** — A run's report can be exported as an image that provably contains that run's path
-(capture-verified non-blank, path pixels present), reachable from the card.
-
 ### L-069 · Rain is something the mountain receives, never something the player gives
 **Why** — Between runs the mountain is look-but-don't-touch. A held finger summoning a brief
 shower — droplets finding the player's own channels, live — is the petting interaction: zero
@@ -293,6 +277,36 @@ headless mass-balance check accounts for every m³ of shower water.
 ---
 
 ## Recently closed
+
+### L-068 · A finished run cannot be shown to anyone — closed 2026-07-27
+`ShareCard.Render`: the run as one 1080×1350 image — the mountain top-down and hillshaded in its
+own strata palette, lakes as lakes, the run's path drawn with a dark halo and start/end markers,
+the record in a hand-built 5×7 pixel font. No camera, no font asset, no UI: every pixel painted by
+plain code, which is why it renders identically headless and a test can prove the share contains
+the run it claims to. Wired into the existing Share button alongside the clipboard glyph and the
+postcard; written as `card_run{N}.png` beside the save.
+**Evidence** — headless share-card test, 7 assertions: real 240-point path; 787 KB PNG decoding at
+1080×1350; 698 pixels of the path colour painted; **1,231 pixels of difference between the card
+with the run and the card without it** — the run is provably in the image; both text bands carry
+lit pixels. `docs/shots/share_card.png` is the artifact itself, and looking at it caught what the
+assertions could not: the pixel font had no % glyph, so "20% full" printed as "20 full". Fixed.
+The platform share sheet (iOS/Android) is deliberately not here — files-beside-the-save is the
+offline-honest version, and the share sheet belongs with the device pass (L-022).
+
+### L-067 · The mountain is silent between runs — closed 2026-07-27
+`AmbienceParams.From(field, life)` — pure, headless-testable — reads three numbers off the world:
+stream murmur from polished channel fraction, birdsong from living-cell density, wind from what is
+still bare (floored at 0.25: a summit with no wind sounds like a room). `FlowAudio` grew three
+synth voices — heavily lowpassed murmur, twin-LFO gusting wind that never loops audibly, sparse
+sine chirps with a falling slide, gated to idle — all ducked while a run is loud so the player's
+own water stays the foreground instrument. Pushed on world bind, after the life field lands
+(BindWorld alone briefly sang with the previous world's birds on a slot switch — caught in review,
+fixed), and after every run.
+**Evidence** — headless ambience test, 5 assertions: virgin mountain is stream 0.00 / birds 0.00 /
+wind 1.00; played mountain with a living slope is 1.00 / 1.00 / 0.25; each parameter moves the
+required direction and wind never dies. **The mix itself needs ears and has had none** — the
+parameters are proven, the sound is unobserved, and that distinction is the whole reason the
+parameters live in a separate pure class.
 
 ### L-066 · Nothing on the mountain has a name — closed 2026-07-27
 `Landmarks.Find(world)`: gorges cut more than 2.5 m below virgin rock and fans built more than

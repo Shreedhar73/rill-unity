@@ -345,6 +345,11 @@ namespace UnityEngine
         public Texture2D(int w, int h) { }
         public Texture2D(int w, int h, TextureFormat f, bool mips) { }
         public void SetPixels(Color[] px) { }
+        public void SetPixels32(Color32[] px) { }
+        public Color32[] GetPixels32() { return null; }
+        public bool LoadImage(byte[] data) { return false; }
+        public int width { get; set; }
+        public int height { get; set; }
         public void Apply() { }
         public byte[] EncodeToPNG() { return null; }
         public Texture2D(int w, int h, TextureFormat f, bool mips, bool linear) { }

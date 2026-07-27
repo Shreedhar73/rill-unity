@@ -25,11 +25,21 @@ namespace Rill.Audio
         volatile float _lakePresence;
         volatile bool _flowing;
 
+        // Idle ambience, world-derived (AmbienceParams): the mountain's own room tone.
+        volatile float _ambStream;
+        volatile float _ambBirds;
+        volatile float _ambWind;
+
         // --- audio-thread state
         float _lp1, _lp2, _bp;
         float _envFlow;
         float _grainPhase, _grainEnv, _grainFreq;
         uint _rng = 0x9e3779b9u;
+
+        // Idle ambience voices. Separate filter states from the run's water so the murmur does
+        // not inherit the run filter's cutoff sweeps.
+        float _ambLp, _windLp, _windGustPhase;
+        float _birdPhase, _birdEnv, _birdFreq, _birdSlide;
 
         struct Note { public float Freq, Env, Phase, Decay; }
         Note[] _notes = new Note[8];
@@ -58,6 +68,19 @@ namespace Rill.Audio
         public void SetAmbientWater(float totalWaterVolume)
         {
             _lakePresence = Mathf.Clamp01(totalWaterVolume / 20000f);
+        }
+
+        /// <summary>
+        /// The idle soundscape, read off the world: carved channels murmur in the distance, living
+        /// slopes have birds, bare rock has wind. Between runs used to be dead air, which made the
+        /// mountain read as paused; a mature mountain should be audibly different from a virgin
+        /// one with your eyes closed.
+        /// </summary>
+        public void SetIdleAmbience(float stream01, float birds01, float wind01)
+        {
+            _ambStream = Mathf.Clamp01(stream01);
+            _ambBirds = Mathf.Clamp01(birds01);
+            _ambWind = Mathf.Clamp01(wind01);
         }
 
         public void Splash(float strength)
@@ -162,6 +185,55 @@ namespace Rill.Audio
                     sample += s * _notes[nI].Env * 0.16f * MasterVolume;
                     _notes[nI].Env -= _notes[nI].Env * _notes[nI].Decay * dt;
                 }
+
+                // --- idle ambience: the mountain's room tone, ducked while a run is loud so the
+                // player's own water stays the foreground instrument.
+                float duck = 1f - _envFlow * 0.8f;
+                float amb = 0f;
+
+                float stream = _ambStream;
+                if (stream > 0.001f)
+                {
+                    // Distant water: heavily lowpassed noise, no grains — a murmur, not a river.
+                    float sa = Mathf.Clamp01(700f * dt * 2f * Mathf.PI);
+                    _ambLp += (n - _ambLp) * sa;
+                    amb += _ambLp * stream * 0.5f;
+                }
+
+                float wind = _ambWind;
+                if (wind > 0.001f)
+                {
+                    // Wind: darker noise with a slow gust envelope. Two LFO rates beat against
+                    // each other so the gusts never loop audibly.
+                    _windGustPhase += dt;
+                    float gust = 0.55f + 0.45f * Mathf.Sin(_windGustPhase * 0.5f)
+                                              * Mathf.Sin(_windGustPhase * 0.13f + 1.7f);
+                    float wa = Mathf.Clamp01(240f * dt * 2f * Mathf.PI);
+                    _windLp += (n - _windLp) * wa;
+                    amb += _windLp * wind * gust * 0.6f;
+                }
+
+                float birds = _ambBirds;
+                if (birds > 0.001f && !flowing)
+                {
+                    // Sparse chirps: a short sine with a falling slide. Trigger probability scales
+                    // with how alive the mountain is — a few a minute on moss, a conversation on a
+                    // wooded slope.
+                    _birdEnv -= _birdEnv * 9f * dt;
+                    if (_birdEnv < 0.01f && NextNoise() > 0.99997f - birds * 0.00006f)
+                    {
+                        _birdEnv = 0.5f + 0.3f * (NextNoise() * 0.5f + 0.5f);
+                        _birdFreq = 2400f + 1800f * (NextNoise() * 0.5f + 0.5f);
+                        _birdSlide = -_birdFreq * (0.3f + 0.5f * (NextNoise() * 0.5f + 0.5f));
+                        _birdPhase = 0f;
+                    }
+                    _birdFreq += _birdSlide * dt;
+                    if (_birdFreq < 600f) _birdEnv = 0f;
+                    _birdPhase += _birdFreq * dt;
+                    amb += Mathf.Sin(_birdPhase * 2f * Mathf.PI) * _birdEnv * 0.10f;
+                }
+
+                sample += amb * duck * AmbienceVolume * MasterVolume;
 
                 sample = Mathf.Clamp(sample, -1f, 1f);
                 for (int c = 0; c < channels; c++) data[i + c] += sample;

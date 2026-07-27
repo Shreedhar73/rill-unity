@@ -678,6 +678,147 @@ namespace Rill.EditorTools
             if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
         }
 
+        /// <summary>
+        /// The idle soundscape parameters, virgin vs played. The mix itself needs ears; what a
+        /// test can hold is that the numbers driving it move the right way — a worked mountain
+        /// gains stream murmur, a greened one gains birdsong, and wind recedes but never dies.
+        /// (L-067)
+        /// </summary>
+        [MenuItem("RILL/Run Headless Ambience Test", false, 79)]
+        public static void RunHeadlessAmbience()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL ambience parameters ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            var config = new GameConfig();
+            var world = RillWorld.Create(config, 20260726u, Biome.Sandstone);
+            var life = new float[world.Field.Count];
+
+            float vs, vb, vw;
+            Rill.Audio.AmbienceParams.From(world.Field, life, out vs, out vb, out vw);
+            log.AppendFormat("  virgin:  stream {0:0.00}  birds {1:0.00}  wind {2:0.00}\n", vs, vb, vw);
+
+            // 40 runs of carving, and a hand-planted living slope standing in for the ecosystem
+            // (its growth loop needs the MonoBehaviour; the parameters do not care who grew it).
+            var sim = new FlowSimulation(world);
+            for (int run = 1; run <= 40; run++)
+            {
+                world.BeginRun();
+                var rng = new Rng(Noise.Hash((uint)run * 2654435761u ^ world.Seed));
+                sim.Begin(world.SpawnPoint(ref rng), config.StartVolume);
+                int steps = 0;
+                while (sim.Running && steps++ < 20000)
+                {
+                    if (steps % 30 == 0)
+                        sim.SetSteer(rng.Next01() < 0.45f, sim.Head.Pos + new Vector2(rng.Range(-25f, 25f), rng.Range(-25f, 25f)));
+                    sim.Advance(config.SimStep);
+                }
+                world.Basins.Rebuild();
+                world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+            }
+            int planted = 0;
+            for (int i = 0; i < world.Field.Count && planted < 1500; i++)
+                if (world.Field.Height[i] > world.Field.SeaLevel && world.Field.Wet[i] > 0.1f) { life[i] = 3f; planted++; }
+
+            float ms, mb, mw;
+            Rill.Audio.AmbienceParams.From(world.Field, life, out ms, out mb, out mw);
+            log.AppendFormat("  played:  stream {0:0.00}  birds {1:0.00}  wind {2:0.00}  ({3} living cells)\n", ms, mb, mw, planted);
+
+            check(vs < 0.05f && vb < 0.05f, "a virgin mountain has no stream and no birds");
+            check(vw > 0.8f, "and is mostly wind: " + vw.ToString("0.00"));
+            check(ms > vs + 0.3f, string.Format("carving raises the murmur: {0:0.00} from {1:0.00}", ms, vs));
+            check(mb > vb + 0.3f, string.Format("life raises the birdsong: {0:0.00} from {1:0.00}", mb, vb));
+            check(mw < vw && mw >= 0.25f, string.Format("wind recedes but never dies: {0:0.00} from {1:0.00}", mw, vw));
+
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
+        /// <summary>
+        /// The share card, rendered headless and interrogated pixel by pixel. The claim is not
+        /// "an image exists" but "the image contains THIS run": path pixels in the path colour,
+        /// along the run's actual course, plus readable text bands. (L-068)
+        /// </summary>
+        [MenuItem("RILL/Run Headless Share Card Test", false, 80)]
+        public static void RunHeadlessShareCard()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL share card ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            var config = new GameConfig();
+            var world = RillWorld.Create(config, 20260726u, Biome.Sandstone);
+            var sim = new FlowSimulation(world);
+            world.BeginRun();
+            var rng = new Rng(world.Seed);
+            sim.Begin(world.SpawnPoint(ref rng), config.StartVolume);
+            int steps = 0;
+            while (sim.Running && steps++ < 20000) sim.Advance(config.SimStep);
+            var path = new List<Vector3>(sim.Path);
+            world.Basins.Rebuild();
+            var rep = world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+            check(path.Count > 10, "the test run produced a real path: " + path.Count + " points");
+
+            byte[] withPath = ShareCard.Render(world, path, "Run 1 — " + rep.Summary(), "1,234 m³ moved");
+            byte[] without = ShareCard.Render(world, null, "Run 1 — " + rep.Summary(), "1,234 m³ moved");
+            check(withPath != null && withPath.Length > 30000,
+                  "the card encodes as a substantial PNG: " + (withPath == null ? 0 : withPath.Length) + " bytes");
+
+            var tex = new Texture2D(2, 2);
+            tex.LoadImage(withPath);
+            check(tex.width == ShareCard.Width && tex.height == ShareCard.Height,
+                  "and decodes back at " + tex.width + "×" + tex.height);
+
+            // Path pixels: the path colour must appear, and it must appear NEAR the run's actual
+            // course — a diagonal stripe of the right colour in the wrong place would pass a bare
+            // colour count.
+            var pixels = tex.GetPixels32();
+            int pathPixels = 0;
+            for (int i = 0; i < pixels.Length; i++)
+                if (pixels[i].r == 140 && pixels[i].g == 214 && pixels[i].b == 238) pathPixels++;
+            check(pathPixels > 300, "the path colour is painted: " + pathPixels + " pixels");
+
+            var texNo = new Texture2D(2, 2);
+            texNo.LoadImage(without);
+            var pixelsNo = texNo.GetPixels32();
+            int diff = 0;
+            for (int i = 0; i < pixels.Length; i++)
+                if (pixels[i].r != pixelsNo[i].r || pixels[i].g != pixelsNo[i].g || pixels[i].b != pixelsNo[i].b) diff++;
+            check(diff > 500, "the run is the difference between the two cards: " + diff + " pixels");
+
+            // Text bands: the title row and the RILL row must have lit pixels.
+            int titleLit = 0, wordLit = 0;
+            for (int y = 130; y < 190; y++)
+                for (int x = 0; x < tex.width; x++)
+                    if (pixels[y * tex.width + x].r > 200) titleLit++;
+            for (int y = tex.height - 130; y < tex.height - 40; y++)
+                for (int x = 0; x < tex.width; x++)
+                    if (pixels[y * tex.width + x].r > 200) wordLit++;
+            check(titleLit > 100, "the title band carries text: " + titleLit + " lit pixels");
+            check(wordLit > 200, "the RILL wordmark is up top: " + wordLit + " lit pixels");
+
+            string outPath = "docs/shots/share_card.png";
+            System.IO.File.WriteAllBytes(outPath, withPath);
+            log.AppendLine("  wrote " + outPath);
+
+            UnityEngine.Object.DestroyImmediate(tex);
+            UnityEngine.Object.DestroyImmediate(texNo);
+
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
         static string NameOf(Rill.World.WeatherKind k)
         {
             switch (k)
