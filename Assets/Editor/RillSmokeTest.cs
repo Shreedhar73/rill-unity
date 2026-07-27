@@ -982,6 +982,99 @@ namespace Rill.EditorTools
             if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
         }
 
+        /// <summary>
+        /// Basin names: distinct on any lattice, and stable while the lattice changes shape.
+        /// Compass naming collided — the real save listed three "North basin"s — and every
+        /// surface that names a basin pointed at somewhere the player could not tell apart.
+        /// (L-070)
+        /// </summary>
+        [MenuItem("RILL/Run Headless Basin Names Test", false, 83)]
+        public static void RunHeadlessBasinNames()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL basin names ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            // A hand-built field: flat ground, three pits in the same (north) octant — the
+            // collision case by construction, with none of a cone's accidental spill routes. The
+            // first fixture put the pits on a sloped cone and two of them promptly shared a
+            // drainage, which tested the fixture rather than the naming.
+            var f = new HeightField(64, 2f);
+            for (int i = 0; i < f.Count; i++) f.Height[i] = 20f;
+            int[][] pits = { new[] { 29, 46 }, new[] { 35, 46 }, new[] { 32, 54 } };  // all due-north: atan2 puts each in octant 0
+            foreach (var p in pits)
+                for (int dz = -2; dz <= 2; dz++)
+                    for (int dx = -2; dx <= 2; dx++)
+                        f.Height[(p[1] + dz) * 64 + (p[0] + dx)] = 16f + (Mathf.Abs(dx) + Mathf.Abs(dz)) * 0.5f;
+
+            var basins = new BasinSystem(f);
+            basins.Rebuild();
+            var names = new List<string>();
+            for (int i = 0; i < basins.Basins.Count; i++) names.Add(basins.Basins[i].Name);
+            log.AppendLine("  built: " + string.Join(" · ", names.ToArray()));
+
+            check(basins.Basins.Count >= 3, "the three pits are three basins: " + basins.Basins.Count);
+            var set = new HashSet<string>(names);
+            check(set.Count == names.Count, "every name is distinct");
+            // The chain itself, not octant luck: three pits due north must walk basin -> tarn
+            // -> hollow. The first fixture scattered them into three octants and the water-word
+            // chain — the actual fix — never executed.
+            check(set.Contains("North basin") && set.Contains("North tarn") && set.Contains("North hollow"),
+                  "one octant walks the water words: " + string.Join(" · ", names.ToArray()));
+
+            // Stability: rebuilding unchanged terrain must not re-deal the names.
+            basins.Rebuild();
+            bool stable = true;
+            for (int i = 0; i < basins.Basins.Count && stable; i++)
+                if (basins.Basins[i].Name != names[i]) stable = false;
+            check(stable, "an unchanged mountain keeps every name across a rebuild");
+
+            // A merge: give the two adjacent pits different volumes, lower the wall between them,
+            // and the survivor must carry the LARGER parent's name.
+            var a = basins.BasinAt(f.Index(29, 46));
+            var b = basins.BasinAt(f.Index(35, 46));
+            check(a != null && b != null && a.Name != b.Name, "the two named parents exist: " + a.Name + " / " + b.Name);
+            a.Volume = 40f; b.Volume = 4f;
+            string bigName = a.Name;
+            string merged = null;
+            basins.Merged += (from, survivor) => merged = survivor;
+            // A channel between the two pits, below ground level but above their floors: one
+            // depression now, still sealed off from the border by the flat 20 m plain.
+            for (int x = 27; x <= 37; x++)
+                f.Height[46 * 64 + x] = Mathf.Min(f.Height[46 * 64 + x], 17.5f);
+            basins.Rebuild();
+            check(merged != null, "the merge was reported");
+            check(merged == bigName, "and the survivor keeps the larger parent's name: " + merged + " (wanted " + bigName + ")");
+
+            // And on real generated rock, played: every basin name distinct.
+            var config = new GameConfig();
+            var world = RillWorld.Create(config, 424242u, Biome.Sandstone);
+            var sim = new FlowSimulation(world);
+            for (int run = 1; run <= 12; run++)
+            {
+                world.BeginRun();
+                var rng = new Rng(Noise.Hash((uint)run * 2654435761u ^ world.Seed));
+                sim.Begin(world.SpawnPoint(ref rng), config.StartVolume);
+                int steps = 0;
+                while (sim.Running && steps++ < 20000) sim.Advance(config.SimStep);
+                world.Basins.Rebuild();
+                world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+            }
+            var real = new HashSet<string>();
+            bool realDistinct = true;
+            for (int i = 0; i < world.Basins.Basins.Count; i++)
+                if (!real.Add(world.Basins.Basins[i].Name)) realDistinct = false;
+            check(realDistinct, "a played, generated mountain has " + world.Basins.Basins.Count + " basins, all named apart");
+
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
         static string NameOf(Rill.World.WeatherKind k)
         {
             switch (k)

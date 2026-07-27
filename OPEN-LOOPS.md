@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **13** · Closed this cycle: **58** (46 archived)
+Last updated: **2026-07-27** · Open loops: **12** · Closed this cycle: **59** (48 archived)
 
 ---
 
@@ -102,15 +102,6 @@ that five separate "the simulation is broken" conclusions turned out to be flaws
 
 ## Next
 
-### L-070 · Basin names collide — three "North basin"s on one mountain
-**Why** — Seen on the records screen the moment it existed (`play_records.png`): the real save's
-lattice lists "South basin" twice and "North basin" three times. Compass-point naming cannot tell
-six basins apart, so the record, the end-card teaser, the overflow headline and the boat's
-resting-place line all point at a place the player cannot disambiguate.
-**Done when** — Every basin on a mountain has a distinct name, existing saves included, and the
-names survive the lattice changing shape (a merge keeps one of its parents' names, as `Merged`
-already reports).
-
 ### L-043 · The basin lattice is finished by run 500
 **Why** — Measured 2026-07-26 over a 500-run season, the first time this game has been run far
 enough to see its own endgame. Four of five basins sit at **100%** and the fifth at 0%; runs stopping
@@ -195,6 +186,23 @@ spray half alone.
 ---
 
 ## Recently closed
+
+### L-070 · Basin names collide — three "North basin"s on one mountain — closed 2026-07-27
+Opened and closed the same day, but not the same hour, and with its own test. `ReconcileNames`
+runs after the whole lattice is labelled, two rules in order: a basin that still contains a
+remembered deepest point **keeps its name** (a name is a handle the player has read on cards;
+geometry shifting under it must not change it — and a merge keeps the larger parent's name, which
+is what the Merged event reports); everything else gets its compass octant with the first unused
+water-word — basin, tarn, hollow, pool, mere, lochan — so six hollows due north are six different
+places. Existing saves heal on their next Rebuild since names were never persisted.
+**The first fixture tested the fixture.** Three pits on a cone shared drainage routes and landed
+in three octants, so the water-word chain — the actual fix — never executed and the "distinct
+northern names" check passed on octant luck. Rebuilt on flat ground with all three pits due
+north: `North basin · North tarn · North hollow`.
+**Evidence** — 8 assertions: three same-octant pits walk the chain; names distinct; unchanged
+terrain keeps every name across a rebuild; a merge is reported and the survivor carries the
+larger parent's name; a played generated mountain has 6 basins all named apart. Full smoke after:
+green, save round-trips, existing basin references unchanged.
 
 ### L-051 · There is nowhere to see what you have done — closed 2026-07-27
 `Records.Text(world, almanac, life, secrets)` — plain C#, takes the world and nothing else, which
@@ -334,35 +342,5 @@ network moves the boat ≥1.3× as fast (measured 17×); no voyage runs forever;
 sails the same boat twice to 0.01 m. Probe green with the six-button row: 0 failed, 0 errors,
 `play_idle.png` shows Boat in the row. The live playback is unobserved — the probe cannot tap the
 world.
-
-### L-064 · Nothing happens while you are away — closed 2026-07-27
-`RillWorld.ApplyAwayDrift`: the same silt-and-dry drift that already ran silently between runs,
-applied once per session after ≥6 h away (one tick per 8 h, hard-capped at 6 — a month's absence
-reads as "the mountain settled", never "your channels are gone") and **measured**, so the title
-can say truthfully what changed: "While you were away (2 days): 1.6 m³ of silt settled in quiet
-channels, and the rock dried". Shown in the forecast slot for the one boot it exists on (it
-outranks the weather), cleared the moment a run starts. Absence timestamp from
-`Almanac.LastPlayedUtcTicks`, which already existed.
-**Evidence** — headless away test, 5 assertions: a virgin mountain reports exactly nothing
-(0.000 m³ — measured zero, not unlooked-at); quiet channels settle (1.59 m³); **the reported
-number is the terrain's actual change** (reported 1.59, independently measured 1.59); wet rock
-dries (153 cells); the longest possible absence returns 5.28 m³ of 746 m³ carved — under 5%.
-The title line itself is unobserved in play (it needs a real absence).
-
-### L-063 · Weather arrives unannounced — closed 2026-07-27
-Weather was already deterministic from the date; the game just never said what was coming.
-`WeatherSystem.KindFor(DateTime)` is the old `Evaluate` roll extracted static and pure, so the
-forecast is *the same function called on tomorrow* and structurally cannot disagree with the
-weather that arrives. `ForecastLine` names the next change within 24 h — "This evening: a storm —
-double water" — and stays silent while nothing changes, because "Tomorrow: the same" is not an
-appointment. Shown under the tagline on the title screen.
-**A structural-invisibility bug caught by looking, once again** — the first version appended the
-forecast to the title's record line, which `SetMountains` hides permanently the moment the slot
-rows exist. Built, correct, and impossible to see, exactly the L-018 shape. It got its own element.
-**Evidence** — new headless forecast test over a year of half-day windows: 730/730 forecast vs
-arrival, 0 mismatches; every spoken line names the weather that then arrives and silence never
-hides a change (0 lies); it spoke on 588 windows and held its tongue on 142, so both branches are
-real. Probe: 0 failed, 0 errors, and the crop of `play_home.png` shows the line on screen in the
-running game: "This evening: a storm — double water".
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*

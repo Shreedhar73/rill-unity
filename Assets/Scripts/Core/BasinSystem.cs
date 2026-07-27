@@ -149,6 +149,7 @@ namespace Rill.Core
 
             PriorityFlood();
             LabelBasins();
+            ReconcileNames();
             GatherExistingWater();
             SolveLevels(raiseOverflow: false);
 
@@ -321,7 +322,7 @@ namespace Rill.Core
                 SpillLevel = spillLevel,
                 Capacity = capacity,
                 SpillCell = FindSpillCell(arr, spillLevel),
-                Name = NameFor(arr[0])
+                Name = null   // assigned by ReconcileNames, which sees the whole lattice at once
             };
             return b;
         }
@@ -350,13 +351,68 @@ namespace Rill.Core
 
         static readonly string[] Compass = { "North", "North-east", "East", "South-east", "South", "South-west", "West", "North-west" };
 
-        string NameFor(int cell)
+        // Different words for water in the same octant. "North basin" three times on one
+        // mountain — which the real save had, seen the moment the records screen existed — makes
+        // every surface that names a basin (the teaser, the overflow headline, the boat's
+        // resting place) point at somewhere the player cannot tell apart. (L-070)
+        static readonly string[] Waters = { "basin", "tarn", "hollow", "pool", "mere", "lochan" };
+
+        string CompassFor(int cell)
         {
             int x = cell % _n, z = cell / _n;
             float dx = x - _n * 0.5f, dz = z - _n * 0.5f;
             float ang = Mathf.Atan2(dx, dz) * Mathf.Rad2Deg;
             int oct = Mathf.RoundToInt(((ang + 360f) % 360f) / 45f) % 8;
-            return Compass[oct] + " basin";
+            return Compass[oct];
+        }
+
+        /// <summary>
+        /// Names, after the whole lattice is known. Two rules, in order:
+        /// 1. A basin that still contains a remembered deepest point KEEPS that name — a name is
+        ///    a handle the player has read on cards, and geometry shifting under it must not
+        ///    change it. When two remembered basins land in one (a merge), the larger volume's
+        ///    name survives, which is also what the Merged event reports.
+        /// 2. Everything else gets its compass octant with the first unused water-word, so six
+        ///    basins in one octant are the North basin, tarn, hollow, pool, mere and lochan
+        ///    rather than three "North basin"s.
+        /// </summary>
+        void ReconcileNames()
+        {
+            int n = _basins.Count;
+            var inherited = new string[n];
+            var inheritedVol = new float[n];
+            for (int i = 0; i < _before.Count; i++)
+            {
+                if (string.IsNullOrEmpty(_before[i].Name)) continue;
+                int now = _basinOf[_before[i].Cell];
+                if (now < 0 || now >= n) continue;
+                if (inherited[now] == null || _before[i].Volume > inheritedVol[now])
+                {
+                    inherited[now] = _before[i].Name;
+                    inheritedVol[now] = _before[i].Volume;
+                }
+            }
+
+            var used = new HashSet<string>();
+            for (int b = 0; b < n; b++)
+            {
+                // A duplicate inheritance (possible only while digesting a save named under the
+                // old colliding scheme) falls through to renaming rather than colliding again.
+                if (inherited[b] != null && used.Add(inherited[b])) _basins[b].Name = inherited[b];
+                else _basins[b].Name = null;
+            }
+            for (int b = 0; b < n; b++)
+            {
+                if (_basins[b].Name != null) continue;
+                string dir = CompassFor(_basins[b].Cells[0]);
+                string name = null;
+                for (int w = 0; w < Waters.Length && name == null; w++)
+                    if (!used.Contains(dir + " " + Waters[w])) name = dir + " " + Waters[w];
+                for (int k = 2; name == null; k++)   // seven hollows in one octant: numbered, not stuck
+                    if (!used.Contains(dir + " basin " + k)) name = dir + " basin " + k;
+                used.Add(name);
+                _basins[b].Name = name;
+            }
         }
 
         // ------------------------------------------------------------------ water
