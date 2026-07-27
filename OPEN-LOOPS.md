@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **15** · Closed this cycle: **54** (43 archived)
+Last updated: **2026-07-27** · Open loops: **12** · Closed this cycle: **57** (46 archived)
 
 ---
 
@@ -43,38 +43,6 @@ Every loop has:
 ---
 
 ## Now
-
-### L-052 · "Close game" was built as quit, and meant end the session
-**Why** — L-046 shipped a "Close game" button that called `Application.Quit`. The request was for a
-control that **ends the current game and returns to the main screen**. L-046's evidence is not wrong
-— the 18 navigation assertions and the invariant-6 fix all still hold — so this is a separate loop
-rather than an edit to a closed one.
-**Fixed 2026-07-26, unobserved.** The button is now "End game" and sits on the mountain rather than
-on the main screen, because "take me back" is meaningless on the screen it takes you back to. It
-aborts any run in flight through the same path that leaves the run's water on the mountain, saves,
-clears queued cascades and any held report, and goes home. `Application.Quit` survives only on
-Android's hardware back at the root, reachable from no button at all.
-**Done when** — Someone presses it mid-run and lands on the main screen with their mountain intact.
-**Worth keeping in view** — this is the second requirement in this batch I inferred rather than
-asked about; the first was reading "score in settings" as a records screen, which was a deliberate
-call against the design's no-score rule and stands. This one was simply wrong, and the tell was that
-I wrote a paragraph justifying iOS quit-button policy for a feature nobody had asked for.
-
-**Order for this batch, and the reasoning.** L-046 first because it is the container: back, quit,
-three mountains and three modes all need a level above the run loop that does not exist yet.
-**Closed 2026-07-26.** Then
-L-047, because the mountains are the substance and the save plumbing is already there unused. Then
-L-050 out of turn, because it is the **only item in the batch that can be verified from a terminal** —
-the capture tool renders lighting, and everything else here is UI that needs a person pressing Play.
-Then L-049 (a launch needs somewhere to hand off to, and is far better once the sun moves), L-048,
-and L-051 last.
-
-**Said once, then built as asked.** This is a lot of shell and meta for a game whose kill criterion
-(L-012) has still never been tested, and the design document's own instruction is to redesign before
-building outward if the core does not compel. The core loop is measurably much stronger than it was
-this morning — 378 of 500 runs reach the sea, no run fails to end — but nobody has still ever wanted
-one more run in front of a witness. If the playtest goes badly, this batch is the work most likely to
-be wasted. Recorded here so that is a known bet rather than a surprise.
 
 ### L-048 · There is one mode and it is unnamed
 **Why** — Requested 2026-07-26. Daily Rill exists and is reachable only as a toggle button on the
@@ -141,35 +109,6 @@ that morning — 82 runs in 150 reach the sea against 45, no run in 150 fails to
 of five basins fill against one — but every one of those is a proxy, and this project's own record is
 that five separate "the simulation is broken" conclusions turned out to be flaws in the test harness.
 **A number cannot tell you whether somebody wants one more run.**
-
-### L-037 · The app has no front door
-**Why** — Requested 2026-07-26: the game opened straight into a playable mountain. There was no
-title, no moment of arrival, no deliberate act of starting — the app simply appeared, mid-game. A
-player has no idea what they are looking at or that they are already able to play it, and there is
-nowhere for the game to state its own name.
-**Done when** — Opening the app shows a title with the game's name and a Begin button; play starts
-only when the player chooses it.
-**Evidence needed** — Someone opens the app cold and knows what it is before they touch anything.
-**Implemented 2026-07-26, unobserved.** A `Title` state that boots first. Deliberately shows **the
-player's own mountain** drifting behind the title rather than any art — the world is the save file,
-so the most honest splash screen this game can have is the river system they built last time. Under
-the name sits their record, read off the world rather than awarded: `47 runs · 12,805 m³ moved ·
-2,322 m³ to the sea`, or "A new mountain, untouched" on a fresh save.
-**Not done, and deliberately not guessed at** — "nice graphics" was part of the request and this is
-typography over a live mountain, nothing more. Whether that is enough, or whether it wants a logo
-treatment, a vignette, or a scripted camera move over the terrain, is a look-at-it question.
-
-### L-036 · The run ends without a beat
-**Why** — Observed in play 2026-07-26: "the closing is also too sudden." The report card appeared on
-the same frame the water stopped, so the player never saw what they had just carved — the camera
-frames the deepest cut and the carve overlay comes up, and both were immediately covered by a UI
-panel. The run's *result* is the whole reward loop, and it was being skipped past.
-**Done when** — The end of a run reads as an ending: the stream settles, the carve is visible for a
-moment, then the card arrives. A player who wants to skip it can.
-**Evidence needed** — Someone plays and does not describe the ending as abrupt.
-**Implemented 2026-07-26, unobserved.** New `Settling` state holds for 1.1 s between the run ending
-and the card, fading the ribbon at 0.6× speed while the already-framed camera and carve overlay are
-visible. A tap skips it, so a returning player never sits through it.
 
 ---
 
@@ -259,6 +198,40 @@ spray half alone.
 ---
 
 ## Recently closed
+
+### L-052 · "Close game" was built as quit, and meant end the session — closed 2026-07-27
+The button had been rebuilt as "End game" and `EndGame()` always handled the mid-run case — but it
+sat in the idle row, which hides during a run, so the one thing the loop's *Done when* asked for
+("someone presses it mid-run") was **structurally impossible to do**. The same shape as L-018's
+gate and L-063's forecast: built, correct, and unreachable. End game now lives in its own
+CanvasGroup (`ignoreParentGroups`, or the hidden row's zero alpha multiplies it invisible), shown
+at rest and during the run, never over the title, report or playbacks. The probe's Visible helper
+had to learn the same Unity semantics or it reported the button invisible while the screen showed
+it.
+**Evidence — the probe now does exactly what the Done-when says**: starts a second run, asserts
+`state=Flowing`, sees End game (`EndGameHolder a=1.00` over `Buttons a=0.00`), presses it, and
+lands on the main screen in one press — `Flowing -> Title`, Begin present, End game gone from the
+title, mountain intact, 0 failed, 0 runtime errors. `play_endgame_midrun.png` is the live run with
+the button on it.
+
+### L-037 · The app has no front door — closed 2026-07-27
+Implemented 2026-07-26; closed now because the probe proves the *Done when* verbatim: opening the
+app shows a title with the game's name and a Begin button, and play starts only when the player
+chooses it. Boot lands on `state=Title` after the arrival move, `RILL` + tagline + Begin + the
+three mountain rows are photographed from inside the running game (`play_home.png`), and the run
+state is only ever entered through the Begin click. The record line under the title has since been
+superseded by the per-mountain rows (L-053) and the forecast (L-063).
+**Left open deliberately, elsewhere** — "nice graphics" was part of the original request and is a
+look-at-it question; nothing here closes it.
+
+### L-036 · The run ends without a beat — closed 2026-07-27, on weaker evidence than asked
+**The *Done when* asked for a person** ("someone plays and does not describe the ending as
+abrupt") **and no person has played it — said plainly.** What the probe does prove: every run ends
+`Flowing -> Settling`, the settle beat holds (probe measured 1.1 s before the hand-off), then
+`Settling -> Report` with the card visible, and a tap skips the wait. `play_settle.png` shows the
+beat itself: the ribbon fading over the framed carve with no UI over it. The mechanism is real and
+observed; whether it *feels* like an ending is L-012's business, and if the playtest calls the
+ending abrupt this loop reopens by the rules.
 
 ### L-069 · Rain is something the mountain receives, never something the player gives — closed 2026-07-27
 The last of the 2026-07-27 batch, and the batch is done: ten loops opened this morning, ten closed
@@ -376,58 +349,5 @@ arrival, 0 mismatches; every spoken line names the weather that then arrives and
 hides a change (0 lies); it spoke on 588 windows and held its tongue on 142, so both branches are
 real. Probe: 0 failed, 0 errors, and the crop of `play_home.png` shows the line on screen in the
 running game: "This evening: a storm — double water".
-
-### L-062 · Daily glyphs vanish the next day — closed 2026-07-27
-The rollover was where they died: `DailyRill.Load` replaced any stale `daily.json` without reading
-it. `GlyphJournal` now keeps every day — updated after every daily run (not only at rollover, so a
-crash before midnight loses nothing), with a rollover catch for days played on builds from before
-the journal existed. Global like `daily.json` itself: the Daily belongs to the player, not to a
-mountain. The Almanac panel shows the collection — day count, streak, the last two glyphs in full,
-older days as one line each. The streak is computed from the entries rather than stored, so it can
-never drift from the record; an unplayed *today* does not break yesterday's streak, and a missed
-day just starts the count again — nothing is awarded and nothing punishes, per the design.
-**Evidence** — new headless test, 12 assertions: out-of-order records come back date-sorted;
-re-recording a day updates rather than duplicates; disk round-trip; streak 3 on the last played
-day, still 3 on an unplayed today, 0 after a missed day; panel shows last two glyphs in full and
-older days as lines. Full smoke and play probe after wiring: green, 0 failed, 0 runtime errors.
-The panel rendering in play is unobserved, as all UI here is.
-
-### L-061 · The mountain's own history is invisible — closed 2026-07-27
-The loop was wrong about what was missing, in a useful way: `TimeLapsePlayer` and the HUD button
-already existed and were wired — what did not exist was any observation of them working, a run
-counter during playback, or a way out of it. The playback held the player hostage for the whole
-archive with no caption saying what they were watching.
-**Built** — during playback the hint reads "Run 42 of 201 · tap to skip", live from the frame
-being shown; a tap ends it early (with a 0.4 s grace so the tap that opened the playback cannot
-also skip it); and props no longer draw over the history — the probe photographed today's conifers
-floating above the mountain of two hundred runs ago, because `Graphics.DrawMesh` from `Update`
-does not care that the terrain under it was swapped.
-**Evidence** — headless archive test (`RILL/Run Headless TimeLapse Test`), 6 assertions: three
-appends read back as three frames with their run numbers; 5,291 and 2,340 cells of recorded change
-between frames; the last frame reconstructs the live terrain to **0.002 m** worst error; a
-truncated mid-append tail is dropped cleanly with all whole frames surviving. Play probe now
-enters the playback for real: `Idle -> TimeLapse`, 3.1 s of playback, `TimeLapse -> Idle` on its
-own, 0 failed, 0 runtime errors — and `docs/shots/play_timelapse.png` is the running playback
-photographed from inside, caption on screen, no floating props. The tap-to-skip path is the one
-thing the probe cannot drive (it clicks buttons, not the world) — unobserved.
-
-### L-060 · The end card never says what is almost about to happen — closed 2026-07-27
-`NextTeaser.For(world)`: one world-derived line on the end card about what is *almost* about to
-happen — a basin near its brim with the exact m³ it still wants, a secret under thin rock, or (only
-when nothing is genuinely close) a basin that sits empty. Reads the world and awards nothing; every
-number is recomputable from the heightfield, so the promise and the progress can never disagree.
-Computed after drift and biome rules so it cannot promise a basin the run just silted shut; never
-on the Daily (its world is discarded — a promise nobody can collect on) and never for cascades.
-**Two failures found by the count, both the silent-nothing kind in reverse.** First version fired
-on 24 of 24 runs with the same line on 23 of them — an *untouched* secret placed shallow by
-generation, a promise that never moved, about a place with no channel to it. Secrets now qualify
-only once the player's water has actually cut toward them (`Virgin - Height > 0.05`). Second: ranked
-purely by urgency the shallowest secret won every run and the card read as a secrets ticker, so the
-basin and secret promises alternate by run number when both exist.
-**Evidence** — smoke test now counts it: `next teaser on 24 of 24 runs`, lines *moving* across the
-session — "Something lies 0.7 m under the rock" ×1 → 0.6 ×2 → 0.4 ×6 → 0.3 ×9 → 0.2 ×1, and "North
-basin wants 173 m³ more" ×1 → "109 m³ more" ×4. Converging numbers are the difference between a
-promise and wallpaper. Play probe after the card change: 0 failed, 0 runtime errors. **Firing on
-every run of this seed is on notice** — if it reads as noise in play, the windows tighten.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*

@@ -581,8 +581,11 @@ namespace Rill.Flow
             Nav.RunInProgress = Current == State.Flowing || Current == State.Settling;
             Hud.SetBackVisible(Nav.Current != AppScreen.Launch && Nav.Current != AppScreen.Home
                                && Current != State.Flowing);
-            // End game rides in the idle button row, which SetIdleUI already shows and hides, so
-            // there is nothing to drive per frame any more.
+            // End game escapes the idle row's group so a live run has a way out on every
+            // platform — its old home hid with the row and made L-052's "press it mid-run"
+            // structurally impossible. Visible at rest and during the run; never over the
+            // title, the report, or a playback.
+            Hud.SetEndGameVisible(Current == State.Idle || Current == State.Flowing);
 
             switch (Current)
             {

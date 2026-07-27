@@ -198,6 +198,38 @@ namespace Rill.EditorTools
                     Check(hud.TitleOnScreen, "the main screen is back");
                     Check(Visible(hud, "Start"), "Begin is there again — " + Describe(hud, "Start"));
                     Shot(hud, "play_home_again.png");
+                    // Round two: L-052's actual Done-when — End game pressed MID-RUN.
+                    Check(Click(hud, "Start"), "Begin can be pressed a second time");
+                    Next(); return;
+
+                // Start a run purely to abandon it.
+                case 9:
+                    if (inPhase < 1.0f) return;
+                    Check(runner.Current == RunController.State.Idle, "back on the mountain, state=" + runner.Current);
+                    typeof(RunController).GetMethod("StartRun", BindingFlags.NonPublic | BindingFlags.Instance)
+                                         .Invoke(runner, null);
+                    Next(); return;
+
+                // Mid-run: the water is live, and End game must be there and must work. It sat in
+                // the idle row, which hides during a run — so the one thing the button was asked
+                // to do ("end the current game", pressed while it runs) was structurally
+                // impossible to do. (L-052)
+                case 10:
+                    if (inPhase < 1.2f) return;
+                    Check(runner.Current == RunController.State.Flowing, "the run is live, state=" + runner.Current);
+                    Check(Visible(hud, "BtnEnd game"), "End game is visible mid-run — " + Describe(hud, "BtnEnd game"));
+                    Shot(hud, "play_endgame_midrun.png");
+                    Check(Click(hud, "BtnEnd game"), "End game can be pressed mid-run");
+                    Next(); return;
+
+                case 11:
+                    if (inPhase < 1.5f) return;
+                    Check(runner.Current == RunController.State.Title,
+                          "End game mid-run lands on the main screen, state=" + runner.Current);
+                    Check(hud.TitleOnScreen, "and the main screen is really there");
+                    Check(Visible(hud, "Start"), "with Begin — " + Describe(hud, "Start"));
+                    Check(!Visible(hud, "BtnEnd game"), "and End game is gone from the title");
+                    Shot(hud, "play_after_endgame.png");
                     Debug.Log(string.Format("[PROBE] finished: {0} checks failed, {1} runtime errors", _fails, _errors));
                     SessionState.SetBool(Flag, false);
                     EditorApplication.Exit(_fails == 0 && _errors == 0 ? 0 : 1);
@@ -229,6 +261,10 @@ namespace Rill.EditorTools
             {
                 var g = t.GetComponent<CanvasGroup>();
                 if (g != null && g.alpha < 0.05f) return false;
+                // Unity stops the alpha cascade here; the probe must agree or it reports the
+                // End game button (own group, ignores the hidden idle row above it) as invisible
+                // while the screen plainly shows it.
+                if (g != null && g.ignoreParentGroups) break;
             }
             return true;
         }

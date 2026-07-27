@@ -32,7 +32,7 @@ namespace Rill.UI
         Canvas _canvas;
         Text _topLeft, _topRight, _hint, _reportTitle, _panelBody, _panelTitle;
         Image _reportCard, _panel, _speedFill;
-        CanvasGroup _reportGroup, _panelGroup, _buttonsGroup, _speedGroup, _titleGroup;
+        CanvasGroup _reportGroup, _panelGroup, _buttonsGroup, _speedGroup, _titleGroup, _endGameGroup;
         Text _titleWord, _titleTag, _titleRecord, _titleForecast;
         Button _startButton, _backButton;
         GameObject _titleHolder;
@@ -235,9 +235,6 @@ namespace Rill.UI
             _backGroup.blocksRaycasts = visible;
         }
 
-        /// <summary>End game now lives in the idle row, which SetIdleUI already shows and hides.</summary>
-        public void SetEndGameVisible(bool visible) { }
-
         /// <summary>
         /// Shows or hides the main screen. Driven from the run loop's state every frame rather than
         /// called once at the moment of leaving it.
@@ -392,13 +389,45 @@ namespace Rill.UI
             float total = labels.Length * w + (labels.Length - 1) * gap;
             for (int i = 0; i < labels.Length; i++)
             {
+                // End game sits in the row's last cell but NOT under the row's CanvasGroup: the
+                // row hides during a run, and that made "end the game mid-run" — the entire
+                // request behind L-052 — structurally impossible to press. EndGame() itself
+                // always handled the mid-run case; only the button vanished.
+                Transform parent = holder.transform;
+                if (labels[i] == "End game")
+                {
+                    var solo = new GameObject("EndGameHolder", typeof(RectTransform));
+                    solo.transform.SetParent(holder.transform, false);
+                    var rt = UIFactory.Rect(solo);
+                    rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+                    rt.anchoredPosition = Vector2.zero;
+                    rt.sizeDelta = _buttons.sizeDelta;
+                    _endGameGroup = UIFactory.Group(solo);
+                    // The row's group zeroes its alpha during a run; without this the child
+                    // group multiplies against that zero and the button stays invisible however
+                    // hard SetEndGameVisible tries.
+                    _endGameGroup.ignoreParentGroups = true;
+                    parent = solo.transform;
+                }
                 // 25 rather than 28: "Time-lapse" has to fit the narrower six-across cell.
-                var btn = UIFactory.MakeButton(holder.transform, "Btn" + labels[i], labels[i], 25);
+                var btn = UIFactory.MakeButton(parent, "Btn" + labels[i], labels[i], 25);
                 float x = -total * 0.5f + w * 0.5f + i * (w + gap);
                 UIFactory.Place(btn.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, 0f), new Vector2(w, 88f));
                 var a = actions[i];
                 btn.onClick.AddListener(() => a());
             }
+        }
+
+        /// <summary>
+        /// End game alone, for the states where the rest of the row is hidden — a live run needs
+        /// a way out on every platform, not only where a hardware back key exists.
+        /// </summary>
+        public void SetEndGameVisible(bool visible)
+        {
+            if (_endGameGroup == null) return;
+            _endGameGroup.alpha = visible ? 1f : 0f;
+            _endGameGroup.interactable = visible;
+            _endGameGroup.blocksRaycasts = visible;
         }
 
         void BuildReportCard(Transform root)

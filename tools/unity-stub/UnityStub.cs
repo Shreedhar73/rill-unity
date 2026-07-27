@@ -735,5 +735,6 @@ namespace UnityEngine
         public float alpha { get; set; }
         public bool interactable { get; set; }
         public bool blocksRaycasts { get; set; }
+        public bool ignoreParentGroups { get; set; }
     }
 }
