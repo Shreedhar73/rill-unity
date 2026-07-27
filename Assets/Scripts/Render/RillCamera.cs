@@ -64,6 +64,19 @@ namespace Rill.Render
         Vector3 _panOffset;
         float _overviewSpin;
 
+        /// <summary>
+        /// Height of the ground at a world XZ, supplied by whoever owns the active world. The
+        /// camera cannot know about HeightField directly without dragging the simulation into the
+        /// renderer, and it must be rebound when the player switches mountains — a framing that is
+        /// safe on slot 1's topology walks straight into a ridge on slot 2's.
+        /// </summary>
+        public System.Func<float, float, float> SampleGround;
+
+        [Tooltip("Minimum metres of air kept between the camera and the ground beneath it.")]
+        public float GroundClearance = 10f;
+
+        float _lift;   // extra height forced by terrain; rises instantly, settles back smoothly
+
         public Mode CurrentMode => _mode;
 
         void Awake()
@@ -194,6 +207,22 @@ namespace Rill.Render
             Vector3 back = rot * new Vector3(0f, 0f, -1f);
             Vector3 pos = _currentTarget + back * _distance + Vector3.up * _height;
 
+            // Keep the camera out of the rock. A framing computed purely from distance and height
+            // lands inside the hillside whenever the ground behind the subject rises — the capture
+            // tool hit exactly this, twice, and got this clamp (RillCapture); the live camera never
+            // did, so following a stream around a ridge on the second or third mountain put the
+            // player inside the terrain. Lift is applied instantly (being underground for even one
+            // frame is a wall filling the screen) and released through the same damping as
+            // everything else, so cresting a ridge reads as the camera breathing rather than
+            // popping.
+            if (SampleGround != null)
+            {
+                float needed = RequiredCameraY(pos, _currentTarget, SampleGround, GroundClearance);
+                float lift = Mathf.Max(0f, needed - pos.y);
+                _lift = lift > _lift ? lift : Mathf.Lerp(_lift, lift, k);
+                pos.y += _lift;
+            }
+
             transform.position = pos;
             transform.rotation = Quaternion.LookRotation((_currentTarget - pos).normalized, Vector3.up);
 
@@ -204,6 +233,40 @@ namespace Rill.Render
                 float wantFov = _baseFov + SpeedFovKick * _speed01;
                 cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, wantFov, k);
             }
+        }
+
+        /// <summary>
+        /// The lowest camera height that keeps the camera itself out of the ground *and* keeps the
+        /// view ray to the target clear of any ridge between them — a camera that is technically
+        /// above ground but looking through a hill shows the same wall of rock as one buried in it.
+        ///
+        /// Static and pure so the headless camera test can drive it over real biome topology
+        /// without a scene; the required height is the answer to "where would the camera have to
+        /// be", which is checkable, where "does it look right" is not.
+        /// </summary>
+        public static float RequiredCameraY(Vector3 camPos, Vector3 target,
+                                            System.Func<float, float, float> ground, float clearance)
+        {
+            float required = ground(camPos.x, camPos.z) + clearance;
+
+            // Walk the sight line from the target back to the camera. Samples close to the target
+            // are skipped: the subject is ON the ground, so demanding clearance there would launch
+            // the camera skyward every frame. The margin tapers toward the target for the same
+            // reason — full clearance matters at the camera, none at the subject.
+            const int Samples = 6;
+            for (int i = 1; i <= Samples; i++)
+            {
+                float t = i / (float)(Samples + 1);   // 0 at target, 1 at camera
+                if (t < 0.25f) continue;
+                float x = Mathf.Lerp(target.x, camPos.x, t);
+                float z = Mathf.Lerp(target.z, camPos.z, t);
+                float clear = ground(x, z) + clearance * t;
+                // Ray height at t is target.y + (camY - target.y) * t; solve for the camY that
+                // puts the ray exactly at the clearance height here.
+                float need = target.y + (clear - target.y) / t;
+                if (need > required) required = need;
+            }
+            return required;
         }
     }
 }

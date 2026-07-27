@@ -237,6 +237,10 @@ namespace Rill.Flow
             world.BasinOverflowed -= OnOverflow;
             world.BasinOverflowed += OnOverflow;
 
+            // Rebound on every world swap, not set once: a camera clamp against slot 1's topology
+            // is a clamp against the wrong mountain the moment the player switches slots, which is
+            // exactly where "the camera goes inside the mountain" was reported.
+            Cam.SampleGround = world.Field.SampleHeightWorld;
             Cam.SetOverview(world.SummitWorld);
             Pooled.SetDirty();
             Revelation.Refresh();

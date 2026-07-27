@@ -111,6 +111,147 @@ namespace Rill.EditorTools
             Debug.Log(log.ToString());
         }
 
+        /// <summary>
+        /// The camera against every biome's topology. RillCamera's framing was pure distance-and-
+        /// height arithmetic with no idea terrain existed; on the Sandstone slot it happened to
+        /// work, and on Glacier and Volcanic it walked inside ridges — reported as "the camera
+        /// enters the mountains" on the second and third slots. This drives the real follow, title
+        /// and report framings over real runs on all three slot biomes and counts, per biome, how
+        /// many frames the naive framing was inside rock or looking through a hill, then asserts
+        /// the clamped framing (RillCamera.RequiredCameraY) never is.
+        /// </summary>
+        [MenuItem("RILL/Run Headless Camera Test", false, 72)]
+        public static void RunHeadlessCamera()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL camera vs terrain ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            // Defaults mirrored from RillCamera. If these drift the test framings go stale, but
+            // reading them off a MonoBehaviour would need a scene, which is the thing this test
+            // exists to avoid.
+            const float Yaw = 30f, FollowDist = 62f, FollowHeight = 46f;
+            const float CloseIn = 0.22f, SpeedRef = 24f, Lookahead = 0.65f;
+            const float Clearance = 10f;
+            const float TitleDist = 190f, TitleHeight = 78f, ReportDist = 115f;
+
+            var slots = new[]
+            {
+                new { Biome = Biome.Sandstone, Seed = 12345u },
+                new { Biome = Biome.Glacier,   Seed = 777001u },
+                new { Biome = Biome.Volcanic,  Seed = 424243u },
+            };
+
+            int naiveTotal = 0;
+            foreach (var slot in slots)
+            {
+                var config = new GameConfig { Biome = slot.Biome };
+                var world = RillWorld.Create(config, slot.Seed, slot.Biome);
+                System.Func<float, float, float> ground = world.Field.SampleHeightWorld;
+
+                int frames = 0, naiveBad = 0, clampedBad = 0;
+                float maxLift = 0f;
+                var sim = new FlowSimulation(world);
+
+                for (int run = 1; run <= 8; run++)
+                {
+                    world.BeginRun();
+                    var rng = new Rng(Noise.Hash((uint)run * 2654435761u ^ world.Seed));
+                    sim.Begin(world.SpawnPoint(ref rng), config.StartVolume);
+                    int steps = 0;
+                    while (sim.Running && steps++ < 20000)
+                    {
+                        if (steps % 30 == 0)
+                            sim.SetSteer(rng.Next01() < 0.45f,
+                                sim.Head.Pos + new Vector2(rng.Range(-25f, 25f), rng.Range(-25f, 25f)));
+                        sim.Advance(config.SimStep);
+
+                        // Every 5th step, frame the head exactly as RillCamera.Follow would.
+                        if (steps % 5 != 0) continue;
+                        frames++;
+                        Vector2 vel = sim.Head.Vel;
+                        float speed01 = Mathf.Clamp01(vel.magnitude / SpeedRef);
+                        Vector3 target = sim.Head.World
+                                       + new Vector3(vel.x, 0f, vel.y) * Lookahead;
+                        Vector3 back = Quaternion.Euler(0f, Yaw, 0f) * new Vector3(0f, 0f, -1f);
+                        Vector3 pos = target + back * (FollowDist * (1f - CloseIn * speed01))
+                                             + Vector3.up * (FollowHeight * (1f - CloseIn * speed01));
+                        if (FramingBad(pos, target, ground, Clearance)) naiveBad++;
+                        float need = Rill.Render.RillCamera.RequiredCameraY(pos, target, ground, Clearance);
+                        maxLift = Mathf.Max(maxLift, need - pos.y);
+                        if (need > pos.y) pos.y = need;
+                        if (FramingBad(pos, target, ground, Clearance)) clampedBad++;
+                    }
+                    world.Basins.Rebuild();
+                    world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+                }
+
+                // The title orbit sweeps the full circle, so every yaw must clear the ridges.
+                int titleNaiveBad = 0, titleClampedBad = 0;
+                for (int yaw = 0; yaw < 360; yaw += 4)
+                {
+                    Vector3 target = world.SummitWorld;
+                    Vector3 back = Quaternion.Euler(0f, yaw, 0f) * new Vector3(0f, 0f, -1f);
+                    Vector3 pos = target + back * TitleDist + Vector3.up * TitleHeight;
+                    if (FramingBad(pos, target, ground, Clearance)) titleNaiveBad++;
+                    float need = Rill.Render.RillCamera.RequiredCameraY(pos, target, ground, Clearance);
+                    if (need > pos.y) pos.y = need;
+                    if (FramingBad(pos, target, ground, Clearance)) titleClampedBad++;
+
+                    // Report framing from the same angles, aimed at a low point rather than the
+                    // summit — reports frame the deepest carve, which is never at the top.
+                    Vector3 low = target * 0.5f;
+                    low.y = ground(low.x, low.z);
+                    Vector3 rpos = low + back * ReportDist + Vector3.up * (ReportDist * 0.7f);
+                    if (FramingBad(rpos, low, ground, Clearance)) titleNaiveBad++;
+                    float rneed = Rill.Render.RillCamera.RequiredCameraY(rpos, low, ground, Clearance);
+                    if (rneed > rpos.y) rpos.y = rneed;
+                    if (FramingBad(rpos, low, ground, Clearance)) titleClampedBad++;
+                }
+
+                naiveTotal += naiveBad + titleNaiveBad;
+                log.AppendFormat("  {0,-9} follow frames {1,5}  naive bad {2,4}  clamped bad {3}  max lift {4:0.0} m   title/report naive bad {5}  clamped bad {6}\n",
+                    slot.Biome, frames, naiveBad, clampedBad, maxLift, titleNaiveBad, titleClampedBad);
+                check(clampedBad == 0, slot.Biome + " follow camera never enters terrain once clamped");
+                check(titleClampedBad == 0, slot.Biome + " title and report framings clear the ridges once clamped");
+            }
+
+            // If the naive framing was never bad anywhere, this test is measuring nothing and a
+            // regression in the clamp would be invisible — the count is the proof the clamp is
+            // load-bearing.
+            log.AppendFormat("  naive framing violations across all biomes: {0}\n", naiveTotal);
+            check(naiveTotal > 0, "the unclamped framing does hit terrain somewhere, so the clamp is doing real work");
+
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
+        /// <summary>
+        /// Independent check that a framing is acceptable: camera above ground, and the sight line
+        /// to the subject clear of terrain (with the same taper RequiredCameraY solves against).
+        /// Deliberately re-derived here rather than calling back into RillCamera, so a sign error
+        /// in the solve cannot certify itself.
+        /// </summary>
+        static bool FramingBad(Vector3 pos, Vector3 target, System.Func<float, float, float> ground, float clearance)
+        {
+            if (pos.y < ground(pos.x, pos.z) + clearance - 0.05f) return true;
+            for (int i = 1; i <= 6; i++)
+            {
+                float t = i / 7f;
+                if (t < 0.25f) continue;
+                float x = Mathf.Lerp(target.x, pos.x, t);
+                float z = Mathf.Lerp(target.z, pos.z, t);
+                float rayY = target.y + (pos.y - target.y) * t;
+                if (rayY < ground(x, z) + clearance * t - 0.05f) return true;
+            }
+            return false;
+        }
+
         static DateTime FindWeather(Rill.World.WeatherSystem w, Rill.World.WeatherKind want)
         {
             var d = new DateTime(2026, 3, 1, 6, 0, 0, DateTimeKind.Utc);
