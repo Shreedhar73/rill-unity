@@ -103,6 +103,7 @@ namespace Rill.Flow
         string _awayLine;   // "While you were away…", computed once per session, shown until play starts
         PaperBoat.Result _boat;
         float _boatTime;
+        readonly HashSet<string> _knownPlaces = new HashSet<string>();
         bool _autoRun;
         Vector2 _lastThumbPos;
 
@@ -286,6 +287,12 @@ namespace Rill.Flow
             // exactly where "the camera goes inside the mountain" was reported.
             Cam.SampleGround = world.Field.SampleHeightWorld;
             Cam.SetOverview(world.SummitWorld);
+
+            // Places that already have names must not be re-christened on every boot or slot
+            // switch — only a name that appears during play is news.
+            _knownPlaces.Clear();
+            var existing = Landmarks.Find(world);
+            for (int i = 0; i < existing.Count; i++) _knownPlaces.Add(existing[i].Name);
             Pooled.SetDirty();
             Revelation.Refresh();
             Terrain.MarkAll();
@@ -787,6 +794,21 @@ namespace Rill.Flow
             // borrowed and discarded, so "next" there is a promise nobody can collect on.
             report.NextLine = (InDaily || _autoRun) ? null : Rill.Meta.NextTeaser.For(Active);
 
+            // New named places. The card announces a christening once; the almanac keeps it. A
+            // young gorge can be re-christened as its deepest point settles — every name it wore
+            // is in the record, which reads as the place earning its final name.
+            if (!InDaily && !_autoRun)
+            {
+                var marks = Landmarks.Find(Active);
+                for (int i = 0; i < marks.Count; i++)
+                {
+                    if (_knownPlaces.Contains(marks[i].Name)) continue;
+                    _knownPlaces.Add(marks[i].Name);
+                    report.Headlines.Add("The water has cut a name into the rock: " + marks[i].Name);
+                    _almanac.Note(Active.RunNumber, "place", marks[i].Name + " named");
+                }
+            }
+
             if (report.Revealed.Count > 0 || report.Overflowed) Haptics.Event();
 
             _lastReport = report;
@@ -972,6 +994,10 @@ namespace Rill.Flow
             // screen is about today; the Almanac is where finished days belong.
             string glyphs = _daily.Journal.PanelBlock(2, System.DateTime.UtcNow);
             if (glyphs.Length > 0) sb.Append(glyphs).Append('\n');
+
+            string places = Landmarks.PanelBlock(Landmarks.Find(Active),
+                Active.Field.CellSize * Active.Field.CellSize);
+            if (places.Length > 0) sb.Append(places).Append('\n');
 
             sb.Append(HudController.FormatAlmanac(_almanac));
 

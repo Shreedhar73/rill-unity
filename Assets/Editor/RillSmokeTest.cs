@@ -611,6 +611,73 @@ namespace Rill.EditorTools
             if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
         }
 
+        /// <summary>
+        /// Named landmarks: recomputed from terrain, so the test's claims are about detection and
+        /// stability — a virgin mountain has no names to give, a worked one does, the names
+        /// survive a save round-trip, and the same mountain always calls its places the same
+        /// thing. (L-066)
+        /// </summary>
+        [MenuItem("RILL/Run Headless Landmarks Test", false, 78)]
+        public static void RunHeadlessLandmarks()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL named places ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            var config = new GameConfig();
+            var world = RillWorld.Create(config, 20260726u, Biome.Sandstone);
+            check(Rill.World.Landmarks.Find(world).Count == 0, "a virgin mountain has no named places");
+
+            var sim = new FlowSimulation(world);
+            for (int run = 1; run <= 60; run++)
+            {
+                world.BeginRun();
+                var rng = new Rng(Noise.Hash((uint)run * 2654435761u ^ world.Seed));
+                sim.Begin(world.SpawnPoint(ref rng), config.StartVolume);
+                int steps = 0;
+                while (sim.Running && steps++ < 20000)
+                {
+                    if (steps % 30 == 0)
+                        sim.SetSteer(rng.Next01() < 0.45f, sim.Head.Pos + new Vector2(rng.Range(-25f, 25f), rng.Range(-25f, 25f)));
+                    sim.Advance(config.SimStep);
+                }
+                world.Basins.Rebuild();
+                world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+            }
+
+            var marks = Rill.World.Landmarks.Find(world);
+            log.Append(Rill.World.Landmarks.PanelBlock(marks, world.Field.CellSize * world.Field.CellSize));
+            check(marks.Count > 0, "60 runs of carving earn at least one name: " + marks.Count + " places");
+
+            bool hasGorge = false;
+            for (int i = 0; i < marks.Count; i++) if (marks[i].Kind == Rill.World.Landmarks.Kind.Gorge) hasGorge = true;
+            check(hasGorge, "at least one of them is a gorge — sustained cutting, not just spoil");
+
+            var again = Rill.World.Landmarks.Find(world);
+            bool sameNames = again.Count == marks.Count;
+            for (int i = 0; sameNames && i < marks.Count; i++)
+                if (again[i].Name != marks[i].Name) sameNames = false;
+            check(sameNames, "the same mountain calls its places the same names twice");
+
+            // Round-trip: the names must come back from disk, because they are the terrain.
+            SaveSystem.Save(world, new float[world.Field.Count], 99);
+            float[] life;
+            var reloaded = SaveSystem.Load(new GameConfig(), out life, 99);
+            var fromDisk = Rill.World.Landmarks.Find(reloaded);
+            bool survived = fromDisk.Count == marks.Count;
+            for (int i = 0; survived && i < marks.Count; i++)
+                if (fromDisk[i].Name != marks[i].Name) survived = false;
+            check(survived, "every name survives a save round-trip: " + fromDisk.Count + " of " + marks.Count);
+
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
         static string NameOf(Rill.World.WeatherKind k)
         {
             switch (k)

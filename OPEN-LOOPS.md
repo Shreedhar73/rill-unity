@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **19** · Closed this cycle: **50** (34 archived)
+Last updated: **2026-07-27** · Open loops: **18** · Closed this cycle: **51** (34 archived)
 
 ---
 
@@ -253,14 +253,6 @@ Rejected on the way: anything resembling XP, streaks that punish a missed day, t
 energy systems, and a "prestige" reset (invariant 1 makes the whole genre impossible here, which
 is the design's point). Ordered by implementation order, terminal-verifiable ones first.
 
-### L-066 · Nothing on the mountain has a name
-**Why** — Six months of carving produces "the deep bit near the left". Gorges past a depth, deltas
-past a size, the first basin to fill — landmarks the player made, nameable deterministically from
-the seed, recorded with the run number that made them. Named places are how a space becomes *a
-place*; emotional attachment needs handles.
-**Done when** — A mature mountain carries at least 3 named features visible on the records screen,
-names survive save round-trip, and the naming run is recorded in the almanac.
-
 ### L-067 · The mountain is silent between runs
 **Why** — `FlowAudio` sounds during a run; idle is dead air. A mature river system should *sound*
 mature — more streams, more birdsong at the treeline, wind on bare rock — so the mixing desk reads
@@ -301,6 +293,23 @@ headless mass-balance check accounts for every m³ of shower water.
 ---
 
 ## Recently closed
+
+### L-066 · Nothing on the mountain has a name — closed 2026-07-27
+`Landmarks.Find(world)`: gorges cut more than 2.5 m below virgin rock and fans built more than
+1.5 m above it, clustered, footprint-floored (10+ cells so a pothole stays nameless), named
+deterministically from the seed and the feature's deepest cell — "Shale Gorge", "Dune Fan". The
+card announces a christening once ("The water has cut a name into the rock: Shale Gorge"), the
+almanac keeps it, the Almanac panel lists named places deepest-first.
+**Recomputed from terrain, never stored.** The save format stays untouched, and a name cannot
+survive the destruction of the thing it named — if the gorge silts back up the name goes with it,
+which is this game's honesty applied to sentiment. Corollary owned openly: a young feature's
+deepest point wanders before the trench establishes, so a place can be re-christened once or twice
+early, every name kept in the almanac — the place earning its final name.
+**Evidence** — headless landmarks test, 5 assertions: a virgin mountain has no names to give; 60
+runs earn 2 places, one a gorge (Shale Gorge, cut 7.4 m over 96 m²; Dune Fan, built 3.2 m over
+292 m²); the same mountain names its places identically twice; every name survives a save
+round-trip. Smoke and probe after wiring: green, 0 errors. The card headline in play is
+unobserved, as all UI here is.
 
 ### L-065 · A paper boat to prove the network — closed 2026-07-27
 `PaperBoat.Sail`: released from the same spring the runs use, no steering, no carving, no water
