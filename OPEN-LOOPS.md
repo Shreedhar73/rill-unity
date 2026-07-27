@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-26** · Open loops: **15** · Closed this cycle: **43** (30 archived)
+Last updated: **2026-07-27** · Open loops: **25** · Closed this cycle: **44** (34 archived)
 
 ---
 
@@ -243,6 +243,102 @@ spray half alone.
 
 ---
 
+### The 2026-07-27 batch — reasons to come back
+
+Ten loops, added together on request ("think of new features that are addictive"). The filter
+applied to every candidate: it must survive the invariants (nothing resets, nothing purchasable
+touches terrain, no score, water never destroyed), it must read off the world rather than award
+anything, and it must create a *reason to return* — a hook into tomorrow, not a bigger today.
+Rejected on the way: anything resembling XP, streaks that punish a missed day, timed chests,
+energy systems, and a "prestige" reset (invariant 1 makes the whole genre impossible here, which
+is the design's point). Ordered by implementation order, terminal-verifiable ones first.
+
+### L-060 · The end card never says what is almost about to happen
+**Why** — "One more run" is fed by unfinished business, and the card only reports the past. The
+world is full of numbers that are *nearly* something — a basin at 91%, a channel 0.6 m from cutting
+through a ridge to the sea, a secret 0.3 m from daylight — and none of them are ever said. The
+near-miss is the strongest single retention trigger in games that have one; this game's version is
+already true and already computed, just never surfaced.
+**Done when** — The end card carries one world-derived "next" line when one exists ("The North
+basin wants 40 m³ more"), and the smoke test prints the line for 24 runs with a count of how many
+runs had one — a teaser that appears on zero runs is a system that silently does nothing.
+
+### L-061 · The mountain's own history is invisible
+**Why** — `TimeLapse` has archived a frame of every run since it was written, per slot, and nothing
+plays it back. Watching six months of your own carving in ten seconds is the single strongest
+emotional-ownership moment this design has, it is already recorded, and it is the natural share
+clip — nobody screenshots a heightfield, everybody shares a time-lapse.
+**Done when** — A player can watch their mountain's history from the records screen, and the
+playback is verifiably the archive (frame count printed and matching the almanac's run count).
+
+### L-062 · Daily glyphs vanish the next day
+**Why** — The Daily produces one shareable glyph and then discards it; yesterday's is gone. A
+collection you cannot look at is not a collection. Kept glyphs are a calendar of played days —
+the streak made visible without inventing a streak counter, pure collection psychology with
+nothing awarded.
+**Done when** — A journal shows past daily glyphs with their dates, persisted per player, and the
+smoke test round-trips a journal of at least 3 glyphs through save/load.
+
+### L-063 · Weather arrives unannounced
+**Why** — `WeatherSystem` derives weather from the date, which means tomorrow's weather is already
+knowable — and the game never says it. "Snowmelt tomorrow — the glacier will surge" is an
+appointment: a reason to open the app *tomorrow specifically*, the mechanic behind every daily
+game that works, and here it is true rather than manufactured.
+**Done when** — The title screen names tomorrow's weather when it differs from today's, and a
+headless check proves the forecast for date d+1 equals what `Evaluate(d+1)` actually produces.
+
+### L-064 · Nothing happens while you are away
+**Why** — Between-run drift, seepage, growth and ice all already run — silently. A player who
+returns after three days is never told the mountain did anything without them, so the mountain
+reads as paused rather than alive. "While you were away: the spring seeped 12 m³, moss took the
+east shore" is the return hook, and every word of it is already computed.
+**Done when** — Returning after an absence over ~6 h shows one line of what actually changed,
+diffed from real counters, and a headless test simulates the absence and checks the diff is
+neither empty nor fabricated.
+
+### L-065 · A paper boat to prove the network
+**Why** — There is no way to *use* a carved network except carving it more. A paper boat released
+from the summit with no steering rides whatever the mountain has become; how far it gets is the
+network's grade, read not awarded. It is the design's own "your mountain remembers" claim, made
+into a toy — and the difference between a virgin mountain's boat and a 150-run mountain's boat is
+the whole game, visible in one object.
+**Done when** — A boat can be released on idle, and headlessly a boat on a 150-run mountain
+travels measurably farther than on a virgin one, with the distance printed for both.
+
+### L-066 · Nothing on the mountain has a name
+**Why** — Six months of carving produces "the deep bit near the left". Gorges past a depth, deltas
+past a size, the first basin to fill — landmarks the player made, nameable deterministically from
+the seed, recorded with the run number that made them. Named places are how a space becomes *a
+place*; emotional attachment needs handles.
+**Done when** — A mature mountain carries at least 3 named features visible on the records screen,
+names survive save round-trip, and the naming run is recorded in the almanac.
+
+### L-067 · The mountain is silent between runs
+**Why** — `FlowAudio` sounds during a run; idle is dead air. A mature river system should *sound*
+mature — more streams, more birdsong at the treeline, wind on bare rock — so the mixing desk reads
+off the world like everything else. Sound is the cheapest "it is alive" signal there is, and the
+difference between slots would be audible before it is visible.
+**Done when** — Idle ambience parameters derive from world state, and headlessly a virgin and a
+mature mountain produce measurably different mixes (numbers printed, not vibes).
+
+### L-068 · A finished run cannot be shown to anyone
+**Why** — The report card is the game's proudest moment and it cannot leave the device. One image —
+the run's ribbon over the carve, the glyph, the record line — written to the share sheet, is the
+viral loop. Wordle is the proof that the share *is* the acquisition strategy when the artifact is
+small and personal.
+**Done when** — A run's report can be exported as an image that provably contains that run's path
+(capture-verified non-blank, path pixels present), reachable from the card.
+
+### L-069 · Rain is something the mountain receives, never something the player gives
+**Why** — Between runs the mountain is look-but-don't-touch. A held finger summoning a brief
+shower — droplets finding the player's own channels, live — is the petting interaction: zero
+stakes, pure toy, and it *demonstrates* the network the player built every time they do it. Obeys
+invariant 6 like any water: sea, basin, or infiltration, never deleted.
+**Done when** — A shower on a mature mountain visibly follows carved channels (capture), and a
+headless mass-balance check accounts for every m³ of shower water.
+
+---
+
 ## Later
 
 | ID | Loop | Why it waits |
@@ -257,6 +353,27 @@ spray half alone.
 ---
 
 ## Recently closed
+
+### L-059 · The camera enters the mountains on slots 2 and 3 — closed 2026-07-27
+Reported in play: camera angles break and the camera goes inside the second and third mountains.
+`RillCamera` framed purely from distance and height with no idea terrain existed — the same bug the
+capture tool hit twice and fixed for itself (`RillCapture`), never ported to the live camera. On
+Sandstone's topology the constants happened to survive; Glacier and Volcanic have different ridges,
+and the follow camera walked straight into them.
+**The fix** — `RillCamera.RequiredCameraY`: the lowest camera that is above the ground *and* whose
+sight line to the subject clears every ridge between them, margin tapering toward the subject
+because the subject is on the ground. Lift applies instantly (one underground frame is a wall
+filling the screen) and releases through the normal damping. Rebound per world in `BindWorld` —
+a clamp against slot 1's topology is wrong the moment the player switches slots.
+**Evidence — new headless camera test** (`RILL/Run Headless Camera Test`), real follow/title/report
+framings over 8 real runs on each slot biome: naive framing inside rock or looking through a hill
+on **1,794 frames** — Sandstone 610/1740, Glacier 443/4064, Volcanic **733/1911**, worst required
+lift 96.5 m — and **0 frames after the clamp**, checked by an independently-derived violation test
+rather than the solver certifying itself. The test also asserts the naive count stays nonzero, so
+a future regression that quietly unhooks the clamp fails loudly. Play probe after: 0 failed,
+0 runtime errors. **Unobserved in play** — whether the lift *feels* right (it can raise the camera
+96 m over a ridge) is a look-at-it question; the guarantee is only that the screen is never inside
+rock.
 
 ### L-057 · The game did not boot, and every green test said it did — closed 2026-07-26
 Re-reported after the L-053–L-056 fixes: "that Begin option is not there... you are fixing the
@@ -386,133 +503,5 @@ mountain.
    widened it.
 **Unobserved in play**, like everything else here — `SkyDriver` applies it live, damped so switching
 in and out of the Daily reads as time passing rather than as a glitch, and nobody has watched that.
-
-### L-047 · One mountain, forever, and no way to have another — closed 2026-07-26
-`SaveSystem` had taken a `slot` argument since it was written and nothing ever passed anything but 0.
-The almanac, the time-lapse archive and the confluence queue were all per-slot already. The plumbing
-existed and there was no way to reach it.
-**Evidence — 14 headless assertions** (`RILL/Run Headless Mountains Test`), including both refusals
-exercised against a real occupied slot rather than a fixture. `SaveSystem.ReadSummary` reads the
-header only — it sits ahead of the terrain arrays, so the gzip stream is pulled about sixty bytes
-rather than several megabytes, because drawing a three-slot menu must not deserialise three mature
-worlds.
-**The guards, which are the actual work.** A slot picker is a new-game button standing next to three
-save files, so the rules live in `MountainRoster` rather than in the UI: `Create` refuses an occupied
-slot outright, with no overwrite path and **no force flag, because a force flag is a thing a future
-caller passes `true` to**; `Delete` requires the *seed* of the mountain being deleted, which a caller
-can only know by having read that slot's summary — so it is impossible to destroy a mountain you have
-not looked at, or the wrong one via a stale index. There is no delete control on the main screen at
-all.
-**Three real hazards found and closed while wiring it.**
-1. `RunController` had six calls to `SaveSystem.Save`; two had quietly kept the defaulted `slot = 0`,
-   so ending a session on mountain 3 would have written **mountain 3 over mountain 1**. The fix is
-   not the two call sites — `slot` no longer has a default on `Save` or `Load`, so that entire class
-   of bug is a compile error rather than a lost world.
-2. `GameBootstrap.ResetWorldOnPlay` is a serialised bool that deletes somebody's mountain — the exact
-   shape invariant 1 forbids, one mis-click in the inspector away. Now compiled out of player builds
-   and it names the slot in a warning on its way past.
-3. `SwitchToMountain` is mostly about ordering: the mountain being left is written to disk **before**
-   anything is rebound, because every later step overwrites the live world.
-**Unobserved, as all UI here is.** The roster, the guards and the switching are tested; whether three
-rows on the main screen read well on a phone is a look-at-it question. The biome for a new slot is
-chosen as "whichever of Sandstone / Glacier / Volcanic no slot has yet", so filling all three gives
-three different games without a menu — that is a design call nobody has played.
-
-### L-046 · The app is one screen with no way out of it — closed 2026-07-26
-Everything hung off `RunController`, which booted into a title and then never left the mountain: no
-home, no back, no quit, and no level above the run loop for a second mountain or a second mode.
-**Evidence — 18 assertions, run headlessly** (`RILL/Run Headless Navigation Test`). The state machine
-is a plain class with no Unity types in it, which is the point rather than tidiness: UI cannot be
-checked from a terminal, and L-018 is what happens when the only thing that could catch a broken gate
-is a person pressing Play. Navigation has more ways to strand a player than onboarding did — the
-launch is *replaced* rather than pushed so no Back can re-enter it, Back from a panel opened on a
-mountain returns to the mountain rather than Home, pushing the screen you are already on is not two
-screens deep, and Back at the root asks to quit only where the platform allows it.
-**It found a real bug on the way, which is why the mid-run case was worth modelling.** Back must not
-unwind the screen out from under a live simulation, so `Navigator` refuses to move and asks for the
-run to be abandoned first. Following that: `FlowSimulation.Abort()` called
-`Finish(Abandoned, deliverVolume: false)`, and `Finish` only routed water for `Pooled` and
-`TimedOut`. **Abandoned fell through both branches and zeroed `Head.Volume`** — invariant 6, the one
-this project has already broken twice. It survived because `Abort()` had *no callers at all*; a back
-button is the first thing that would ever have called it. Proven fixed: `56.2 m³` in the head,
-basins `0 → 56 m³` held.
-**Two platform decisions, made rather than deferred** — Android's hardware back raises the same
-action as the button (without it the OS wins and closes the app mid-run), and **Close game ships
-everywhere except iOS**, whose guidelines are explicit that an app must not offer to close itself.
-Absent there rather than present and inert.
-**Also caught by the toolchain, and worth recording** — the screen enum was called `Screen`, which
-shadows `UnityEngine.Screen` for every file in `Rill.App`; `GameBootstrap.Screen.sleepTimeout`
-stopped compiling immediately. That is the *good* version of that mistake. And the quit path has no
-`UnityEditor` branch on purpose: a runtime assembly referencing `UnityEditor` compiles in the editor
-and breaks the player build, guarded or not — the stub toolchain compiles runtime with
-`UNITY_EDITOR` defined and no `UnityEditor` reference, which is exactly a player build's shape.
-**The UI half is unobserved**, as all UI here is. The state machine is tested; whether the back
-button is in the right place on a phone is a look-at-it question. The home screen is currently the
-existing title screen; giving it something to choose between is L-047.
-
-### L-045 · The island ends in a straight line — closed 2026-07-26
-Opened the same day off the first overview render: the 512 m field stopped at a hard square
-boundary, and from the idle camera two straight diagonal lines cut the seabed off against the open
-sea. It read as the edge of a map, which is the one thing a world that never resets should never
-look like.
-**The obvious cause was real and was not the cause.** The radial island mask is measured from the
-**summit, not the centre of the field** — on this seed the summit sits at `(150, 126)` of 256, so
-the distance to the `+x` boundary is 0.82 of the mask's radius against 1.17 to `-x`, and on one side
-the island genuinely never finished before the field ran out. Adding a boundary-keyed second mask
-closed the coast on every side. **The rectangle stayed exactly where it was**, which is what
-identified the real cause.
-**The real cause was one term in `PooledWater.shader`:** `alpha = saturate(a * (0.72 + fres * 0.45))`.
-From a high camera the fresnel term is near zero, so **the sea never exceeded about 72% opacity
-anywhere, including sixteen metres down.** Inside the heightfield you saw a quarter of the real,
-mottled seabed through the water; outside it there is no terrain at all, only the clear colour. The
-boundary was a shading discontinuity, and no amount of reshaping the coast could ever have hidden it.
-Depth now closes the water — `lerp(clarity, 1.15, depth01²)` — so shallow keeps the translucency
-that makes a lake bed and a beach readable and the opacity arrives late enough to leave the shore
-soft.
-**Evidence** — `docs/shots/mountain_150_overview.png`: uniform ocean to the horizon, island in open
-water, no straight edge anywhere. Lakes are unharmed and slightly better —
-`mountain_150_life.png` still grades pale rim to deep centre with a soft shore, and the deep part is
-a richer blue for no longer showing a quarter of the mud beneath it.
-**Renderer-only, so it costs the simulation nothing**, which is the entire difference between this
-and the generation-side attempt that was measured and reverted the same day for halving
-first-session sea arrivals (`ReachedSea 2 vs 4`). The rejected experiment is what proved where the
-problem was not.
-**Left behind, and worth its own look someday** — a few pale shelves still break the surface near
-the old field edge. They now read as offshore sandbars rather than as a cut, so they are no longer
-a defect, but they are not deliberate either.
-
-### L-016 · Prop silhouettes worth looking at — closed 2026-07-26
-Moss was a flat disc, reeds a single crossed quad, huts a bare box; conifers and canopies had been
-built the same day and never seen. Nothing here could be judged at all until props were renderable,
-which is where this loop actually went.
-**Unblocked first.** Props are issued with `Graphics.DrawMesh` from `Update`, which never runs
-outside play mode, so offscreen renders showed bare rock — "no trees in the picture" meant nothing.
-`EcosystemSystem.BakeStaticRenderers` and `RevelationSystem.BakeStaticRenderers` combine each
-instance list into one real `MeshRenderer`. The shimmering secret *hints* are deliberately **not**
-baked: their whole character is a pulse driven by `Time.time`, and a still frame of one is a static
-yellow disc, which would misrepresent rather than show it.
-**Evidence** — seven renders in [`docs/shots/`](docs/shots/) at 24 and 150 runs, from four framings.
-Every prop type now reads as its thing: conifers with trunks and tiered crowns, moss as cushions,
-reeds as clumps, a hut with a pitched roof, and a revealed secret marker standing beside it.
-**Each fix came from looking, and none of them were the ones the loop predicted.**
-- Props read as stamped paper cutouts despite already having per-instance scale, height and yaw
-  variance — because one material per type is one flat tone, and a flat tone has no form however it
-  is rotated. Vertex colour was the only per-vertex channel free and the prop shader spent nothing
-  on it; `PropMeshes` now bakes a vertical gradient and `Prop.shader` multiplies by it.
-- Moss as a flat disc *is* a decal: no thickness, lit identically to the ground beneath it.
-- **Huts were placed on any ground at all.** Props sit at one sampled height with no slope
-  adaptation — invisible for a tree, since a buried trunk still reads as a tree, and wrong for a
-  building. On a 35° face a hut was half-buried uphill and floating downhill. They now require
-  near-flat ground, which is where people build.
-- Huts were *smaller than the conifers around them* (2.3 m against 3.1 m), so a village was hidden
-  by the wood it stood in.
-**Three bugs I introduced and the render caught, none visible to the type-checker** — the no-shading
-overload passed `(0, 1)`, which for a *flat* mesh puts every vertex at the dark end, so moss and huts
-rendered **black**; conifers came out near-black because the base is most of a tree's visible mass
-and the shading darkens exactly there; and the capture camera kept landing inside the hillside. That
-last one I corrected by hand once and it came straight back, which is the tell that the constants
-were never the problem — the camera now refuses to be underground.
-**Left undone deliberately** — canopies (`PropMeshes.Canopy`) exist and are not used by anything, so
-broadleaf growth is still built and unobserved.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
