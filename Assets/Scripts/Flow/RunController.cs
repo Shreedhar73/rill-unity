@@ -99,6 +99,7 @@ namespace Rill.Flow
         const float SettleSeconds = 1.1f;
         CarveReport _settleReport;
         float _settleTimer;
+        float _lapseGrace;
         bool _autoRun;
         Vector2 _lastThumbPos;
 
@@ -621,10 +622,29 @@ namespace Rill.Flow
 
         void UpdateTimeLapse()
         {
-            if (_player != null && !_player.Playing)
+            if (_player == null) return;
+
+            if (_player.Playing)
             {
+                // The run number is what makes this the player's own history rather than a screen
+                // saver: "Run 3 … Run 847" is six months of their play going past. And a tap ends
+                // it — a playback with no exit held the player hostage for the whole archive,
+                // which on a mature mountain is minutes.
+                Hud.SetHint(string.Format("Run {0:n0} of {1:n0}  ·  tap to skip",
+                    _player.CurrentRun, Active.RunNumber));
+                // Grace period so the tap that pressed the Time-lapse button cannot also be the
+                // tap that skips the playback it just started.
+                if (Time.time > _lapseGrace && Thumb.WasTap()) _player.Stop();
+            }
+
+            if (!_player.Playing)
+            {
+                Hud.SetHint("");
                 Terrain.gameObject.SetActive(true);
                 Pooled.gameObject.SetActive(true);
+                if (Ecosystem != null) Ecosystem.enabled = true;
+                if (Revelation != null) Revelation.enabled = true;
+                if (Pickups != null) Pickups.enabled = true;
                 EnterIdle();
             }
         }
@@ -904,7 +924,13 @@ namespace Rill.Flow
             }
             Terrain.gameObject.SetActive(false);
             Pooled.gameObject.SetActive(false);
+            // Props draw themselves from Update, so hiding the terrain does not hide them: the
+            // probe photographed today's trees floating over the mountain of two hundred runs ago.
+            if (Ecosystem != null) Ecosystem.enabled = false;
+            if (Revelation != null) Revelation.enabled = false;
+            if (Pickups != null) Pickups.enabled = false;
             Hud.SetIdleUI(false);
+            _lapseGrace = Time.time + 0.4f;
             Current = State.TimeLapse;
         }
 

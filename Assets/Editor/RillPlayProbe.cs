@@ -162,11 +162,37 @@ namespace Rill.EditorTools
                     Check(runner.Current == RunController.State.Idle, "dismissing the card returns to idle, state=" + runner.Current);
                     Check(Visible(hud, "Back"), "Back is visible on the mountain — " + Describe(hud, "Back"));
                     Shot(hud, "play_after_report.png");
+                    Check(Click(hud, "BtnTime-lapse"), "Time-lapse can be pressed");
+                    Next(); return;
+
+                // The player's own history plays back. This path was wired for weeks and no test
+                // had ever entered it — playback state, the hand-back to idle, none of it. (L-061)
+                case 6:
+                    if (inPhase < 0.7f) return;
+                    if (runner.Current == RunController.State.Idle)
+                    {
+                        // A save too young to have two keyframes refuses politely; that is correct
+                        // behaviour, not a probe failure — but say so, or a broken Play() that
+                        // always refuses would photograph as a pass.
+                        Debug.Log("[PROBE] note  time-lapse declined to play (not enough history on this save)");
+                        Check(Click(hud, "Back"), "Back can be pressed");
+                        SessionState.SetInt(PhaseKey, 8); return;
+                    }
+                    Check(runner.Current == RunController.State.TimeLapse,
+                          "Time-lapse plays the mountain's history, state=" + runner.Current);
+                    Shot(hud, "play_timelapse.png");
+                    Next(); return;
+
+                // Playback must end on its own and hand the mountain back.
+                case 7:
+                    if (runner.Current == RunController.State.TimeLapse && inPhase < 90f) return;
+                    Check(runner.Current == RunController.State.Idle,
+                          "the time-lapse hands back to idle when it ends, state=" + runner.Current);
                     Check(Click(hud, "Back"), "Back can be pressed");
                     Next(); return;
 
                 // And Back is 'go home': the title again, Begin again.
-                case 6:
+                case 8:
                     if (inPhase < 1.5f) return;
                     Check(runner.Current == RunController.State.Title, "Back returns to the main screen, state=" + runner.Current);
                     Check(hud.TitleOnScreen, "the main screen is back");

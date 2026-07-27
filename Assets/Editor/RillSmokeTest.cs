@@ -252,6 +252,93 @@ namespace Rill.EditorTools
             return false;
         }
 
+        /// <summary>
+        /// The time-lapse archive, round-tripped. The playback UI existed for weeks wired to an
+        /// archive nobody had ever read back — the exact "built, never observed" shape — and the
+        /// archive is append-only binary, where a silent format break costs the player their whole
+        /// recorded history. (L-061)
+        /// </summary>
+        [MenuItem("RILL/Run Headless TimeLapse Test", false, 73)]
+        public static void RunHeadlessTimeLapse()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL time-lapse archive ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            // Scratch slot far outside anything a player can reach, wiped before and after.
+            const int Scratch = 93;
+            string path = System.IO.Path.Combine(SaveSystem.RootDir, "timelapse_" + Scratch + ".bin");
+            if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
+
+            var world = RillWorld.Create(new GameConfig(), 555u, Biome.Sandstone);
+            var archive = new TimeLapseArchive(Scratch);
+            check(!archive.Exists, "a fresh slot has no archive");
+
+            // Three keyframes with real, distinct terrain between them — a genuine gorge's worth
+            // of change, so "the frames differ" is a claim about recording and not about noise.
+            archive.Append(world.Field, 1);
+            for (int i = 0; i < world.Field.Count; i++)
+                if (world.Field.Height[i] > 20f) world.Field.Height[i] -= 2.5f;
+            archive.Append(world.Field, 4);
+            for (int i = 0; i < world.Field.Count; i++)
+                if (world.Field.Height[i] > 60f) world.Field.Height[i] -= 4f;
+            archive.Append(world.Field, 7);
+
+            var frames = archive.LoadAll();
+            check(frames.Count == 3, "three appends read back as three frames, got " + frames.Count);
+            if (frames.Count == 3)
+            {
+                check(frames[0].Run == 1 && frames[1].Run == 4 && frames[2].Run == 7,
+                      "run numbers survive: " + frames[0].Run + ", " + frames[1].Run + ", " + frames[2].Run);
+
+                int differ01 = 0, differ12 = 0;
+                for (int i = 0; i < frames[0].Data.Length; i++)
+                {
+                    if (System.Math.Abs(frames[0].HeightAt(i) - frames[1].HeightAt(i)) > 0.5f) differ01++;
+                    if (System.Math.Abs(frames[1].HeightAt(i) - frames[2].HeightAt(i)) > 0.5f) differ12++;
+                }
+                check(differ01 > 100 && differ12 > 100,
+                      "the frames record the terrain actually changing: " + differ01 + " and " + differ12 + " cells moved");
+
+                // The last frame must reconstruct the current terrain to quantisation accuracy —
+                // 16 bits over the height range, ~2 mm here. 0.1 m of slack covers downsampling.
+                float worst = 0f;
+                int res = TimeLapseArchive.Resolution;
+                int step = world.Field.Size / res;
+                for (int z = 0; z < res; z++)
+                    for (int x = 0; x < res; x++)
+                    {
+                        float have = frames[2].HeightAt(z * res + x);
+                        float sum = 0f; int n = 0;
+                        for (int dz = 0; dz < step; dz++)
+                            for (int dx = 0; dx < step; dx++)
+                            {
+                                int gz = z * step + dz, gx = x * step + dx;
+                                if (gz >= world.Field.Size || gx >= world.Field.Size) continue;
+                                sum += world.Field.Height[gz * world.Field.Size + gx]; n++;
+                            }
+                        float want = n > 0 ? sum / n : 0f;
+                        worst = Mathf.Max(worst, Mathf.Abs(have - want));
+                    }
+                check(worst < 0.1f, string.Format("the last frame reconstructs the live terrain, worst error {0:0.000} m", worst));
+            }
+
+            // A truncated tail — the app killed mid-append — must not poison the whole history.
+            using (var fs = new System.IO.FileStream(path, System.IO.FileMode.Append))
+                fs.Write(new byte[100], 0, 100);
+            var withTail = archive.LoadAll();
+            check(withTail.Count == 3, "a truncated tail write is dropped cleanly, " + withTail.Count + " frames survive");
+
+            System.IO.File.Delete(path);
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
         static DateTime FindWeather(Rill.World.WeatherSystem w, Rill.World.WeatherKind want)
         {
             var d = new DateTime(2026, 3, 1, 6, 0, 0, DateTimeKind.Utc);

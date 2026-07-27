@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **24** · Closed this cycle: **45** (34 archived)
+Last updated: **2026-07-27** · Open loops: **23** · Closed this cycle: **46** (34 archived)
 
 ---
 
@@ -253,14 +253,6 @@ Rejected on the way: anything resembling XP, streaks that punish a missed day, t
 energy systems, and a "prestige" reset (invariant 1 makes the whole genre impossible here, which
 is the design's point). Ordered by implementation order, terminal-verifiable ones first.
 
-### L-061 · The mountain's own history is invisible
-**Why** — `TimeLapse` has archived a frame of every run since it was written, per slot, and nothing
-plays it back. Watching six months of your own carving in ten seconds is the single strongest
-emotional-ownership moment this design has, it is already recorded, and it is the natural share
-clip — nobody screenshots a heightfield, everybody shares a time-lapse.
-**Done when** — A player can watch their mountain's history from the records screen, and the
-playback is verifiably the archive (frame count printed and matching the almanac's run count).
-
 ### L-062 · Daily glyphs vanish the next day
 **Why** — The Daily produces one shareable glyph and then discards it; yesterday's is gone. A
 collection you cannot look at is not a collection. Kept glyphs are a calendar of played days —
@@ -343,6 +335,25 @@ headless mass-balance check accounts for every m³ of shower water.
 ---
 
 ## Recently closed
+
+### L-061 · The mountain's own history is invisible — closed 2026-07-27
+The loop was wrong about what was missing, in a useful way: `TimeLapsePlayer` and the HUD button
+already existed and were wired — what did not exist was any observation of them working, a run
+counter during playback, or a way out of it. The playback held the player hostage for the whole
+archive with no caption saying what they were watching.
+**Built** — during playback the hint reads "Run 42 of 201 · tap to skip", live from the frame
+being shown; a tap ends it early (with a 0.4 s grace so the tap that opened the playback cannot
+also skip it); and props no longer draw over the history — the probe photographed today's conifers
+floating above the mountain of two hundred runs ago, because `Graphics.DrawMesh` from `Update`
+does not care that the terrain under it was swapped.
+**Evidence** — headless archive test (`RILL/Run Headless TimeLapse Test`), 6 assertions: three
+appends read back as three frames with their run numbers; 5,291 and 2,340 cells of recorded change
+between frames; the last frame reconstructs the live terrain to **0.002 m** worst error; a
+truncated mid-append tail is dropped cleanly with all whole frames surviving. Play probe now
+enters the playback for real: `Idle -> TimeLapse`, 3.1 s of playback, `TimeLapse -> Idle` on its
+own, 0 failed, 0 runtime errors — and `docs/shots/play_timelapse.png` is the running playback
+photographed from inside, caption on screen, no floating props. The tap-to-skip path is the one
+thing the probe cannot drive (it clicks buttons, not the world) — unobserved.
 
 ### L-060 · The end card never says what is almost about to happen — closed 2026-07-27
 `NextTeaser.For(world)`: one world-derived line on the end card about what is *almost* about to
