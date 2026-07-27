@@ -1075,6 +1075,87 @@ namespace Rill.EditorTools
             if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
         }
 
+        /// <summary>
+        /// L-043's demanded evidence: what is a 500-run mountain — and a 1,000-run mountain —
+        /// still unfinished at? The lattice was known to be done by 500; this measures every
+        /// OTHER long-horizon surface the game now has at both marks, so the loop can be closed
+        /// with a named answer instead of a designed-in-the-dark feature.
+        /// </summary>
+        [MenuItem("RILL/Run Headless Endgame Survey", false, 84)]
+        public static void RunHeadlessEndgame()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL endgame survey — 1,000 runs, sampled at 500 and 1,000 ===");
+
+            var config = new GameConfig();
+            var world = RillWorld.Create(config, 20260726u, Biome.Sandstone);
+            var sim = new FlowSimulation(world);
+
+            for (int run = 1; run <= 1000; run++)
+            {
+                world.BeginRun();
+                var rng = new Rng(Noise.Hash((uint)run * 2654435761u ^ world.Seed));
+                sim.Begin(world.SpawnPoint(ref rng), config.StartVolume);
+                int steps = 0;
+                while (sim.Running && steps++ < 20000)
+                {
+                    if (steps % 30 == 0)
+                        sim.SetSteer(rng.Next01() < 0.45f, sim.Head.Pos + new Vector2(rng.Range(-25f, 25f), rng.Range(-25f, 25f)));
+                    sim.Advance(config.SimStep);
+                }
+                world.Basins.Rebuild();
+                world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+                world.ApplyBetweenRunDrift();
+
+                if (run != 500 && run != 1000) continue;
+
+                log.AppendFormat("--- at run {0} ---\n", run);
+                var basins = world.Basins.Basins;
+                log.Append("  lattice: ");
+                for (int i = 0; i < basins.Count; i++)
+                    log.AppendFormat("{0} {1:0}%  ", basins[i].Name, basins[i].FillFraction * 100f);
+                log.AppendLine();
+
+                int touched = 0, revealed = 0; float bestCut = 0f, needSum = 0f; int needN = 0;
+                for (int i = 0; i < world.Secrets.Count; i++)
+                {
+                    var sec = world.Secrets[i];
+                    if (sec.Revealed) { revealed++; continue; }
+                    float cut = world.Field.Virgin[sec.Cell] - world.Field.Height[sec.Cell];
+                    if (cut > 0.05f) touched++;
+                    if (cut > bestCut) bestCut = cut;
+                    needSum += world.Field.Height[sec.Cell] - sec.RevealElevation; needN++;
+                }
+                log.AppendFormat("  secrets: {0} revealed of {1}; {2} more touched by erosion; avg burial left {3:0.0} m\n",
+                    revealed, world.Secrets.Count, touched, needN > 0 ? needSum / needN : 0f);
+
+                var marks = Rill.World.Landmarks.Find(world);
+                log.AppendFormat("  landmarks: {0}\n", marks.Count == 0 ? "none" : "");
+                for (int i = 0; i < marks.Count && i < 6; i++)
+                    log.AppendFormat("    {0} — {1} {2:0.0} m over {3} cells\n",
+                        marks[i].Name, marks[i].Kind == Rill.World.Landmarks.Kind.Gorge ? "cut" : "built",
+                        marks[i].Measure, marks[i].Cells);
+
+                var boat = PaperBoat.Sail(world);
+                log.AppendFormat("  boat: {0} ({1:0.00} m/s average)\n", PaperBoat.Describe(boat), boat.AverageSpeed);
+
+                string tease = Rill.Meta.NextTeaser.For(world);
+                log.AppendFormat("  teaser: {0}\n", tease ?? "NONE — the card has nothing left to promise");
+                log.AppendFormat("  deepest cut anywhere: {0:0.0} m; lifetime {1:n0} m³ moved, {2:n0} m³ to sea\n",
+                    DeepestCut(world), world.LifetimeSediment, world.LifetimeWaterToSea);
+            }
+
+            Debug.Log(log.ToString());
+        }
+
+        static float DeepestCut(RillWorld world)
+        {
+            float d = 0f;
+            for (int i = 0; i < world.Field.Count; i++)
+                d = Mathf.Max(d, world.Field.Virgin[i] - world.Field.Height[i]);
+            return d;
+        }
+
         static string NameOf(Rill.World.WeatherKind k)
         {
             switch (k)

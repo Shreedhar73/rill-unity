@@ -53,11 +53,26 @@ namespace Rill.World
         {
             var found = new List<Landmark>();
             var field = world.Field;
-            int n = field.Count;
 
             // Two passes over the same clustering: cut below virgin, build above it.
             FindKind(world, Kind.Gorge, i => field.Virgin[i] - field.Height[i], GorgeRelief, found);
             FindKind(world, Kind.Fan, i => field.Height[i] - field.Virgin[i], FanBuild, found);
+
+            // Sixteen first names and a mature mountain's worth of gorges collide — the 1,000-run
+            // survey listed two Shale Gorges. Same rule as basins (L-070): every named place on
+            // one mountain is nameable apart. Deterministic because the walk order and the probe
+            // sequence both are.
+            var used = new HashSet<string>();
+            for (int i = 0; i < found.Count; i++)
+            {
+                var m = found[i];
+                if (used.Add(m.Name)) continue;
+                for (uint step = 1; step < 64; step++)
+                {
+                    string retry = NameFor(world.Seed, m.Kind, m.Cell + (int)(step * 7919));
+                    if (used.Add(retry)) { m.Name = retry; found[i] = m; break; }
+                }
+            }
             return found;
         }
 

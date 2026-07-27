@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **10** · Closed this cycle: **61** (50 archived)
+Last updated: **2026-07-27** · Open loops: **10** · Closed this cycle: **61** (51 archived)
 
 ---
 
@@ -76,38 +76,16 @@ that five separate "the simulation is broken" conclusions turned out to be flaws
 
 ## Next
 
-### L-043 · The basin lattice is finished by run 500
-**Why** — Measured 2026-07-26 over a 500-run season, the first time this game has been run far
-enough to see its own endgame. Four of five basins sit at **100%** and the fifth at 0%; runs stopping
-on open ground are `404 of 500` against `96` in a basin; `378 of 500` reach the sea. The mountain has
-matured into a well-drained river system, which is the carve → speed → reach loop succeeding
-completely — and it means the retention mechanic the design leans on hardest, "north basin 87%
-full", has no unfinished loop left to offer.
-**Done when** — There is something a 500-run mountain is still unfinished at, and it is named.
-**Evidence needed** — The 500-run lattice line, and the same at 1,000 runs, before designing
-anything that duplicates a recovery the world already does on its own.
-**The bot was checked first, as the loop demanded, and it was not the answer this time.** One
-sustained 500-run campaign per basin, fresh mountain each:
-
-| target | final fill | entered | delivered | basin count |
-|---|---|---|---|---|
-| #0 | **100%** | 32/147 | 7/147 | 5–5 |
-| #1 | **100%** | 34/147 | 13/147 | 5–5 |
-| #2 | **0%** | **0/147** | 0/147 | 5–5 |
-| #3 | 0% | 77/147 | 17/147 | **3–5** |
-| #4 | **100%** | 105/147 | 7/147 | 5–5 |
-
-**Three of five fill to 100% under a determined campaign**, which is the claim the progression track
-rests on and is stronger than L-027's original 85%. The other two rows are the loop's real content:
-
-- **#2 is never entered once in 147 aimed runs across 500.** Not hard to fill — never reached. It
-  also has the highest sea arrivals of any arm, so the water is going somewhere and simply not
-  there. `reach (climb 0 m)` calls it reachable, so the gap is between "a path exists" and "a run
-  can be steered down it", which is the same distinction that made `aimed miss` useless in L-030.
-- **#3 did not stay unfilled — it ceased to exist.** It took 17 deliveries and the basin count fell
-  from 5 to 3. Filling a tarn and depositing around it merges or erases the depression, so a
-  campaign can consume its own objective — and the mountain now says so out loud (L-044, closed).
-  What that does *not* solve is this loop: a lattice that shrinks has less left to offer, not more.
+### L-071 · The boat's grade collapses between run 500 and run 1,000
+**Why** — Found by the endgame survey, and it is the survey's one bad number: the paper boat
+averaged 7.35 m/s at run 500 and **0.99 m/s at run 1,000** — the mature mountain's network reads
+as WORSE than the young one's. Suspects, in order: the spawn point is derived from `RunNumber`, so
+the boat launches somewhere different at each mark and may simply have missed the network at
+1,000; or between-run drift genuinely out-eats maintenance once the bot's attention is spread
+across a finished lattice. Those need opposite responses (fix the reading vs. accept decay as
+real content), so measure before touching either.
+**Done when** — Boat grade at runs 500 and 1,000 measured from the SAME set of launch points, and
+the decline is either gone (reading artefact — fix the boat's spawn) or named as real behaviour.
 
 ### L-018 · Onboarding — the first 30 seconds explain nothing
 **Why** — There is no button and nothing moves on its own to suggest steering exists, so a player
@@ -143,6 +121,26 @@ the game.
 ---
 
 ## Recently closed
+
+### L-043 · The basin lattice is finished by run 500 — closed 2026-07-27
+The loop asked for the thing a finished-lattice mountain is still unfinished at, **named**, with
+the 500- and 1,000-run lattice lines as evidence before designing anything. The endgame survey
+(1,000 runs, sampled at both marks) answers it — the lattice does finish (three basins at 100% by
+500, unchanged at 1,000), and three things do not:
+1. **The revelation track outlives the lattice by an order of magnitude.** 18 of 60 secrets at
+   run 500, 22 of 60 at 1,000 — 38 still buried at an average 2.3 m with almost nothing left
+   touching them. Months of content, already built, already teased on the end card.
+2. **Two basins the water has never favoured** — South-west at 0% and South-east at 21% at run
+   1,000 — and the teaser now names them ("South-west basin sits empty"), which is L-043's
+   missing "unfinished loop the player can see" delivered by L-060.
+3. **The relief itself never finishes.** Deepest cut 13.3 m → 14.7 m across the second five
+   hundred; fans built to 10.6 m; landmarks kept deepening and one North basin died and was
+   replaced by a successor with its own name. The mountain keeps changing shape after the
+   lattice is done, and the named-places record now says so out loud.
+No new mechanic was designed, which is the point: the survey shows the endgame content already
+exists and is already surfaced. **Two bugs fell out on the way** — duplicate landmark names at
+1,000 runs (two Shale Gorges; fixed, same one-mountain-one-name rule as L-070) and the boat-grade
+collapse, opened honestly as L-071 rather than explained away.
 
 ### L-014 · Sense of speed — closed 2026-07-27, on weaker evidence than asked
 All three legs now exist: FOV kick and camera close-in at speed (built earlier), spray above
@@ -285,20 +283,5 @@ lit pixels. `docs/shots/share_card.png` is the artifact itself, and looking at i
 assertions could not: the pixel font had no % glyph, so "20% full" printed as "20 full". Fixed.
 The platform share sheet (iOS/Android) is deliberately not here — files-beside-the-save is the
 offline-honest version, and the share sheet belongs with the device pass (L-022).
-
-### L-067 · The mountain is silent between runs — closed 2026-07-27
-`AmbienceParams.From(field, life)` — pure, headless-testable — reads three numbers off the world:
-stream murmur from polished channel fraction, birdsong from living-cell density, wind from what is
-still bare (floored at 0.25: a summit with no wind sounds like a room). `FlowAudio` grew three
-synth voices — heavily lowpassed murmur, twin-LFO gusting wind that never loops audibly, sparse
-sine chirps with a falling slide, gated to idle — all ducked while a run is loud so the player's
-own water stays the foreground instrument. Pushed on world bind, after the life field lands
-(BindWorld alone briefly sang with the previous world's birds on a slot switch — caught in review,
-fixed), and after every run.
-**Evidence** — headless ambience test, 5 assertions: virgin mountain is stream 0.00 / birds 0.00 /
-wind 1.00; played mountain with a living slope is 1.00 / 1.00 / 0.25; each parameter moves the
-required direction and wind never dies. **The mix itself needs ears and has had none** — the
-parameters are proven, the sound is unobserved, and that distinction is the whole reason the
-parameters live in a separate pure class.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
