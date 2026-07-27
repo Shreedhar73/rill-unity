@@ -148,8 +148,13 @@ namespace Rill.UI
             UIFactory.Place(_titleForecast.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 96f), new Vector2(1100f, 48f));
             _titleForecast.raycastTarget = false;
 
+            // Everything from Begin down is anchored to the BOTTOM of the screen, not the centre.
+            // Centre-anchored offsets reaching −726 fit a 1080×1920 portrait and fall clean off
+            // any shorter aspect — the canvas matches width-or-height at 0.5, so a landscape or
+            // square game view has ~540 units below centre, and the mode selection was built,
+            // correct, and off-screen. Reported as "the mode selection is gone", accurately.
             _startButton = UIFactory.MakeButton(holder.transform, "Start", "Begin", 40);
-            UIFactory.Place(_startButton.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -50f), new Vector2(420f, 108f));
+            UIFactory.Place(_startButton.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 622f), new Vector2(420f, 108f));
 
             // One row per mountain, stacked BELOW Begin. Built once and re-labelled, because a
             // menu that destroys and rebuilds its own buttons is a menu that loses a click.
@@ -163,8 +168,8 @@ namespace Rill.UI
             {
                 Text label;
                 var b = UIFactory.MakeButton(holder.transform, "Slot" + i, "", 26, out label);
-                UIFactory.Place(b.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                                new Vector2(0f, -210f - i * 112f), new Vector2(880f, 96f));
+                UIFactory.Place(b.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                                new Vector2(0f, 510f - i * 112f), new Vector2(880f, 96f));
                 _slotButtons[i] = b;
                 _slotLabels[i] = label;
                 int index = i;
@@ -175,29 +180,28 @@ namespace Rill.UI
             // The record, not a score: one modest control under the rows, opening the screen
             // that says what the current mountain has had done to it. (L-051)
             var records = UIFactory.MakeButton(holder.transform, "Records", "Records", 26);
-            UIFactory.Place(records.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                            new Vector2(0f, -210f - MountainRoster.Slots * 112f), new Vector2(300f, 84f));
+            UIFactory.Place(records.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                            new Vector2(0f, 186f), new Vector2(300f, 84f));
             records.onClick.AddListener(() => { if (RecordsRequested != null) RecordsRequested(); });
 
             // The other two modes, named, each explaining itself in one line. (L-048) Mountains
             // is Begin and the rows above; these are the deliberate departures from it — the
             // Daily's shared rock, and the expedition's blind date with a new one.
-            float modeY = -210f - MountainRoster.Slots * 112f - 118f;
             var dailyBtn = UIFactory.MakeButton(holder.transform, "DailyMode", "Daily Rill", 26);
-            UIFactory.Place(dailyBtn.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                            new Vector2(-235f, modeY), new Vector2(450f, 84f));
+            UIFactory.Place(dailyBtn.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                            new Vector2(-235f, 96f), new Vector2(450f, 84f));
             dailyBtn.onClick.AddListener(() => { if (DailyRequested != null) DailyRequested(); });
 
             var expBtn = UIFactory.MakeButton(holder.transform, "Expedition", "Expedition", 26);
-            UIFactory.Place(expBtn.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                            new Vector2(235f, modeY), new Vector2(450f, 84f));
+            UIFactory.Place(expBtn.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                            new Vector2(235f, 96f), new Vector2(450f, 84f));
             expBtn.onClick.AddListener(() => { if (ExpeditionRequested != null) ExpeditionRequested(); });
 
             var modeCaption = UIFactory.MakeText(holder.transform, "ModeCaptions",
                 "Today's rock, same for everyone · seven runs        Meet a new mountain · keep it or walk away",
                 20, TextAnchor.MiddleCenter, UIFactory.InkDim);
-            UIFactory.Place(modeCaption.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                            new Vector2(0f, modeY - 62f), new Vector2(1000f, 36f));
+            UIFactory.Place(modeCaption.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                            new Vector2(0f, 36f), new Vector2(1000f, 36f));
             modeCaption.raycastTarget = false;
 
             _titleGroup = UIFactory.Group(holder);
