@@ -1,11 +1,22 @@
 # RILL — Status
 
-**Last updated:** 2026-07-26
+**Last updated:** 2026-07-27
 **Engine:** Unity 6000.5.5f1, Built-in Render Pipeline
 **Verified:** C# type-checks clean (all three build configs). Headless simulation runs 24 and 150
 unattended runs and produces sane numbers, plus dedicated harnesses for steering authority, basin
-soak, a sustained basin campaign, and glacier freeze/thaw. **Never playtested by a human beyond one
+soak, a sustained basin campaign, and glacier freeze/thaw — plus, added 2026-07-27, camera-vs-terrain,
+time-lapse archive, glyph journal, weather forecast, away drift, paper boat, landmarks, ambience
+parameters, share card and rain-shower mass balance. **Never playtested by a human beyond one
 look at the Game view.**
+
+**2026-07-27 in one line:** the camera can no longer enter any mountain (1,794 underground frames
+across the three biomes, 0 after the clamp), and the ten "reasons to come back" loops
+(L-060–L-069) opened this morning are all closed with headless evidence: the end card teases what
+is almost about to happen, the time-lapse is watchable and skippable, daily glyphs survive the
+rollover, the title forecasts tomorrow's weather and reports what happened while you were away,
+a paper boat reads the network (virgin 1.2 m/s vs mature 20.5 m/s), gorges and fans get names,
+idle has a world-derived soundscape, a composed share card provably contains the run, and a held
+finger rains 1.5 m³ down the player's own channels under an exact invariant-6 ledger.
 
 Read this with [TUNING.md](TUNING.md) (the numbers and the measurements behind them) and
 [VERIFICATION.md](VERIFICATION.md) (how anything here was actually checked).

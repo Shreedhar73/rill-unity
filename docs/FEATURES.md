@@ -47,7 +47,7 @@ Every feature named in `RILL-game-design.md`, with its real state.
 | Carve overlay glowing on the mountain | **Built** | Vertex-alpha glow with decay. Not seen since the shader rewrite. |
 | Zero-input session (watch rain, close) | **Partial** | Idle state exists; no rain visuals. |
 | Rain gathers while away | **Done** | Bonus volume on next run, capped, never expiring. |
-| Weather calendar (storm/drought/snowmelt/meteor) | **Built** | Deterministic from UTC date. Never observed. |
+| Weather calendar (storm/drought/snowmelt/meteor) | **Built** | Deterministic from UTC date. Never observed. The **forecast** is Done: `KindFor` is the same roll called on tomorrow, 730/730 windows agree over a year, 0 lies, shown live on the title ("This evening: a storm — double water"). |
 | Sediment healing between runs | **Done** | Unused channels silt closed; wetness and polish decay. |
 | No energy system, no timers | **Done** | None exist. |
 
@@ -57,10 +57,16 @@ Every feature named in `RILL-game-design.md`, with its real state.
 |---|---|---|
 | Projects (surfaced, never assigned) | **Built** | Read off basins, near-surface secrets, ecosystem rungs; shown on the idle line. |
 | The Almanac | **Built** | Auto journal, run history, day streak, milestones. |
-| Time-lapse | **Built** | Keyframes written every 3 runs; playback path never watched. |
+| Time-lapse | **Done** | Keyframes every 3 runs; archive round-trips headlessly (0.002 m worst error, truncated tails dropped cleanly). Playback walked by the play probe: Idle → TimeLapse → Idle on its own, run counter on screen, tap to skip, props hidden during playback (`play_timelapse.png`). |
 | Daily Rill (same seed worldwide, 7 runs) | **Built** | Separate world, own save file, run limit. |
 | Share glyph | **Partial** | Renders and copies to clipboard, but comes out nearly empty — needs to read as an image at a glance. A Daily is three runs, so the real case is sparser than anything the smoke test prints. |
 | Postcards | **Built** | Share button also writes a screenshot next to the save. |
+| Share card | **Done** | The run as one composed 1080×1350 image — hillshaded relief, the run's path, pixel-font record — rendered without camera or fonts, so headless tests prove the card contains the run (1,231 px of difference vs the no-path card). `docs/shots/share_card.png`. |
+| Glyph journal | **Done** | Every daily glyph kept past the rollover that used to discard them; date-sorted round-trip, computed streak (unplayed today keeps yesterday's chain), shown in the Almanac. 12 headless assertions. |
+| Next teaser on the end card | **Done** | One world-derived "almost" line — basin near brim, secret under thin rock the water has cut toward — alternating when both exist. Counted by the smoke test: 24/24 runs with converging numbers. |
+| Away report | **Done** | Measured drift after 6+ h absence, capped at 6 ticks; title says what actually changed. Reported m³ equals independently measured m³; max absence returns <5% of what was carved. Title line unobserved. |
+| Named landmarks | **Done** | Gorges >2.5 m below virgin, fans >1.5 m above, deterministic names from seed+deepest cell, recomputed from terrain (a silted-up gorge loses its name). 60 runs earn 2 places; names survive save round-trip. |
+| Rain shower (hold to rain) | **Done** | Held still finger = 1.5 m³ over 24 drops that prefer the carved channels (26× polish under traces vs mountain mean). Invariant-6 ledger sums exactly; rain never touches terrain; full tarns soak it away rather than cascade. Gesture and sparkle unobserved. |
 | Almanac subscription / cloud archive | **Not started** | Monetisation surface. |
 
 ## Social
@@ -69,7 +75,8 @@ Every feature named in `RILL-game-design.md`, with its real state.
 |---|---|---|
 | Confluence delta queue | **Built** | Sparse per-run deltas queued locally, capped at 8 MB. |
 | Confluence backend / merge | **Not started** | Deliberately out of scope — the game is offline-first. |
-| Visits, paper boats | **Not started** | |
+| Visits | **Not started** | |
+| Paper boat (offline toy) | **Done** | Released from the spring, no steering, no carving; rides the carved network and names where it rests. Virgin 1.20 m/s vs mature 20.48 m/s — 17× — deterministic to 0.01 m. Live playback on the ribbon unobserved. |
 | Seed browser / creator seeds | **Not started** | |
 | Marketplace | **Not started** | Year-2 item in the design. |
 
@@ -84,9 +91,9 @@ Every feature named in `RILL-game-design.md`, with its real state.
 | The sea | **Done** | Subdivided 96², each vertex carrying real depth. Coastline grades deep blue → shallows → pale beach band, and deep water is now genuinely opaque — it was capped near 72% everywhere, which showed the seabed through the ocean and drew the heightfield's square boundary across it (L-045). Confirmed by render. |
 | Ecosystem props | **Done** | Conifers with trunks and tiered crowns, moss cushions, reed clumps, huts with pitched roofs on flat ground. Vertex-baked vertical shading gives each internal form while staying one instanced material. Confirmed by render (L-016); canopies exist and are unused. |
 | Splash particles | **Built** | Code-built system + `Droplet.shader`. Now also driven continuously by speed, not only by plunges. Never seen — needs play mode; the capture tool cannot show per-run state. |
-| Camera (follow, report framing, idle pan) | **Done** | Retuned to 62 m back / 46 m up. |
+| Camera (follow, report framing, idle pan) | **Done** | Retuned to 62 m back / 46 m up. Terrain-clamped on every mountain (L-059): naive framing was inside rock on 1,794 frames across the three slot biomes, 0 after the clamp. |
 | Sense of speed | **Built** | FOV kick (13° at 24 m/s), camera closing 22% toward the bed, ribbon widening and brightening, and spray above 12 m/s — roughly terminal speed on fresh rock, so spray means "faster than un-carved ground allows". Never seen. Plunge impact still not started. |
-| Procedural water audio | **Built** | Synthesised from run state, no audio files. **Never heard.** |
+| Procedural water audio | **Built** | Synthesised from run state, no audio files. **Never heard.** Idle ambience added: stream murmur / birdsong / wind derived from world state (pure `AmbienceParams`, headless-proven: virgin 0/0/1.00 vs played 1.00/1.00/0.25); the mix itself also never heard. |
 | Haptics | **Built** | Event-only, throttled, platform-guarded. |
 | No-HUD-by-default framing | **Partial** | HUD ghosts in, but is placeholder quality. |
 | Onboarding | **Built** | Gated on whether the player has ever steered, not on run number — the first attempt keyed off `RunNumber < 6` and so could never appear on an existing mountain. Never watched. |

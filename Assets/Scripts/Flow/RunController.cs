@@ -104,6 +104,9 @@ namespace Rill.Flow
         PaperBoat.Result _boat;
         float _boatTime;
         readonly HashSet<string> _knownPlaces = new HashSet<string>();
+        RainShower _rain;
+        float _rainTime;
+        bool _rainedThisHold;
         bool _autoRun;
         Vector2 _lastThumbPos;
 
@@ -621,6 +624,18 @@ namespace Rill.Flow
             }
             _lastThumbPos = Thumb.ScreenPos;
 
+            // A held, still finger is rain: the petting interaction. Distinct from both verbs by
+            // construction — a tap is under 0.4 s, a pan has moved more than 18 px — so neither
+            // is stolen. One shower per hold; lifting and holding again rains again.
+            if (!Thumb.Held) _rainedThisHold = false;
+            if (Thumb.Held && !_rainedThisHold && Thumb.HoldDuration > 0.45f && Thumb.DragDistance <= 18f
+                && !Thumb.StartedOverUI && !Hud.PanelVisible && !Hud.ReportVisible)
+            {
+                _rainedThisHold = true;
+                BeginRain();
+            }
+            UpdateRain();
+
             if (Thumb.WasTap() && !Hud.PanelVisible && !Hud.ReportVisible)
             {
                 if (InDaily && _daily.RunsLeft <= 0)
@@ -629,6 +644,50 @@ namespace Rill.Flow
                     return;
                 }
                 StartRun();
+            }
+        }
+
+        void BeginRain()
+        {
+            // Where under the thumb: the ground plane refines toward the touched hillside in two
+            // passes — start at half the summit height, then re-project on the sampled terrain.
+            Vector2 at;
+            float planeY = Active.SummitWorld.y * 0.5f;
+            if (!Thumb.WorldTargetOnPlane(Cam.Cam, planeY, out at)) return;
+            planeY = Active.Field.SampleHeightWorld(at.x, at.y);
+            Thumb.WorldTargetOnPlane(Cam.Cam, planeY, out at);
+
+            _rain = RainShower.Compute(Active, at, Config.RainVolume, Config.RainDrops,
+                                       Config.RainRadius, (uint)(Active.RunNumber * 131) ^ (uint)(Time.time * 997f));
+            _rain.Apply(Active);
+            Pooled.SetDirty();
+            _rainTime = 0f;
+            Haptics.Tick(0.3f);
+        }
+
+        /// <summary>
+        /// The shower's playback: droplets sparkle along their traces over a couple of seconds.
+        /// The world effects already landed in Apply — this is only the falling.
+        /// </summary>
+        void UpdateRain()
+        {
+            if (_rain == null) return;
+            _rainTime += Time.deltaTime;
+            float t01 = _rainTime / 2.2f;
+            if (t01 >= 1f) { _rain = null; return; }
+
+            if (Fx != null)
+            {
+                for (int d = 0; d < _rain.Drops.Count; d++)
+                {
+                    var drop = _rain.Drops[d];
+                    if (drop.Trace.Count < 2) continue;
+                    // Each droplet works its way down its own trace, slightly desynchronised.
+                    float p = Mathf.Clamp01(t01 * (1.1f + (d & 3) * 0.08f));
+                    int i = Mathf.Min((int)(p * (drop.Trace.Count - 1)), drop.Trace.Count - 1);
+                    if (((int)(Time.time * 60f) + d) % 3 == 0)
+                        Fx.Burst(drop.Trace[i], 0.06f, new Color(0.75f, 0.88f, 1f, 0.4f));
+                }
             }
         }
 

@@ -819,6 +819,101 @@ namespace Rill.EditorTools
             if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
         }
 
+        /// <summary>
+        /// The rain toy under invariant 6: every drop of a shower must be accounted for — sea,
+        /// basin, or infiltration — and on a carved mountain the drops must actually prefer the
+        /// channels, or the toy demonstrates nothing. (L-069)
+        /// </summary>
+        [MenuItem("RILL/Run Headless Rain Test", false, 81)]
+        public static void RunHeadlessRain()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL rain shower ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            var config = new GameConfig();
+            var world = RillWorld.Create(config, 20260726u, Biome.Sandstone);
+            var sim = new FlowSimulation(world);
+            for (int run = 1; run <= 30; run++)
+            {
+                world.BeginRun();
+                var rng = new Rng(Noise.Hash((uint)run * 2654435761u ^ world.Seed));
+                sim.Begin(world.SpawnPoint(ref rng), config.StartVolume);
+                int steps = 0;
+                while (sim.Running && steps++ < 20000) sim.Advance(config.SimStep);
+                world.Basins.Rebuild();
+                world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+            }
+
+            Vector3 summit = world.SummitWorld;
+            var shower = RainShower.Compute(world, new Vector2(summit.x, summit.z),
+                config.RainVolume, config.RainDrops, config.RainRadius, 42u);
+
+            float ledger = shower.ToBasins + shower.ToSea + shower.Infiltrated;
+            log.AppendFormat("  shower of {0:0.00} m³ in {1} drops: {2:0.00} to basins, {3:0.00} to sea, {4:0.00} infiltrated\n",
+                config.RainVolume, shower.Drops.Count, shower.ToBasins, shower.ToSea, shower.Infiltrated);
+            check(Mathf.Abs(ledger - config.RainVolume) < 0.001f,
+                  string.Format("every drop is accounted for: ledger {0:0.000} of {1:0.000} m³ (invariant 6)", ledger, config.RainVolume));
+            check(shower.Drops.Count == config.RainDrops, "all " + config.RainDrops + " drops traced");
+
+            // Channel preference: the rock under the shower's traces must be more polished than
+            // the mountain at large, or the drops are ignoring the network.
+            float traceSum = 0f; int traceN = 0;
+            for (int d = 0; d < shower.Drops.Count; d++)
+                for (int i = 0; i < shower.Drops[d].Trace.Count; i++)
+                {
+                    var p = shower.Drops[d].Trace[i];
+                    traceSum += world.Field.SamplePolishWorld(p.x, p.z);
+                    traceN++;
+                }
+            float fieldSum = 0f; int fieldN = 0;
+            for (int i = 0; i < world.Field.Count; i++)
+            {
+                if (world.Field.Height[i] <= world.Field.SeaLevel) continue;
+                fieldSum += world.Field.Polish[i]; fieldN++;
+            }
+            float traceMean = traceN > 0 ? traceSum / traceN : 0f;
+            float fieldMean = fieldN > 0 ? fieldSum / fieldN : 0f;
+            check(traceMean > fieldMean * 3f,
+                  string.Format("the drops run the channels: polish under traces {0:0.000} vs mountain mean {1:0.000}", traceMean, fieldMean));
+
+            // Apply: basin water rises by exactly the ledger's basin share; the rock dampens.
+            float basinBefore = world.Basins.TotalWater();
+            int wetBefore = 0;
+            for (int i = 0; i < world.Field.Count; i++) if (world.Field.Wet[i] > 0.25f) wetBefore++;
+            shower.Apply(world);
+            float basinAfter = world.Basins.TotalWater();
+            int wetAfter = 0;
+            for (int i = 0; i < world.Field.Count; i++) if (world.Field.Wet[i] > 0.25f) wetAfter++;
+            check(Mathf.Abs((basinAfter - basinBefore) - shower.ToBasins) < 0.01f,
+                  string.Format("basins gained exactly the basin share: +{0:0.00} m³", basinAfter - basinBefore));
+            check(wetAfter > wetBefore, "the shower dampened the rock it crossed: " + wetBefore + " -> " + wetAfter + " damp cells");
+
+            // The toy must not be an economy: a shower is a rounding error against a run.
+            check(config.RainVolume < config.StartVolume * 0.05f,
+                  string.Format("a shower is under 5% of a run: {0:0.0} of {1:0.0} m³", config.RainVolume, config.StartVolume));
+
+            // No terrain change, ever — rain is not a free carve.
+            // (Compute+Apply touch Wet and basin water only; this asserts it stays that way.)
+            var world2 = RillWorld.Create(config, 777u, Biome.Sandstone);
+            double heightBefore = 0;
+            for (int i = 0; i < world2.Field.Count; i++) heightBefore += world2.Field.Height[i];
+            var s2 = RainShower.Compute(world2, new Vector2(0f, 0f), config.RainVolume, config.RainDrops, config.RainRadius, 7u);
+            s2.Apply(world2);
+            double heightAfter = 0;
+            for (int i = 0; i < world2.Field.Count; i++) heightAfter += world2.Field.Height[i];
+            check(System.Math.Abs(heightAfter - heightBefore) < 1e-6,
+                  "rain never touches terrain: total height unchanged");
+
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
         static string NameOf(Rill.World.WeatherKind k)
         {
             switch (k)

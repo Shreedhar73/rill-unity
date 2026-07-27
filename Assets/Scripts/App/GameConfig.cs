@@ -87,6 +87,12 @@ namespace Rill.App
 
         [Header("Volume")]
         public float StartVolume = 60f;          // m^3 of water in a normal run
+
+        [Tooltip("m³ in one held-finger shower. Deliberately ~2% of a run: rain is affection, " +
+                 "not an alternative economy — it must never be worth farming.")]
+        public float RainVolume = 1.5f;
+        public int RainDrops = 24;
+        public float RainRadius = 14f;           // metres of scatter around the held point
         public float StormVolumeMultiplier = 2f;
         public float InfiltrationRate = 1.6f;    // m^3/s lost into dry ground
         public float MinVolume = 2f;             // run ends below this
