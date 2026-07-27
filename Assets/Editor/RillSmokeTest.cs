@@ -399,6 +399,83 @@ namespace Rill.EditorTools
             if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
         }
 
+        /// <summary>
+        /// The forecast against the weather that actually arrives. The claim on the title screen
+        /// is only worth making if KindFor(tomorrow) is exactly what Evaluate(tomorrow) will set —
+        /// a forecast that can disagree with the weather is worse than none. (L-063)
+        /// </summary>
+        [MenuItem("RILL/Run Headless Forecast Test", false, 75)]
+        public static void RunHeadlessForecast()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL weather forecast ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            var ws = new Rill.World.WeatherSystem(1u);
+
+            // A year of half-day windows: KindFor must agree with what Evaluate sets, every time.
+            int windows = 0, mismatches = 0;
+            var d = new DateTime(2026, 1, 1, 6, 0, 0, DateTimeKind.Utc);
+            for (int i = 0; i < 730; i++)
+            {
+                var predicted = Rill.World.WeatherSystem.KindFor(d);
+                ws.Evaluate(d);
+                if (ws.Kind != predicted) mismatches++;
+                windows++;
+                d = d.AddHours(12);
+            }
+            check(mismatches == 0, windows + " windows over a year: forecast and arrival never disagree, " + mismatches + " mismatches");
+
+            // The forecast line itself: when it names a change, evaluating at that moment must
+            // produce that change; when it is silent, the next two windows must match today.
+            int spoke = 0, silent = 0, lies = 0;
+            d = new DateTime(2026, 1, 1, 6, 0, 0, DateTimeKind.Utc);
+            for (int i = 0; i < 730; i++)
+            {
+                string line = ws.ForecastLine(d);
+                var now = Rill.World.WeatherSystem.KindFor(d);
+                var w1 = Rill.World.WeatherSystem.KindFor(d.Date.AddHours(d.Hour < 12 ? 12 : 24));
+                var w2 = Rill.World.WeatherSystem.KindFor(d.Date.AddHours(d.Hour < 12 ? 24 : 36));
+                if (line == null)
+                {
+                    silent++;
+                    if (w1 != now || w2 != now) lies++;   // silence while a change was coming
+                }
+                else
+                {
+                    spoke++;
+                    var named = w1 != now ? w1 : w2;
+                    // The line must name the first differing window's weather.
+                    bool namesIt = line.ToLowerInvariant().Contains(NameOf(named));
+                    if (!namesIt) lies++;
+                }
+                d = d.AddHours(12);
+            }
+            log.AppendFormat("  forecast spoke on {0} of {1} windows, silent on {2}\n", spoke, spoke + silent, silent);
+            check(lies == 0, "every spoken forecast names the weather that arrives, and silence never hides a change: " + lies + " lies");
+            check(spoke > 0 && silent > 0, "the forecast both speaks and holds its tongue across a year (" + spoke + " / " + silent + ")");
+
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
+        static string NameOf(Rill.World.WeatherKind k)
+        {
+            switch (k)
+            {
+                case Rill.World.WeatherKind.Storm: return "storm";
+                case Rill.World.WeatherKind.Drought: return "drought";
+                case Rill.World.WeatherKind.Snowmelt: return "snowmelt";
+                case Rill.World.WeatherKind.MeteorShower: return "meteor";
+                default: return "clear";
+            }
+        }
+
         static DateTime FindWeather(Rill.World.WeatherSystem w, Rill.World.WeatherKind want)
         {
             var d = new DateTime(2026, 3, 1, 6, 0, 0, DateTimeKind.Utc);

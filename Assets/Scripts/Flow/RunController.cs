@@ -291,7 +291,13 @@ namespace Rill.Flow
                 ? string.Format("{0:n0} runs · {1:n0} m³ moved · {2:n0} m³ to the sea",
                                 Active.RunNumber, Active.LifetimeSediment, Active.LifetimeWaterToSea)
                 : "A new mountain, untouched";
+
             Hud.SetTitle(true, record, StartFromTitle);
+
+            // The forecast is an appointment: weather is derived from the date, so tomorrow is
+            // already knowable, and saying it out loud is a true reason to come back tomorrow.
+            // Absent while nothing changes — "Tomorrow: the same" is not an appointment.
+            Hud.SetTitleForecast(_weather != null ? _weather.ForecastLine(System.DateTime.UtcNow) : null);
 
             // The three mountains, each saying what has been done to it. The one being stood on is
             // marked rather than hidden, so the list is always the same shape and the row a player

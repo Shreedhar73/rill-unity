@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **22** · Closed this cycle: **47** (34 archived)
+Last updated: **2026-07-27** · Open loops: **21** · Closed this cycle: **48** (34 archived)
 
 ---
 
@@ -253,14 +253,6 @@ Rejected on the way: anything resembling XP, streaks that punish a missed day, t
 energy systems, and a "prestige" reset (invariant 1 makes the whole genre impossible here, which
 is the design's point). Ordered by implementation order, terminal-verifiable ones first.
 
-### L-063 · Weather arrives unannounced
-**Why** — `WeatherSystem` derives weather from the date, which means tomorrow's weather is already
-knowable — and the game never says it. "Snowmelt tomorrow — the glacier will surge" is an
-appointment: a reason to open the app *tomorrow specifically*, the mechanic behind every daily
-game that works, and here it is true rather than manufactured.
-**Done when** — The title screen names tomorrow's weather when it differs from today's, and a
-headless check proves the forecast for date d+1 equals what `Evaluate(d+1)` actually produces.
-
 ### L-064 · Nothing happens while you are away
 **Why** — Between-run drift, seepage, growth and ice all already run — silently. A player who
 returns after three days is never told the mountain did anything without them, so the mountain
@@ -327,6 +319,22 @@ headless mass-balance check accounts for every m³ of shower water.
 ---
 
 ## Recently closed
+
+### L-063 · Weather arrives unannounced — closed 2026-07-27
+Weather was already deterministic from the date; the game just never said what was coming.
+`WeatherSystem.KindFor(DateTime)` is the old `Evaluate` roll extracted static and pure, so the
+forecast is *the same function called on tomorrow* and structurally cannot disagree with the
+weather that arrives. `ForecastLine` names the next change within 24 h — "This evening: a storm —
+double water" — and stays silent while nothing changes, because "Tomorrow: the same" is not an
+appointment. Shown under the tagline on the title screen.
+**A structural-invisibility bug caught by looking, once again** — the first version appended the
+forecast to the title's record line, which `SetMountains` hides permanently the moment the slot
+rows exist. Built, correct, and impossible to see, exactly the L-018 shape. It got its own element.
+**Evidence** — new headless forecast test over a year of half-day windows: 730/730 forecast vs
+arrival, 0 mismatches; every spoken line names the weather that then arrives and silence never
+hides a change (0 lies); it spoke on 588 windows and held its tongue on 142, so both branches are
+real. Probe: 0 failed, 0 errors, and the crop of `play_home.png` shows the line on screen in the
+running game: "This evening: a storm — double water".
 
 ### L-062 · Daily glyphs vanish the next day — closed 2026-07-27
 The rollover was where they died: `DailyRill.Load` replaced any stale `daily.json` without reading

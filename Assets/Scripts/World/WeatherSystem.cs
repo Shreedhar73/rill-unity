@@ -42,24 +42,69 @@ namespace Rill.World
         /// </summary>
         public void Evaluate(DateTime utcNow)
         {
-            int dayIndex = (int)(utcNow.Date - new DateTime(2024, 1, 1)).TotalDays;
-            int half = utcNow.Hour < 12 ? 0 : 1;
+            Set(KindFor(utcNow));
+            WindowEndUtc = utcNow.Date.AddHours(utcNow.Hour < 12 ? 12 : 24);
+        }
+
+        /// <summary>
+        /// The weather for any moment, past or future. Static and pure because the whole point of
+        /// date-derived weather is that tomorrow is already knowable — the forecast is this
+        /// function called on tomorrow, so it CANNOT disagree with what Evaluate will do when
+        /// tomorrow arrives.
+        /// </summary>
+        public static WeatherKind KindFor(DateTime utc)
+        {
+            int dayIndex = (int)(utc.Date - new DateTime(2024, 1, 1)).TotalDays;
+            int half = utc.Hour < 12 ? 0 : 1;
             uint h = Noise.Hash((uint)dayIndex * 2654435761u ^ (uint)half * 40503u ^ 0x1234u);
             float roll = (h & 0xffff) / 65536f;
 
             // Seasons bias the roll: spring is meltwater, late summer is dry.
-            int month = utcNow.Month;
+            int month = utc.Month;
             bool spring = month >= 3 && month <= 5;
             bool summer = month >= 6 && month <= 8;
 
-            if (spring && roll < 0.22f) Set(WeatherKind.Snowmelt);
-            else if (summer && roll < 0.16f) Set(WeatherKind.Drought);
-            else if (roll < 0.30f) Set(WeatherKind.Storm);
-            else if (roll < 0.34f) Set(WeatherKind.MeteorShower);
-            else if (roll < 0.42f) Set(WeatherKind.Drought);
-            else Set(WeatherKind.Clear);
+            if (spring && roll < 0.22f) return WeatherKind.Snowmelt;
+            if (summer && roll < 0.16f) return WeatherKind.Drought;
+            if (roll < 0.30f) return WeatherKind.Storm;
+            if (roll < 0.34f) return WeatherKind.MeteorShower;
+            if (roll < 0.42f) return WeatherKind.Drought;
+            return WeatherKind.Clear;
+        }
 
-            WindowEndUtc = utcNow.Date.AddHours(half == 0 ? 12 : 24);
+        /// <summary>
+        /// One line about the next change in the weather, or null while nothing changes. An
+        /// appointment rather than an ambush: "snowmelt tomorrow" is a reason to open the app
+        /// tomorrow specifically, and here it is true rather than manufactured. Looks at most two
+        /// windows (24 h) ahead — a forecast past tomorrow is trivia, not an appointment.
+        /// </summary>
+        public string ForecastLine(DateTime utcNow)
+        {
+            WeatherKind current = KindFor(utcNow);
+            DateTime next = utcNow.Date.AddHours(utcNow.Hour < 12 ? 12 : 24);
+            for (int i = 0; i < 2; i++)
+            {
+                WeatherKind k = KindFor(next);
+                if (k != current)
+                {
+                    string when = next.Date == utcNow.Date ? "This evening" : "Tomorrow";
+                    return when + ": " + Describe(k);
+                }
+                next = next.AddHours(12);
+            }
+            return null;
+        }
+
+        static string Describe(WeatherKind k)
+        {
+            switch (k)
+            {
+                case WeatherKind.Storm: return "a storm — double water";
+                case WeatherKind.Drought: return "drought — narrow, deeper cuts";
+                case WeatherKind.Snowmelt: return "snowmelt — high, wide water";
+                case WeatherKind.MeteorShower: return "a meteor shower";
+                default: return "clear skies";
+            }
         }
 
         void Set(WeatherKind k)

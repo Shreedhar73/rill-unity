@@ -32,7 +32,7 @@ namespace Rill.UI
         Text _topLeft, _topRight, _hint, _reportTitle, _panelBody, _panelTitle;
         Image _reportCard, _panel, _speedFill;
         CanvasGroup _reportGroup, _panelGroup, _buttonsGroup, _speedGroup, _titleGroup;
-        Text _titleWord, _titleTag, _titleRecord;
+        Text _titleWord, _titleTag, _titleRecord, _titleForecast;
         Button _startButton, _backButton;
         GameObject _titleHolder;
         Button[] _slotButtons;
@@ -129,6 +129,13 @@ namespace Rill.UI
             _titleRecord = UIFactory.MakeText(holder.transform, "Record", "", 30, TextAnchor.MiddleCenter, UIFactory.InkDim);
             UIFactory.Place(_titleRecord.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -150f), new Vector2(1100f, 56f));
             _titleRecord.raycastTarget = false;
+
+            // The weather appointment. Its own element rather than a line of Record, because
+            // SetMountains hides Record permanently once the slot rows exist — a forecast
+            // appended there was built, correct, and structurally invisible.
+            _titleForecast = UIFactory.MakeText(holder.transform, "Forecast", "", 28, TextAnchor.MiddleCenter, UIFactory.InkDim);
+            UIFactory.Place(_titleForecast.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 96f), new Vector2(1100f, 48f));
+            _titleForecast.raycastTarget = false;
 
             _startButton = UIFactory.MakeButton(holder.transform, "Start", "Begin", 40);
             UIFactory.Place(_startButton.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -50f), new Vector2(420f, 108f));
@@ -280,6 +287,14 @@ namespace Rill.UI
                 _startButton.onClick.RemoveAllListeners();
                 if (onStart != null) _startButton.onClick.AddListener(() => onStart());
             }
+        }
+
+        /// <summary>The next change in the weather, shown under the tagline. Empty hides it.</summary>
+        public void SetTitleForecast(string line)
+        {
+            if (_titleForecast == null) return;
+            _titleForecast.text = line ?? "";
+            _titleForecast.gameObject.SetActive(!string.IsNullOrEmpty(line));
         }
 
         public bool TitleVisible => _titleGroup != null && _titleGroup.blocksRaycasts;
