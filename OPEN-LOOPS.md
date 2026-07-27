@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **10** · Closed this cycle: **61** (51 archived)
+Last updated: **2026-07-27** · Open loops: **10** · Closed this cycle: **61** (52 archived)
 
 ---
 
@@ -76,17 +76,6 @@ that five separate "the simulation is broken" conclusions turned out to be flaws
 
 ## Next
 
-### L-071 · The boat's grade collapses between run 500 and run 1,000
-**Why** — Found by the endgame survey, and it is the survey's one bad number: the paper boat
-averaged 7.35 m/s at run 500 and **0.99 m/s at run 1,000** — the mature mountain's network reads
-as WORSE than the young one's. Suspects, in order: the spawn point is derived from `RunNumber`, so
-the boat launches somewhere different at each mark and may simply have missed the network at
-1,000; or between-run drift genuinely out-eats maintenance once the bot's attention is spread
-across a finished lattice. Those need opposite responses (fix the reading vs. accept decay as
-real content), so measure before touching either.
-**Done when** — Boat grade at runs 500 and 1,000 measured from the SAME set of launch points, and
-the decline is either gone (reading artefact — fix the boat's spawn) or named as real behaviour.
-
 ### L-018 · Onboarding — the first 30 seconds explain nothing
 **Why** — There is no button and nothing moves on its own to suggest steering exists, so a player
 can complete several runs without discovering the only verb that matters. This is the single largest
@@ -121,6 +110,19 @@ the game.
 ---
 
 ## Recently closed
+
+### L-071 · The boat's grade collapses between run 500 and run 1,000 — closed 2026-07-27
+It does not. The survey's two readings each launched from a different RunNumber-derived spawn, so
+they compared two launch points' luck, not the mountain. From the **same five fixed launch
+points** at both marks: mean grade **7.66 m/s at run 500, 10.97 m/s at 1,000** — the network gets
+*better* through the second five hundred, and individual launches show why the single-reading
+survey lied (the same mountain serves a 21.7 m/s channel ride and a 1.1 m/s stranding, three
+spring-widths apart).
+**The game's boat keeps its RunNumber-varying spawn deliberately** — it answers "what would my
+next run's water find", and the next run's spring is where it launches. What was wrong was the
+measurement, and the measurement now exists as `RILL/Run Headless Boat Grade Test` with
+`PaperBoat.Sail(world, spawnSalt)` for fixed-point readings. The endgame survey's boat line
+should be read with this loop in hand.
 
 ### L-043 · The basin lattice is finished by run 500 — closed 2026-07-27
 The loop asked for the thing a finished-lattice mountain is still unfinished at, **named**, with
@@ -268,20 +270,5 @@ traced; polish under traces 0.521 vs mountain mean 0.020 — **26× channel pref
 exactly the delivered share; damp cells 1,900 → 1,946; a shower is 2.5% of a run; total terrain
 height unchanged to 1e-6. Smoke and probe after: green, 0 errors. The hold gesture and the
 sparkle are unobserved — the probe cannot hold a finger on the world.
-
-### L-068 · A finished run cannot be shown to anyone — closed 2026-07-27
-`ShareCard.Render`: the run as one 1080×1350 image — the mountain top-down and hillshaded in its
-own strata palette, lakes as lakes, the run's path drawn with a dark halo and start/end markers,
-the record in a hand-built 5×7 pixel font. No camera, no font asset, no UI: every pixel painted by
-plain code, which is why it renders identically headless and a test can prove the share contains
-the run it claims to. Wired into the existing Share button alongside the clipboard glyph and the
-postcard; written as `card_run{N}.png` beside the save.
-**Evidence** — headless share-card test, 7 assertions: real 240-point path; 787 KB PNG decoding at
-1080×1350; 698 pixels of the path colour painted; **1,231 pixels of difference between the card
-with the run and the card without it** — the run is provably in the image; both text bands carry
-lit pixels. `docs/shots/share_card.png` is the artifact itself, and looking at it caught what the
-assertions could not: the pixel font had no % glyph, so "20% full" printed as "20 full". Fixed.
-The platform share sheet (iOS/Android) is deliberately not here — files-beside-the-save is the
-offline-honest version, and the share sheet belongs with the device pass (L-022).
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*

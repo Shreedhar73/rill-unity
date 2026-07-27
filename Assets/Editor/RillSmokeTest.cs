@@ -1148,6 +1148,62 @@ namespace Rill.EditorTools
             Debug.Log(log.ToString());
         }
 
+        /// <summary>
+        /// L-071: the boat averaged 7.35 m/s at run 500 and 0.99 m/s at run 1,000 — but each
+        /// reading launched from a different RunNumber-derived point. This sails the SAME five
+        /// fixed launch points at both marks, so the comparison is of the mountain and not of
+        /// two spawns' luck.
+        /// </summary>
+        [MenuItem("RILL/Run Headless Boat Grade Test", false, 85)]
+        public static void RunHeadlessBoatGrade()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL boat grade at 500 vs 1,000 runs, fixed launch points ===");
+
+            var config = new GameConfig();
+            var world = RillWorld.Create(config, 20260726u, Biome.Sandstone);
+            var sim = new FlowSimulation(world);
+            uint[] salts = { 11u, 12u, 13u, 14u, 15u };
+            float mean500 = 0f, mean1000 = 0f;
+
+            for (int run = 1; run <= 1000; run++)
+            {
+                world.BeginRun();
+                var rng = new Rng(Noise.Hash((uint)run * 2654435761u ^ world.Seed));
+                sim.Begin(world.SpawnPoint(ref rng), config.StartVolume);
+                int steps = 0;
+                while (sim.Running && steps++ < 20000)
+                {
+                    if (steps % 30 == 0)
+                        sim.SetSteer(rng.Next01() < 0.45f, sim.Head.Pos + new Vector2(rng.Range(-25f, 25f), rng.Range(-25f, 25f)));
+                    sim.Advance(config.SimStep);
+                }
+                world.Basins.Rebuild();
+                world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+                world.ApplyBetweenRunDrift();
+
+                if (run != 500 && run != 1000) continue;
+                log.AppendFormat("--- at run {0} ---\n", run);
+                float sum = 0f;
+                for (int k = 0; k < salts.Length; k++)
+                {
+                    var boat = PaperBoat.Sail(world, salts[k]);
+                    sum += boat.AverageSpeed;
+                    log.AppendFormat("  launch {0}: {1}  ({2:0.00} m/s)\n", salts[k], PaperBoat.Describe(boat), boat.AverageSpeed);
+                }
+                float mean = sum / salts.Length;
+                log.AppendFormat("  mean grade {0:0.00} m/s\n", mean);
+                if (run == 500) mean500 = mean; else mean1000 = mean;
+            }
+
+            log.AppendFormat("--- verdict: {0:0.00} m/s at 500 vs {1:0.00} m/s at 1,000 — {2}\n",
+                mean500, mean1000,
+                mean1000 < mean500 * 0.7f
+                    ? "the decline is REAL from identical launch points: the network's grade decays late-game"
+                    : "the survey's decline was the launch point, not the mountain: the reading was the artefact");
+            Debug.Log(log.ToString());
+        }
+
         static float DeepestCut(RillWorld world)
         {
             float d = 0f;

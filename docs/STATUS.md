@@ -15,6 +15,9 @@ across the three biomes, 0 after the clamp), and the ten "reasons to come back" 
 is almost about to happen, the time-lapse is watchable and skippable, daily glyphs survive the
 rollover, the title forecasts tomorrow's weather and reports what happened while you were away,
 a paper boat reads the network (virgin 1.2 m/s vs mature 20.5 m/s), gorges and fans get names,
+End game works mid-run, the records screen reads the world, basins and landmarks are named apart,
+three modes sit on the home screen with the expedition live and invariant-1-guarded, plunges land
+on the camera and in the mix, and the 1,000-run survey names what never finishes,
 idle has a world-derived soundscape, a composed share card provably contains the run, and a held
 finger rains 1.5 m³ down the player's own channels under an exact invariant-6 ledger.
 

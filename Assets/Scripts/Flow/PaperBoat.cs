@@ -41,14 +41,21 @@ namespace Rill.Flow
         const float MaxSeconds = 150f;
         const float SurfaceOffset = 0.3f;
 
-        public static Result Sail(RillWorld world)
+        /// <param name="spawnSalt">
+        /// 0 (the game): spawn varies with RunNumber like a run's would. Non-zero (measurement):
+        /// a fixed spawn per salt, so two readings of the same mountain at different run counts
+        /// compare the network rather than two different launch points — the L-071 confound.
+        /// </param>
+        public static Result Sail(RillWorld world, uint spawnSalt = 0)
         {
             var r = new Result();
             var field = world.Field;
 
             // Same spring the runs use, same seed derivation, so the boat answers "what would my
             // water find" rather than sailing a course no run could take.
-            var rng = new Rng(Noise.Hash((uint)world.RunNumber * 2654435761u ^ world.Seed));
+            var rng = new Rng(spawnSalt == 0
+                ? Noise.Hash((uint)world.RunNumber * 2654435761u ^ world.Seed)
+                : Noise.Hash(spawnSalt * 2654435761u ^ world.Seed));
             Vector3 spawn = world.SpawnPoint(ref rng);
             Vector2 pos = new Vector2(spawn.x, spawn.z);
             Vector2 vel = Vector2.zero;
