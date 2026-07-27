@@ -908,6 +908,12 @@ namespace Rill.Flow
             sb.AppendFormat("Life: {0}   ·   Uncovered {1} of {2}   ·   Streak {3} days\n\n",
                 EcosystemSystem.Describe(Ecosystem.HighestTier), Revelation.RevealedCount(), Active.Secrets.Count, _almanac.DayStreak);
             sb.Append("Close to finishing:\n").Append(_projects.PanelBlock()).Append('\n');
+
+            // The glyph collection lives here rather than on the Daily HUD because the Daily's
+            // screen is about today; the Almanac is where finished days belong.
+            string glyphs = _daily.Journal.PanelBlock(2, System.DateTime.UtcNow);
+            if (glyphs.Length > 0) sb.Append(glyphs).Append('\n');
+
             sb.Append(HudController.FormatAlmanac(_almanac));
 
             Current = State.Panel;

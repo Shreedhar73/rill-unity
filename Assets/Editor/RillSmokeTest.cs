@@ -339,6 +339,66 @@ namespace Rill.EditorTools
             if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
         }
 
+        /// <summary>
+        /// The glyph journal: daily glyphs used to die at the rollover, because DailyRill.Load
+        /// replaced any stale file without reading it. The journal is the player's whole Daily
+        /// history, so it gets the same round-trip scrutiny as a save slot. (L-062)
+        /// </summary>
+        [MenuItem("RILL/Run Headless Glyph Journal Test", false, 74)]
+        public static void RunHeadlessGlyphJournal()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL glyph journal ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            string path = System.IO.Path.Combine(SaveSystem.RootDir, "glyph_journal_test.json");
+            if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
+
+            var j = new GlyphJournal(path);
+            check(j.PlayedDays == 0, "a fresh journal is empty");
+
+            // Out of order on purpose: the journal must sort by date, not by arrival.
+            j.Record("2026-07-25", "glyph-c", 7, 300f, true);
+            j.Record("2026-07-23", "glyph-a", 7, 100f, true);
+            j.Record("2026-07-24", "glyph-b", 4, 200f, false);
+            check(j.PlayedDays == 3, "three days recorded, got " + j.PlayedDays);
+
+            // Same day again is an update, not a duplicate — RecordRun journals after every run.
+            j.Record("2026-07-24", "glyph-b2", 7, 250f, true);
+            check(j.PlayedDays == 3, "re-recording a day updates rather than duplicates, got " + j.PlayedDays);
+
+            var j2 = new GlyphJournal(path);
+            check(j2.PlayedDays == 3, "the journal round-trips through disk, got " + j2.PlayedDays);
+            check(j2.Entries[0].DateKey == "2026-07-23" && j2.Entries[2].DateKey == "2026-07-25",
+                  "entries come back in date order: " + j2.Entries[0].DateKey + " … " + j2.Entries[2].DateKey);
+            check(j2.Entries[1].Glyph == "glyph-b2" && j2.Entries[1].Complete,
+                  "the update won: day 24 carries its final glyph and completion");
+
+            // Streak: 23-24-25 played, so on the 25th the streak is 3; on the 26th (not yet
+            // played) yesterday's streak of 3 still stands; on the 27th the chain is broken.
+            check(j2.StreakEndingAt(new DateTime(2026, 7, 25)) == 3,
+                  "streak on the last played day is 3, got " + j2.StreakEndingAt(new DateTime(2026, 7, 25)));
+            check(j2.StreakEndingAt(new DateTime(2026, 7, 26)) == 3,
+                  "an unplayed today does not break yesterday's streak, got " + j2.StreakEndingAt(new DateTime(2026, 7, 26)));
+            check(j2.StreakEndingAt(new DateTime(2026, 7, 27)) == 0,
+                  "a missed day starts the count again, got " + j2.StreakEndingAt(new DateTime(2026, 7, 27)));
+
+            string block = j2.PanelBlock(2, new DateTime(2026, 7, 26));
+            check(block.Contains("3 days played") && block.Contains("streak 3"), "the panel header counts days and streak");
+            check(block.Contains("glyph-b2") && block.Contains("glyph-c") && !block.Contains("glyph-a"),
+                  "the last two glyphs are shown in full and older days are one line");
+            check(block.Contains("2026-07-23"), "older days still appear as lines");
+
+            System.IO.File.Delete(path);
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
         static DateTime FindWeather(Rill.World.WeatherSystem w, Rill.World.WeatherKind want)
         {
             var d = new DateTime(2026, 3, 1, 6, 0, 0, DateTimeKind.Utc);

@@ -31,6 +31,9 @@ namespace Rill.Meta
         readonly string _path;
         DailyFile _file;
 
+        /// <summary>Every glyph ever made, kept past the daily rollover that used to discard them.</summary>
+        public readonly GlyphJournal Journal;
+
         public readonly List<List<Vector3>> Paths = new List<List<Vector3>>();
         public readonly List<bool> ReachedSea = new List<bool>();
 
@@ -44,6 +47,7 @@ namespace Rill.Meta
         public DailyRill()
         {
             _path = Path.Combine(SaveSystem.RootDir, "daily.json");
+            Journal = new GlyphJournal();
             Load();
         }
 
@@ -65,6 +69,12 @@ namespace Rill.Meta
                 {
                     var f = JsonUtility.FromJson<DailyFile>(File.ReadAllText(_path));
                     if (f != null && f.DateKey == todayKey) { _file = f; return; }
+                    // The rollover used to be where yesterday's glyph died: the stale file was
+                    // simply replaced. The journal keeps it — a collection you cannot look at is
+                    // not a collection. (Normally a no-op: RecordRun journals as it goes; this
+                    // catches a day played on a build from before the journal existed.)
+                    if (f != null && !string.IsNullOrEmpty(f.FinalGlyph))
+                        Journal.Record(f.DateKey, f.FinalGlyph, f.RunsUsed, f.WaterToSea, f.Complete);
                 }
                 catch (Exception e)
                 {
@@ -101,6 +111,7 @@ namespace Rill.Meta
             _file.FinalGlyph = GlyphGenerator.Render(Paths, ReachedSea, worldExtent, field);
             if (_file.RunsUsed >= RunsPerDay) _file.Complete = true;
             Save();
+            Journal.Record(_file.DateKey, _file.FinalGlyph, _file.RunsUsed, _file.WaterToSea, _file.Complete);
         }
 
         public string Glyph => string.IsNullOrEmpty(_file.FinalGlyph) ? "" : _file.FinalGlyph;

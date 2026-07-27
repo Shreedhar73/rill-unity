@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **23** · Closed this cycle: **46** (34 archived)
+Last updated: **2026-07-27** · Open loops: **22** · Closed this cycle: **47** (34 archived)
 
 ---
 
@@ -253,14 +253,6 @@ Rejected on the way: anything resembling XP, streaks that punish a missed day, t
 energy systems, and a "prestige" reset (invariant 1 makes the whole genre impossible here, which
 is the design's point). Ordered by implementation order, terminal-verifiable ones first.
 
-### L-062 · Daily glyphs vanish the next day
-**Why** — The Daily produces one shareable glyph and then discards it; yesterday's is gone. A
-collection you cannot look at is not a collection. Kept glyphs are a calendar of played days —
-the streak made visible without inventing a streak counter, pure collection psychology with
-nothing awarded.
-**Done when** — A journal shows past daily glyphs with their dates, persisted per player, and the
-smoke test round-trips a journal of at least 3 glyphs through save/load.
-
 ### L-063 · Weather arrives unannounced
 **Why** — `WeatherSystem` derives weather from the date, which means tomorrow's weather is already
 knowable — and the game never says it. "Snowmelt tomorrow — the glacier will surge" is an
@@ -335,6 +327,21 @@ headless mass-balance check accounts for every m³ of shower water.
 ---
 
 ## Recently closed
+
+### L-062 · Daily glyphs vanish the next day — closed 2026-07-27
+The rollover was where they died: `DailyRill.Load` replaced any stale `daily.json` without reading
+it. `GlyphJournal` now keeps every day — updated after every daily run (not only at rollover, so a
+crash before midnight loses nothing), with a rollover catch for days played on builds from before
+the journal existed. Global like `daily.json` itself: the Daily belongs to the player, not to a
+mountain. The Almanac panel shows the collection — day count, streak, the last two glyphs in full,
+older days as one line each. The streak is computed from the entries rather than stored, so it can
+never drift from the record; an unplayed *today* does not break yesterday's streak, and a missed
+day just starts the count again — nothing is awarded and nothing punishes, per the design.
+**Evidence** — new headless test, 12 assertions: out-of-order records come back date-sorted;
+re-recording a day updates rather than duplicates; disk round-trip; streak 3 on the last played
+day, still 3 on an unplayed today, 0 after a missed day; panel shows last two glyphs in full and
+older days as lines. Full smoke and play probe after wiring: green, 0 failed, 0 runtime errors.
+The panel rendering in play is unobserved, as all UI here is.
 
 ### L-061 · The mountain's own history is invisible — closed 2026-07-27
 The loop was wrong about what was missing, in a useful way: `TimeLapsePlayer` and the HUD button
