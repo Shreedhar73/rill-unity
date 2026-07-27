@@ -57,6 +57,12 @@ namespace Rill.Render
             _ps.Stop();
         }
 
+        /// <summary>Kills every live particle. The time-lapse must show history, not today's spray.</summary>
+        public void Clear()
+        {
+            if (_ps != null) _ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+
         public void Burst(Vector3 world, float strength, Color color)
         {
             if (_ps == null) return;

@@ -1214,9 +1214,14 @@ namespace Rill.Flow
             Pooled.gameObject.SetActive(false);
             // Props draw themselves from Update, so hiding the terrain does not hide them: the
             // probe photographed today's trees floating over the mountain of two hundred runs ago.
+            // The ribbon and spray are the same class of leak — the last run's wake would sit
+            // frozen over the whole playback, and spray outlives its burst — so the playback
+            // starts from a visually empty world: history only, nothing of today.
             if (Ecosystem != null) Ecosystem.enabled = false;
             if (Revelation != null) Revelation.enabled = false;
             if (Pickups != null) Pickups.enabled = false;
+            Ribbon.Clear();
+            if (Fx != null) Fx.Clear();
             Hud.SetIdleUI(false);
             _lapseGrace = Time.time + 0.4f;
             Current = State.TimeLapse;
@@ -1398,10 +1403,14 @@ namespace Rill.Flow
 
             GUIUtility.systemCopyBuffer = text;
 
-            // Postcard: a one-tap beauty shot, saved next to the save file.
-            string shot = System.IO.Path.Combine(SaveSystem.RootDir,
-                string.Format("postcard_run{0}.png", Active.RunNumber));
-            ScreenCapture.CaptureScreenshot(shot);
+            // Postcard: the screen as it stands, UI and all. It used to be saved next to the save
+            // file — a folder no person has ever opened — so the visible result of pressing Share
+            // was a wall of emoji on the clipboard and, apparently, nothing else. Reported exactly
+            // that way. The image cannot go on the clipboard without native code per platform, so
+            // it goes where a person will actually find it, and the hint says where.
+            string dir = ShareDir();
+            SavePostcard(System.IO.Path.Combine(dir,
+                string.Format("postcard_run{0}.png", Active.RunNumber)));
 
             // The share card: the run's own path over the mountain, composed pixel by pixel so it
             // is identical on every device and provable headless. Only when there is a run to
@@ -1412,14 +1421,82 @@ namespace Rill.Flow
                 string record = string.Format("{0:n0} m³ moved · {1:n0} m³ to the sea",
                     Active.LifetimeSediment, Active.LifetimeWaterToSea);
                 byte[] png = ShareCard.Render(Active, _lastPath, title, record);
-                string cardPath = System.IO.Path.Combine(SaveSystem.RootDir,
-                    string.Format("card_run{0}.png", _lastReport.RunNumber));
-                System.IO.File.WriteAllBytes(cardPath, png);
-                Hud.SetHint("Copied to clipboard · postcard and card saved");
+                System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir,
+                    string.Format("card_run{0}.png", _lastReport.RunNumber)), png);
+                Hud.SetHint(ShareHint(true));
                 return;
             }
 
-            Hud.SetHint("Copied to clipboard · postcard saved");
+            Hud.SetHint(ShareHint(false));
+        }
+
+        /// <summary>
+        /// Where Share puts its images: somewhere a person will actually look. On a phone that
+        /// is still beside the save until the platform share sheet exists (with L-022); on a
+        /// desktop it is a RILL folder on the Desktop, because "saved" with no findable file is
+        /// indistinguishable from "did nothing".
+        /// </summary>
+        static string ShareDir()
+        {
+#if UNITY_IOS || UNITY_ANDROID
+            string dir = SaveSystem.RootDir;
+#else
+            string dir = System.IO.Path.Combine(
+                System.Environment.GetFolderPath(System.Environment.SpecialFolder.DesktopDirectory), "RILL");
+#endif
+            System.IO.Directory.CreateDirectory(dir);
+            return dir;
+        }
+
+        /// <summary>
+        /// The screen as it stands — world and HUD — rendered synchronously to a PNG.
+        /// ScreenCapture.CaptureScreenshot was the first attempt and the probe caught it writing
+        /// nothing: it is asynchronous and silently produces no file without a swap chain, which
+        /// is indistinguishable from working until someone goes looking for the picture. This
+        /// renders through the camera the way the probe's own shots do, so "saved" means the
+        /// bytes are on disk before the hint says so.
+        /// </summary>
+        void SavePostcard(string path)
+        {
+            var cam = Cam != null ? Cam.Cam : null;
+            if (cam == null || Hud == null) return;
+
+            int w = Screen.width >= 64 ? Screen.width : 900;
+            int h = Screen.height >= 64 ? Screen.height : 1600;
+            var rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32) { antiAliasing = 4 };
+            var tex = new Texture2D(w, h, TextureFormat.RGB24, false);
+            var prev = cam.targetTexture;
+            Hud.RenderThroughCamera(cam);
+            try
+            {
+                cam.targetTexture = rt;
+                Canvas.ForceUpdateCanvases();
+                cam.Render();
+                RenderTexture.active = rt;
+                tex.ReadPixels(new Rect(0, 0, w, h), 0, 0);
+                tex.Apply();
+                System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+            }
+            finally
+            {
+                RenderTexture.active = null;
+                cam.targetTexture = prev;
+                Hud.RenderOverlay();
+                Destroy(tex);
+                rt.Release();
+                Destroy(rt);
+            }
+        }
+
+        static string ShareHint(bool withCard)
+        {
+#if UNITY_IOS || UNITY_ANDROID
+            return withCard ? "Postcard and card saved · glyph copied" : "Postcard saved · glyph copied";
+#else
+            return withCard
+                ? "Saved to Desktop/RILL — screenshot and card · glyph copied"
+                : "Saved to Desktop/RILL — screenshot · glyph copied";
+#endif
         }
 
         void OnApplicationPause(bool paused)

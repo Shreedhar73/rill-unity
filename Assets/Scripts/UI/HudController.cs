@@ -61,6 +61,14 @@ namespace Rill.UI
             _canvas.planeDistance = 1f;
         }
 
+        /// <summary>Back to the normal overlay after an offscreen capture borrowed the canvas.</summary>
+        public void RenderOverlay()
+        {
+            if (_canvas == null) return;
+            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            _canvas.worldCamera = null;
+        }
+
         public bool ReportVisible { get; private set; }
         public bool PanelVisible { get; private set; }
 

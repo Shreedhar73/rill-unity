@@ -202,10 +202,15 @@ namespace Rill.EditorTools
                     Check(Click(hud, "Start"), "Begin can be pressed a second time");
                     Next(); return;
 
-                // Start a run purely to abandon it.
+                // Start a run purely to abandon it — but first, Share, so the next phase can
+                // check the postcard is a real file somewhere a person can find. It used to be
+                // written beside the save, and the visible result of pressing Share was a wall
+                // of emoji on the clipboard and apparently nothing else — reported exactly so.
                 case 9:
                     if (inPhase < 1.0f) return;
                     Check(runner.Current == RunController.State.Idle, "back on the mountain, state=" + runner.Current);
+                    SessionState.SetInt("rill_probe_sharerun", runner.Active.RunNumber);
+                    Check(Click(hud, "BtnShare"), "Share can be pressed");
                     typeof(RunController).GetMethod("StartRun", BindingFlags.NonPublic | BindingFlags.Instance)
                                          .Invoke(runner, null);
                     Next(); return;
@@ -216,6 +221,22 @@ namespace Rill.EditorTools
                 // impossible to do. (L-052)
                 case 10:
                     if (inPhase < 1.2f) return;
+                    // The postcard Share wrote a moment ago: a real file, findable, non-trivial.
+                    {
+                        string dir = System.IO.Path.Combine(
+                            System.Environment.GetFolderPath(System.Environment.SpecialFolder.DesktopDirectory), "RILL");
+                        string postcard = System.IO.Path.Combine(dir,
+                            "postcard_run" + SessionState.GetInt("rill_probe_sharerun", -1) + ".png");
+                        bool exists = System.IO.File.Exists(postcard);
+                        long size = exists ? new System.IO.FileInfo(postcard).Length : 0;
+                        Check(exists && size > 50000,
+                              "Share saved a real screenshot where a person can find it — " + postcard + " (" + size + " bytes)");
+                        // The probe cleans up after itself; the feature's litter belongs to players.
+                        if (exists) System.IO.File.Delete(postcard);
+                        string card = System.IO.Path.Combine(dir,
+                            "card_run" + SessionState.GetInt("rill_probe_sharerun", -1) + ".png");
+                        if (System.IO.File.Exists(card)) System.IO.File.Delete(card);
+                    }
                     Check(runner.Current == RunController.State.Flowing, "the run is live, state=" + runner.Current);
                     Check(Visible(hud, "BtnEnd game"), "End game is visible mid-run — " + Describe(hud, "BtnEnd game"));
                     Shot(hud, "play_endgame_midrun.png");
