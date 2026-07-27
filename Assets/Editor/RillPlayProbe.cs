@@ -249,6 +249,39 @@ namespace Rill.EditorTools
                     Check(!hud.PanelVisible, "the record is gone");
                     Check(runner.Current == RunController.State.Title && hud.TitleOnScreen,
                           "and the title is exactly as it was, state=" + runner.Current);
+                    // The expedition: a borrowed world that must never reach a slot. Remember
+                    // what slot 0 holds before setting foot on one. (L-048)
+                    {
+                        Rill.Meta.SaveSystem.MountainSummary s0;
+                        Rill.Meta.SaveSystem.ReadSummary(0, out s0);
+                        SessionState.SetInt("rill_probe_seed0", (int)s0.Seed);
+                    }
+                    Check(Visible(hud, "Expedition"), "Expedition is a named mode on the home screen — " + Describe(hud, "Expedition"));
+                    Check(Visible(hud, "DailyMode"), "so is the Daily — " + Describe(hud, "DailyMode"));
+                    Check(Click(hud, "Expedition"), "Expedition can be chosen");
+                    Next(); return;
+
+                case 14:
+                    if (inPhase < 1.5f) return;
+                    Check(runner.Current == RunController.State.Idle, "an expedition lands on a mountain, state=" + runner.Current);
+                    Check(runner.InExpedition, "and knows it is one");
+                    Check(runner.Active != runner.Home, "on a world that is not the player's");
+                    Shot(hud, "play_expedition.png");
+                    Check(Visible(hud, "BtnEnd game"), "with a way out — " + Describe(hud, "BtnEnd game"));
+                    Check(Click(hud, "BtnEnd game"), "End game can be pressed on an expedition");
+                    Next(); return;
+
+                case 15:
+                    if (inPhase < 1.5f) return;
+                    Check(runner.Current == RunController.State.Title, "walking out lands home, state=" + runner.Current);
+                    Check(!runner.InExpedition, "the expedition is over");
+                    Check(runner.Active == runner.Home, "and the player is on their own mountain again");
+                    {
+                        Rill.Meta.SaveSystem.MountainSummary s0;
+                        Rill.Meta.SaveSystem.ReadSummary(0, out s0);
+                        Check((int)s0.Seed == SessionState.GetInt("rill_probe_seed0", -1),
+                              "slot 0 on disk is untouched by the whole visit — seed " + s0.Seed);
+                    }
                     Debug.Log(string.Format("[PROBE] finished: {0} checks failed, {1} runtime errors", _fails, _errors));
                     SessionState.SetBool(Flag, false);
                     EditorApplication.Exit(_fails == 0 && _errors == 0 ? 0 : 1);

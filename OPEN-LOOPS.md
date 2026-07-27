@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **12** · Closed this cycle: **59** (48 archived)
+Last updated: **2026-07-27** · Open loops: **11** · Closed this cycle: **60** (49 archived)
 
 ---
 
@@ -43,32 +43,6 @@ Every loop has:
 ---
 
 ## Now
-
-### L-048 · There is one mode and it is unnamed
-**Why** — Requested 2026-07-26. Daily Rill exists and is reachable only as a toggle button on the
-HUD; the main game has no name and no framing. With a shell and three mountains there is somewhere
-for modes to be chosen rather than toggled.
-**The three, and why these three**
-1. **Mountains** — the game. Three persistent worlds, one per slot, nothing ever reset.
-2. **Daily Rill** — exists. Same seed worldwide, a fixed run count, one shareable glyph. Untouched by
-   your mountains, which is what makes it safe to compete on.
-3. **Expedition** — a fixed short visit to a freshly seeded mountain that you may then **keep**,
-   promoting it into a free slot, or walk away from. Invented to solve a problem L-047 creates rather
-   than for its own sake: three slots means choosing a biome blind, and a slot is permanent. An
-   expedition is how you meet a mountain before you commit to keeping it, and walking away breaks no
-   invariant because it was never yours.
-**Done when** — Each mode is reachable from the home screen, named, and explains itself in one line.
-**Started 2026-07-26.** `MountainRoster.Adopt` exists and is tested: it writes a world that already
-exists in memory into an **empty** slot, refusing an occupied one by the same no-overwrite rule as
-`Create`, and refusing a null world rather than writing a corrupt slot. That is the load-bearing half
-— keeping an expedition is a new path into the one class that can destroy six months of play.
-**Still to do** — the expedition itself (a run-limited visit to an unsaved world), and putting the
-three modes on the home screen as named choices rather than a HUD toggle.
-**Rejected, and why, so they are not re-proposed** — a score-attack mode (the design has no score to
-attack), a mode where terrain resets between runs (invariant 1), and anything asynchronously
-multiplayer (L-024, deliberately out of scope while offline-first).
-
----
 
 ### L-012 · Hand playtest against the kill criterion
 **Why** — The design document sets an explicit M3 kill criterion: if playtesting does not produce
@@ -186,6 +160,30 @@ spray half alone.
 ---
 
 ## Recently closed
+
+### L-048 · There is one mode and it is unnamed — closed 2026-07-27
+The three modes are on the home screen, named, each explaining itself in one line: **Mountains**
+(Begin and the three rows, as before), **Daily Rill** ("Today's rock, same for everyone · seven
+runs" — enterable from the title now, not only the HUD toggle), and **Expedition** ("Meet a new
+mountain · keep it or walk away").
+**The expedition is the load-bearing new piece.** A fresh, unsaved world — a biome the player
+lacks while any slot is free, any of the four (including Granite, which no slot default ever
+offers) once all three are taken — for `ExpeditionRuns = 5` runs, then a choice panel: **Keep it**
+(only when a slot is free; `Roster.Adopt`, already tested, is the single path to disk) or **Walk
+away**. A visit leaves no records: no almanac, no time-lapse, no confluence, and above all no
+autosave.
+**The dangerous part was the saves, and it was treated as the L-054 class it is.** Four separate
+sites save `Active` to `CurrentSlot` — quit, End game, pause, autosave-after-run — and every one
+would have written the borrowed expedition world over the player's slot. All four now guard on
+`InExpedition` as they already did on `InDaily`, and End game / Back step off the expedition at
+the title's door exactly as `LeaveDaily` does.
+**Evidence** — probe walks the whole visit live: Expedition and Daily Rill named on the home
+screen; chosen; `state=Idle` on a world that is not the player's with `InExpedition` true; End
+game pressed on it; home again with `InExpedition` false, `Active == Home`, and **slot 0 on disk
+byte-identical before and after the visit** (seed checked through `ReadSummary`). 0 failed,
+0 runtime errors. `play_expedition.png` is the visit itself — "Expedition · Sandstone · run 0/5".
+**Unobserved** — the five-runs-then-choice flow end to end (the probe walks in and out, not
+through five runs), and the Keep path in play; `Adopt`'s refusals are covered headlessly.
 
 ### L-070 · Basin names collide — three "North basin"s on one mountain — closed 2026-07-27
 Opened and closed the same day, but not the same hour, and with its own test. `ReconcileNames`
@@ -323,24 +321,5 @@ runs earn 2 places, one a gorge (Shale Gorge, cut 7.4 m over 96 m²; Dune Fan, b
 292 m²); the same mountain names its places identically twice; every name survives a save
 round-trip. Smoke and probe after wiring: green, 0 errors. The card headline in play is
 unobserved, as all UI here is.
-
-### L-065 · A paper boat to prove the network — closed 2026-07-27
-`PaperBoat.Sail`: released from the same spring the runs use, no steering, no carving, no water
-spent — a pure reading of the network, plain C# and deterministic. Rough virgin rock eats its
-momentum; polished damp channels carry it. A brim-full tarn is part of the network (the boat
-drifts across toward the spill and sails on); anything less full ends the voyage honestly, by
-name: "The boat sailed 101 m and came to rest on South basin". Played back live on the ribbon
-with the follow camera, tap to skip, from a Boat button in the idle row (six across now, resized
-to fit the same 1000-wide band). Nothing is awarded for any of it.
-**The first assertion was wrong and the failure taught the design.** "Mature carries the boat
-1.5× as far" failed: the mature mountain's own lake ended the voyage at 101 m vs virgin's 82 m
-aground — and resting on a lake you carved is not a worse result than stranding on open rock. The
-network's grade is **speed while moving**, and that gap is enormous and the real reading:
-**virgin 1.20 m/s over 68.6 s; mature 20.48 m/s over 4.9 s — 17×.**
-**Evidence** — headless boat test, 4 assertions: both voyages produce a drawable path; carved
-network moves the boat ≥1.3× as fast (measured 17×); no voyage runs forever; the same mountain
-sails the same boat twice to 0.01 m. Probe green with the six-button row: 0 failed, 0 errors,
-`play_idle.png` shows Boat in the row. The live playback is unobserved — the probe cannot tap the
-world.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*

@@ -21,6 +21,7 @@ namespace Rill.UI
         public event Action ShareRequested;
         public event Action BoatRequested;
         public event Action RecordsRequested;
+        public event Action ExpeditionRequested;
         public event Action ReportDismissed;
         public event Action PanelClosed;
         /// <summary>The on-screen back affordance. The hardware back key raises the same action.</summary>
@@ -169,6 +170,27 @@ namespace Rill.UI
             UIFactory.Place(records.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                             new Vector2(0f, -210f - MountainRoster.Slots * 112f), new Vector2(300f, 84f));
             records.onClick.AddListener(() => { if (RecordsRequested != null) RecordsRequested(); });
+
+            // The other two modes, named, each explaining itself in one line. (L-048) Mountains
+            // is Begin and the rows above; these are the deliberate departures from it — the
+            // Daily's shared rock, and the expedition's blind date with a new one.
+            float modeY = -210f - MountainRoster.Slots * 112f - 118f;
+            var dailyBtn = UIFactory.MakeButton(holder.transform, "DailyMode", "Daily Rill", 26);
+            UIFactory.Place(dailyBtn.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                            new Vector2(-235f, modeY), new Vector2(450f, 84f));
+            dailyBtn.onClick.AddListener(() => { if (DailyRequested != null) DailyRequested(); });
+
+            var expBtn = UIFactory.MakeButton(holder.transform, "Expedition", "Expedition", 26);
+            UIFactory.Place(expBtn.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                            new Vector2(235f, modeY), new Vector2(450f, 84f));
+            expBtn.onClick.AddListener(() => { if (ExpeditionRequested != null) ExpeditionRequested(); });
+
+            var modeCaption = UIFactory.MakeText(holder.transform, "ModeCaptions",
+                "Today's rock, same for everyone · seven runs        Meet a new mountain · keep it or walk away",
+                20, TextAnchor.MiddleCenter, UIFactory.InkDim);
+            UIFactory.Place(modeCaption.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                            new Vector2(0f, modeY - 62f), new Vector2(1000f, 36f));
+            modeCaption.raycastTarget = false;
 
             _titleGroup = UIFactory.Group(holder);
         }
@@ -548,6 +570,48 @@ namespace Rill.UI
                 SetPanelVisible(false);
                 if (PanelClosed != null) PanelClosed();
             });
+
+            // The choice row, for the one panel that is a question rather than a page: keeping an
+            // expedition. Hidden unless ShowChoice asked for it.
+            _choiceA = UIFactory.MakeButton(_panel.transform, "ChoiceA", "", 30, out _choiceALabel);
+            UIFactory.Place(_choiceA.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-240f, 190f), new Vector2(420f, 100f));
+            _choiceA.onClick.AddListener(() =>
+            {
+                var act = _onChoiceA;
+                SetPanelVisible(false);
+                if (act != null) act();
+            });
+            _choiceB = UIFactory.MakeButton(_panel.transform, "ChoiceB", "", 30, out _choiceBLabel);
+            UIFactory.Place(_choiceB.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(240f, 190f), new Vector2(420f, 100f));
+            _choiceB.onClick.AddListener(() =>
+            {
+                var act = _onChoiceB;
+                SetPanelVisible(false);
+                if (act != null) act();
+            });
+            _choiceA.gameObject.SetActive(false);
+            _choiceB.gameObject.SetActive(false);
+        }
+
+        Button _choiceA, _choiceB;
+        Text _choiceALabel, _choiceBLabel;
+        Action _onChoiceA, _onChoiceB;
+
+        /// <summary>
+        /// A panel with a question in it. Option A may be null (a choice with one honest option
+        /// is still a choice — "no free slot" leaves only walking away). Close remains available
+        /// and means "not yet".
+        /// </summary>
+        public void ShowChoice(string title, string body, string aLabel, Action onA, string bLabel, Action onB)
+        {
+            ShowPanel(title, body);
+            _onChoiceA = onA;
+            _onChoiceB = onB;
+            bool hasA = !string.IsNullOrEmpty(aLabel);
+            _choiceA.gameObject.SetActive(hasA);
+            if (hasA) _choiceALabel.text = aLabel;
+            _choiceB.gameObject.SetActive(true);
+            _choiceBLabel.text = bLabel;
         }
 
         // ------------------------------------------------------------------ state
@@ -641,6 +705,11 @@ namespace Rill.UI
         {
             _panelTitle.text = title;
             _panelBody.text = body;
+            // A plain page never inherits the previous question's buttons.
+            if (_choiceA != null) _choiceA.gameObject.SetActive(false);
+            if (_choiceB != null) _choiceB.gameObject.SetActive(false);
+            _onChoiceA = null;
+            _onChoiceB = null;
             SetPanelVisible(true);
         }
 

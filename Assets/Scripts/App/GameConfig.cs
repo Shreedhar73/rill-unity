@@ -88,6 +88,10 @@ namespace Rill.App
         [Header("Volume")]
         public float StartVolume = 60f;          // m^3 of water in a normal run
 
+        [Tooltip("Runs in one expedition visit. Enough to feel a biome's character, few enough " +
+                 "that keeping a mountain stays a real decision rather than a formality.")]
+        public int ExpeditionRuns = 5;
+
         [Tooltip("m³ in one held-finger shower. Deliberately ~2% of a run: rain is affection, " +
                  "not an alternative economy — it must never be worth farming.")]
         public float RainVolume = 1.5f;

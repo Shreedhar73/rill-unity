@@ -71,6 +71,15 @@ namespace Rill.Flow
         public RillWorld Active { get; private set; }
         public bool InDaily { get; private set; }
 
+        /// <summary>
+        /// A run-limited visit to a freshly seeded, unsaved mountain, which the player may then
+        /// keep — promoting it into a free slot — or walk away from. Exists to solve a problem
+        /// three permanent slots create: choosing a biome blind. Walking away breaks no invariant
+        /// because the world was never theirs. (L-048)
+        /// </summary>
+        public bool InExpedition { get; private set; }
+        int _expeditionRunsUsed;
+
         Almanac _almanac;
         DailyRill _daily;
         TimeLapseArchive _archive;
@@ -159,6 +168,7 @@ namespace Rill.Flow
             Hud.ShareRequested += OnShare;
             Hud.BoatRequested += OnBoat;
             Hud.RecordsRequested += OnRecords;
+            Hud.ExpeditionRequested += OnExpedition;
             Hud.ReportDismissed += OnReportDismissed;
             Hud.PanelClosed += () => { if (Current == State.Panel) Current = State.Idle; };
             Hud.BackRequested += GoBack;
@@ -333,6 +343,7 @@ namespace Rill.Flow
             // it cleared the flag before the save guard read it. Leaving the Daily at the door
             // makes the whole class impossible: anything at the title is the player's own mountain.
             LeaveDaily();
+            LeaveExpedition();
 
             // The title IS the home screen, so arriving here ends the launch. FinishLaunch existed,
             // was exercised by the headless navigation test, and was called by NOTHING in the game —
@@ -486,10 +497,13 @@ namespace Rill.Flow
                 FinishRun();
             }
 
-            // Leave the Daily before saving, so what gets written is the player's mountain and not
-            // the borrowed daily world. EnterTitle would do this anyway; doing it before the save
-            // is the part that matters.
+            // Leave the Daily — and any expedition — before saving, so what gets written is the
+            // player's mountain and not a borrowed world. EnterTitle would do this anyway; doing
+            // it before the save is the part that matters: this exact ordering bug (L-054) once
+            // put the daily world one tap away from overwriting a slot, and an expedition world
+            // here would be the same class of loss.
             LeaveDaily();
+            LeaveExpedition();
             if (Active != null) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
 
             _cascades.Clear();
@@ -505,7 +519,9 @@ namespace Rill.Flow
             if (!Nav.CanQuit) return;
             // Save first. Quitting is the one exit that does not go through OnApplicationQuit on
             // every platform, and this game's entire premise is that the world remembers.
-            if (!InDaily && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
+            // Never while on a borrowed world — a daily or expedition save here would write a
+            // throwaway mountain over the player's slot, which is invariant 1 lost in one line.
+            if (!InDaily && !InExpedition && Active != null) SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
 
             // No UnityEditor branch here on purpose: a runtime assembly that references UnityEditor
             // compiles in the editor and breaks the player build, guarded or not. Application.Quit
@@ -542,9 +558,16 @@ namespace Rill.Flow
                     ? "Tap to let the water go"
                     : "Hold and drag while it runs to lean the water";
 
-            Hud.SetHint(InDaily
-                ? (_daily.RunsLeft > 0 ? "Daily Rill — " + _daily.RunsLeft + " runs left. Tap to release." : "Daily complete. Share your glyph.")
-                : idleLine);
+            if (InDaily)
+                Hud.SetHint(_daily.RunsLeft > 0
+                    ? "Daily Rill — " + _daily.RunsLeft + " runs left. Tap to release."
+                    : "Daily complete. Share your glyph.");
+            else if (InExpedition)
+                Hud.SetHint(_expeditionRunsUsed < Config.ExpeditionRuns
+                    ? "Expedition — " + (Config.ExpeditionRuns - _expeditionRunsUsed) + " runs to know it. Tap to release."
+                    : "The expedition is over. Tap to decide.");
+            else
+                Hud.SetHint(idleLine);
             RefreshTopLine();
         }
 
@@ -552,7 +575,9 @@ namespace Rill.Flow
         {
             string left = InDaily
                 ? "Daily Rill · " + _daily.DateKey
-                : "Run " + Active.RunNumber + " · " + _weather.Headline;
+                : InExpedition
+                    ? string.Format("Expedition · {0} · run {1}/{2}", Active.Biome, _expeditionRunsUsed, Config.ExpeditionRuns)
+                    : "Run " + Active.RunNumber + " · " + _weather.Headline;
             string right;
             if (InDaily)
             {
@@ -645,6 +670,13 @@ namespace Rill.Flow
                 if (InDaily && _daily.RunsLeft <= 0)
                 {
                     Hud.SetHint("Daily complete. Share your glyph.");
+                    return;
+                }
+                if (InExpedition && _expeditionRunsUsed >= Config.ExpeditionRuns)
+                {
+                    // Out of runs: the tap asks the question again rather than starting a run
+                    // the mode does not allow.
+                    ShowExpeditionChoice();
                     return;
                 }
                 StartRun();
@@ -915,6 +947,13 @@ namespace Rill.Flow
             {
                 _daily.RecordRun(_sim.Path, _sim.Ending == RunEnding.ReachedSea, _sim.WaterToSea, field.WorldExtent, field);
             }
+            else if (InExpedition)
+            {
+                // A visit leaves no records anywhere but on its own terrain: no almanac, no
+                // time-lapse, no confluence, and above all NO autosave — the expedition world
+                // must be unable to reach a slot except through Adopt.
+                _expeditionRunsUsed++;
+            }
             else
             {
                 _almanac.RecordRun(report);
@@ -1011,6 +1050,11 @@ namespace Rill.Flow
             // is on screen, so dismissing it always returns to idle at the summit.
             Terrain.ClearOverlay();
             EnterIdle();
+
+            // The expedition's last report hands straight to its question — the visit is over
+            // and the next tap could not start a run anyway.
+            if (InExpedition && _expeditionRunsUsed >= Config.ExpeditionRuns)
+                ShowExpeditionChoice();
         }
 
         void OnOverflow(Basin basin, float excess)
@@ -1182,13 +1226,20 @@ namespace Rill.Flow
 
         void OnDailyToggle()
         {
-            if (Current != State.Idle) return;
+            // A named mode on the home screen as well as the old HUD toggle. (L-048)
+            if (Current != State.Idle && Current != State.Title) return;
 
             if (InDaily)
             {
                 LeaveDaily();
                 EnterIdle();
                 return;
+            }
+
+            if (Current == State.Title)
+            {
+                Hud.SetTitle(false, "", null);
+                Nav.Push(AppScreen.Mountain);
             }
 
             // Remember the home mountain's ecosystem before the Daily borrows the renderers.
@@ -1200,6 +1251,93 @@ namespace Rill.Flow
             if (Sky != null) { Sky.UseFixedHour = true; Sky.FixedHour = DayCycle.DailyHour; }
             RebindRenderers(dailyWorld, new float[dailyWorld.Field.Count]);
             EnterIdle();
+        }
+
+        /// <summary>
+        /// The blind date: a fresh, unsaved mountain in a biome the player does not have yet, for
+        /// a fixed number of runs, then keep-or-leave. The world lives only in memory until the
+        /// player chooses to keep it — Adopt is the single sanctioned way it can ever touch disk,
+        /// and it refuses occupied slots by the same rule as Create.
+        /// </summary>
+        void OnExpedition()
+        {
+            if (Current != State.Title) return;
+
+            Hud.SetTitle(false, "", null);
+            Nav.Push(AppScreen.Mountain);
+
+            _homeLife = Ecosystem.LifeField;
+            // A meeting, not a competition, so the seed need not be shared or reproducible —
+            // but it must differ every visit, or "walk away and try again" shows the same rock.
+            uint seed = Noise.Hash((uint)System.DateTime.UtcNow.Ticks ^ 0xE59Du);
+            // A biome the player lacks while any slot is free (the expedition exists to preview a
+            // commitment); once all three are taken it roams all four — including Granite, which
+            // no slot default ever offers — because at that point it is pure tourism.
+            Biome biome = Roster.FirstEmpty() >= 0
+                ? BiomeForNewSlot(Roster.FirstEmpty())
+                : (Biome)(seed % 4u);
+            var world = RillWorld.Create(Config, seed, biome);
+            InExpedition = true;
+            _expeditionRunsUsed = 0;
+            RebindRenderers(world, new float[world.Field.Count]);
+            EnterIdle();
+        }
+
+        /// <summary>Steps off an expedition world without keeping it. Safe to call when not on one.</summary>
+        void LeaveExpedition()
+        {
+            if (!InExpedition) return;
+            InExpedition = false;
+            _expeditionRunsUsed = 0;
+            RebindRenderers(Home, _homeLife ?? new float[Home.Field.Count]);
+        }
+
+        void ShowExpeditionChoice()
+        {
+            int slot = Roster.FirstEmpty();
+            string body = string.Format(
+                "{0} runs on this {1} mountain.\n{2:n0} m³ moved · {3:n0} m³ to the sea\n\n{4}",
+                _expeditionRunsUsed, Active.Biome, Active.LifetimeSediment, Active.LifetimeWaterToSea,
+                slot >= 0
+                    ? "Keep it, and it becomes one of your three — permanently."
+                    : "All three of your slots are taken, so this one can only be left behind.");
+            Current = State.Panel;
+            Hud.ShowChoice("The expedition is over", body,
+                slot >= 0 ? "Keep it" : null, KeepExpedition,
+                "Walk away", WalkAwayFromExpedition);
+        }
+
+        void KeepExpedition()
+        {
+            int slot = Roster.FirstEmpty();
+            var kept = Active;
+            var keptLife = Ecosystem.LifeField;
+            if (slot < 0 || kept == Home) { WalkAwayFromExpedition(); return; }
+
+            // Order matters exactly as it does in SwitchToMountain: step OFF the expedition
+            // first, so nothing below can ever write the borrowed world over a slot by accident.
+            InExpedition = false;
+            _expeditionRunsUsed = 0;
+            if (!Roster.Adopt(slot, kept, keptLife))
+            {
+                // The one honest failure: the slot filled between the check and the keep.
+                RebindRenderers(Home, _homeLife ?? new float[Home.Field.Count]);
+                Nav.GoHome();
+                EnterTitle();
+                Hud.SetHint("No free slot to keep it in");
+                return;
+            }
+            RebindRenderers(Home, _homeLife ?? new float[Home.Field.Count]);
+            SwitchToMountain(slot);
+            Nav.GoHome();
+            EnterTitle();
+        }
+
+        void WalkAwayFromExpedition()
+        {
+            LeaveExpedition();
+            Nav.GoHome();
+            EnterTitle();
         }
 
         float[] _homeLife;
@@ -1274,7 +1412,7 @@ namespace Rill.Flow
 
         void OnApplicationPause(bool paused)
         {
-            if (paused && !InDaily && Active != null)
+            if (paused && !InDaily && !InExpedition && Active != null)
             {
                 SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
                 // The world and the almanac go together. Quitting mid-run saved a RunNumber the
@@ -1285,7 +1423,7 @@ namespace Rill.Flow
 
         void OnApplicationQuit()
         {
-            if (!InDaily && Active != null)
+            if (!InDaily && !InExpedition && Active != null)
             {
                 SaveSystem.Save(Active, Ecosystem.LifeField, CurrentSlot);
                 if (_almanac != null) _almanac.Save();
