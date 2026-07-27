@@ -158,6 +158,7 @@ namespace Rill.Flow
             Hud.DailyRequested += OnDailyToggle;
             Hud.ShareRequested += OnShare;
             Hud.BoatRequested += OnBoat;
+            Hud.RecordsRequested += OnRecords;
             Hud.ReportDismissed += OnReportDismissed;
             Hud.PanelClosed += () => { if (Current == State.Panel) Current = State.Idle; };
             Hud.BackRequested += GoBack;
@@ -1129,6 +1130,20 @@ namespace Rill.Flow
                 EnterIdle();
                 Hud.SetHint(reading);
             }
+        }
+
+        /// <summary>
+        /// The records screen: what the current mountain has had done to it, every figure read off
+        /// the world at the moment of asking. From the title only — it belongs to choosing a
+        /// mountain, not to playing one — and it leaves the state machine alone: the panel draws
+        /// over the title and its close button puts things back exactly as they were.
+        /// </summary>
+        void OnRecords()
+        {
+            if (Current != State.Title) return;
+            Hud.ShowPanel("The record",
+                Records.Text(Active, _almanac, Ecosystem != null ? Ecosystem.LifeField : null,
+                             Revelation != null ? Revelation.RevealedCount() : 0));
         }
 
         void OnTimeLapse()

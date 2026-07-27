@@ -230,6 +230,25 @@ namespace Rill.EditorTools
                     Check(Visible(hud, "Start"), "with Begin — " + Describe(hud, "Start"));
                     Check(!Visible(hud, "BtnEnd game"), "and End game is gone from the title");
                     Shot(hud, "play_after_endgame.png");
+                    // The records screen, from the title. (L-051)
+                    Check(Visible(hud, "Records"), "Records sits under the mountain rows — " + Describe(hud, "Records"));
+                    Check(Click(hud, "Records"), "Records can be pressed");
+                    Next(); return;
+
+                case 12:
+                    if (inPhase < 0.7f) return;
+                    Check(hud.PanelVisible, "the record panel is up");
+                    Check(runner.Current == RunController.State.Title,
+                          "and the state machine was left alone, state=" + runner.Current);
+                    Shot(hud, "play_records.png");
+                    Check(Click(hud, "Close"), "the record can be closed");
+                    Next(); return;
+
+                case 13:
+                    if (inPhase < 0.7f) return;
+                    Check(!hud.PanelVisible, "the record is gone");
+                    Check(runner.Current == RunController.State.Title && hud.TitleOnScreen,
+                          "and the title is exactly as it was, state=" + runner.Current);
                     Debug.Log(string.Format("[PROBE] finished: {0} checks failed, {1} runtime errors", _fails, _errors));
                     SessionState.SetBool(Flag, false);
                     EditorApplication.Exit(_fails == 0 && _errors == 0 ? 0 : 1);

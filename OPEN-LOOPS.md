@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **12** · Closed this cycle: **57** (46 archived)
+Last updated: **2026-07-27** · Open loops: **13** · Closed this cycle: **58** (46 archived)
 
 ---
 
@@ -68,18 +68,6 @@ three modes on the home screen as named choices rather than a HUD toggle.
 attack), a mode where terrain resets between runs (invariant 1), and anything asynchronously
 multiplayer (L-024, deliberately out of scope while offline-first).
 
-### L-051 · There is nowhere to see what you have done
-**Why** — Requested 2026-07-26 as "score in settings". The numbers exist — `RunNumber`,
-`LifetimeSediment`, `LifetimeWaterToSea`, secrets found, basin fills, day streak — and are visible
-only as two cramped lines on the HUD and a wall of text in the Almanac.
-**It is a record, not a score, and the difference is the whole design.** `CLAUDE.md`: "There is no
-XP, no level, no currency. All progression is numbers in the arrays inside `HeightField`." So this
-screen **reads off the world and never awards anything**: no points, no rank, no total that goes up
-for playing rather than for doing. If a number here cannot be recomputed from the heightfield and the
-almanac, it does not belong on the screen.
-**Done when** — One screen, per mountain, showing what that mountain has had done to it, with every
-figure traceable to world state.
-
 ---
 
 ### L-012 · Hand playtest against the kill criterion
@@ -113,6 +101,15 @@ that five separate "the simulation is broken" conclusions turned out to be flaws
 ---
 
 ## Next
+
+### L-070 · Basin names collide — three "North basin"s on one mountain
+**Why** — Seen on the records screen the moment it existed (`play_records.png`): the real save's
+lattice lists "South basin" twice and "North basin" three times. Compass-point naming cannot tell
+six basins apart, so the record, the end-card teaser, the overflow headline and the boat's
+resting-place line all point at a place the player cannot disambiguate.
+**Done when** — Every basin on a mountain has a distinct name, existing saves included, and the
+names survive the lattice changing shape (a merge keeps one of its parents' names, as `Merged`
+already reports).
 
 ### L-043 · The basin lattice is finished by run 500
 **Why** — Measured 2026-07-26 over a 500-run season, the first time this game has been run far
@@ -198,6 +195,24 @@ spray half alone.
 ---
 
 ## Recently closed
+
+### L-051 · There is nowhere to see what you have done — closed 2026-07-27
+`Records.Text(world, almanac, life, secrets)` — plain C#, takes the world and nothing else, which
+is the design rule made structural: if a number cannot be read off the heightfield or the almanac
+it cannot appear. Seed (so the record is falsifiable), first rain, runs and play span, the m³
+ledgers, deepest cut and tallest build recomputed from `Virgin - Height` at the moment of asking,
+the lattice by basin name with fills, named places, secrets found-of-placed, life, day streak. No
+score, no rank, no total that rises for playing rather than doing — the test asserts the words
+"score", "points", "level" and "XP" appear nowhere. Reached by a Records button under the mountain
+rows on the title; the panel draws over the title and leaves the state machine alone.
+**Evidence** — headless records test, 8 assertions, each figure held against the array it claims
+to read (deepest cut recomputed independently and matched to the printed string). Probe walks it
+live: pressed on the title, panel up, `state=Title` untouched, closed, title exactly as it was —
+0 failed, 0 runtime errors. `play_records.png` is the real save's record: 220 runs, 18.3 hours,
+292,051 m³ moved, Shale Gorge cut 6.3 m.
+**Exposed by looking, and opened as L-070** — the real save's lattice lists "South basin" twice
+and "North basin" three times: compass naming collides on a 6-basin lattice, so the record (and
+the teaser, and the overflow headlines) cannot say which North basin it means.
 
 ### L-052 · "Close game" was built as quit, and meant end the session — closed 2026-07-27
 The button had been rebuilt as "End game" and `EndGame()` always handled the mid-run case — but it

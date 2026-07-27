@@ -914,6 +914,74 @@ namespace Rill.EditorTools
             if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
         }
 
+        /// <summary>
+        /// The records screen's contract: every figure traceable to world state. The test plays a
+        /// mountain, renders the text, and holds each line against the arrays it claims to read —
+        /// a record that could drift from the world would be a score with extra steps. (L-051)
+        /// </summary>
+        [MenuItem("RILL/Run Headless Records Test", false, 82)]
+        public static void RunHeadlessRecords()
+        {
+            var log = new StringBuilder();
+            log.AppendLine("=== RILL records screen ===");
+            int pass = 0, fail = 0;
+            System.Action<bool, string> check = (ok, what) =>
+            {
+                if (ok) { pass++; log.AppendFormat("  ok    {0}\n", what); }
+                else { fail++; log.AppendFormat("  FAIL  {0}\n", what); }
+            };
+
+            var config = new GameConfig();
+            var world = RillWorld.Create(config, 20260726u, Biome.Sandstone);
+            var sim = new FlowSimulation(world);
+            for (int run = 1; run <= 25; run++)
+            {
+                world.BeginRun();
+                var rng = new Rng(Noise.Hash((uint)run * 2654435761u ^ world.Seed));
+                sim.Begin(world.SpawnPoint(ref rng), config.StartVolume);
+                int steps = 0;
+                while (sim.Running && steps++ < 20000) sim.Advance(config.SimStep);
+                world.Basins.Rebuild();
+                world.EndRun(sim.Ending, sim.Elapsed, sim.Distance, sim.TopSpeed, sim.WaterToSea);
+            }
+
+            string text = Rill.Meta.Records.Text(world, null, null, 3);
+            log.AppendLine("---");
+            log.AppendLine(text);
+            log.AppendLine("---");
+
+            check(text.Contains(world.RunNumber.ToString("n0") + " runs"),
+                  "the run count is the world's: " + world.RunNumber);
+            check(text.Contains(world.LifetimeSediment.ToString("n0") + " m³ of rock moved"),
+                  "sediment is the world's ledger: " + world.LifetimeSediment.ToString("n0"));
+            check(text.Contains(world.LifetimeWaterToSea.ToString("n0") + " m³ of water delivered"),
+                  "sea delivery is the world's ledger");
+            check(text.Contains("seed " + world.Seed), "the seed is stated — the record is falsifiable");
+
+            // The deepest cut, recomputed independently here, must be the number on the screen.
+            float deepest = 0f;
+            for (int i = 0; i < world.Field.Count; i++)
+                deepest = Mathf.Max(deepest, world.Field.Virgin[i] - world.Field.Height[i]);
+            check(text.Contains(string.Format("Deepest cut {0:0.0} m", deepest)),
+                  string.Format("the deepest cut is recomputed from Virgin-Height: {0:0.0} m", deepest));
+
+            check(text.Contains("Uncovered 3 of " + world.Secrets.Count + " secrets"), "secrets read as found-of-placed");
+
+            bool basinNamed = false;
+            for (int i = 0; i < world.Basins.Basins.Count; i++)
+                if (!string.IsNullOrEmpty(world.Basins.Basins[i].Name)
+                    && text.Contains(world.Basins.Basins[i].Name)) basinNamed = true;
+            check(basinNamed, "the lattice appears by basin name");
+
+            // And the design rule itself: nothing on this screen may be a score.
+            check(!text.ToLowerInvariant().Contains("score") && !text.ToLowerInvariant().Contains("points")
+                  && !text.ToLowerInvariant().Contains("level") && !text.ToLowerInvariant().Contains(" xp"),
+                  "no score, points, level or XP anywhere in the text");
+
+            log.AppendFormat("--- {0} passed, {1} failed ---\n", pass, fail);
+            if (fail > 0) Debug.LogError(log.ToString()); else Debug.Log(log.ToString());
+        }
+
         static string NameOf(Rill.World.WeatherKind k)
         {
             switch (k)

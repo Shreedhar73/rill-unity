@@ -20,6 +20,7 @@ namespace Rill.UI
         public event Action DailyRequested;
         public event Action ShareRequested;
         public event Action BoatRequested;
+        public event Action RecordsRequested;
         public event Action ReportDismissed;
         public event Action PanelClosed;
         /// <summary>The on-screen back affordance. The hardware back key raises the same action.</summary>
@@ -161,6 +162,13 @@ namespace Rill.UI
                 b.onClick.AddListener(() => { if (MountainPicked != null) MountainPicked(index); });
             }
             SetMountainsVisible(false);
+
+            // The record, not a score: one modest control under the rows, opening the screen
+            // that says what the current mountain has had done to it. (L-051)
+            var records = UIFactory.MakeButton(holder.transform, "Records", "Records", 26);
+            UIFactory.Place(records.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                            new Vector2(0f, -210f - MountainRoster.Slots * 112f), new Vector2(300f, 84f));
+            records.onClick.AddListener(() => { if (RecordsRequested != null) RecordsRequested(); });
 
             _titleGroup = UIFactory.Group(holder);
         }
