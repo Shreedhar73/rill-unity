@@ -77,6 +77,22 @@ namespace Rill.Render
 
         float _lift;   // extra height forced by terrain; rises instantly, settles back smoothly
 
+        [Tooltip("Metres the camera dips on a full-strength plunge impact.")]
+        public float ImpactDip = 2.2f;
+        [Tooltip("Degrees of momentary FOV pop on a full-strength plunge impact.")]
+        public float ImpactFovPop = 5f;
+        float _impact;
+
+        /// <summary>
+        /// A plunge landed. The camera takes the hit with the water: a fast dip-and-recover plus
+        /// a small FOV pop. This is the missing third leg of L-014 — speed had a camera
+        /// consequence and falling did not, so a 15 m plunge read no differently from a riffle.
+        /// </summary>
+        public void Impact(float strength01)
+        {
+            _impact = Mathf.Max(_impact, Mathf.Clamp01(strength01));
+        }
+
         public Mode CurrentMode => _mode;
 
         void Awake()
@@ -207,6 +223,14 @@ namespace Rill.Render
             Vector3 back = rot * new Vector3(0f, 0f, -1f);
             Vector3 pos = _currentTarget + back * _distance + Vector3.up * _height;
 
+            // The plunge dip, before the terrain clamp so an impact can never push the camera
+            // into the ground it is reacting to. Sharp decay: an impact is a beat, not a bounce.
+            if (_impact > 0.001f)
+            {
+                pos.y -= _impact * ImpactDip;
+                _impact -= _impact * 9f * Time.deltaTime;
+            }
+
             // Keep the camera out of the rock. A framing computed purely from distance and height
             // lands inside the hillside whenever the ground behind the subject rises — the capture
             // tool hit exactly this, twice, and got this clamp (RillCapture); the live camera never
@@ -230,7 +254,7 @@ namespace Rill.Render
             if (cam != null)
             {
                 if (_baseFov <= 0f) _baseFov = cam.fieldOfView;
-                float wantFov = _baseFov + SpeedFovKick * _speed01;
+                float wantFov = _baseFov + SpeedFovKick * _speed01 + ImpactFovPop * _impact;
                 cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, wantFov, k);
             }
         }

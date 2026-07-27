@@ -88,6 +88,16 @@ namespace Rill.Audio
             _pendingSplash = Mathf.Clamp01(strength);
         }
 
+        /// <summary>
+        /// The body of a plunge: a low, fast-dying thud under the splash's hiss. The hiss alone
+        /// read as spray; weight lives below 100 Hz.
+        /// </summary>
+        public void Thump(float strength01)
+        {
+            _pendingThump = Mathf.Clamp01(strength01);
+        }
+        volatile float _pendingThump;
+
         /// <summary>A felted piano note pinned to a depth milestone. Sparse by design.</summary>
         public void DepthNote(int step)
         {
@@ -132,6 +142,23 @@ namespace Rill.Audio
 
             float splash = _pendingSplash;
             if (splash > 0f) { _pendingSplash = 0f; _envFlow = Mathf.Max(_envFlow, splash); }
+
+            float thump = _pendingThump;
+            if (thump > 0f)
+            {
+                _pendingThump = 0f;
+                // Rides the same note voices as the depth chimes: a 72 Hz sine dying in a third
+                // of a second is a thud, not a tone.
+                for (int i = 0; i < _notes.Length; i++)
+                {
+                    if (_notes[i].Env > 0.001f) continue;
+                    _notes[i].Freq = 72f;
+                    _notes[i].Env = 0.7f * thump;
+                    _notes[i].Phase = 0f;
+                    _notes[i].Decay = 6.5f;
+                    break;
+                }
+            }
 
             float targetFlow = flowing ? Mathf.Clamp01(0.15f + speed * 0.85f) * Mathf.Clamp01(0.3f + vol) : 0f;
 

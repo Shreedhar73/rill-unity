@@ -1082,6 +1082,18 @@ namespace Rill.Flow
             if (Audio != null) Audio.Splash(strength);
             if (Fx != null) Fx.Burst(pos, strength, new Color(0.80f, 0.94f, 1f, 0.9f));
             Haptics.Tick(strength);
+
+            // A real plunge, not a riffle: the camera takes the hit, the mix gets a thud, and a
+            // second wider mist burst sells the landing. The threshold keeps the constant patter
+            // of small drops from shaking the camera into soup — impact is information, and
+            // information that never stops is noise. (L-014)
+            if (strength > 0.55f)
+            {
+                float big = (strength - 0.55f) / 0.45f;
+                Cam.Impact(big);
+                if (Audio != null) Audio.Thump(big);
+                if (Fx != null) Fx.Burst(pos + Vector3.up * 0.5f, strength * 1.5f, new Color(0.95f, 0.99f, 1f, 0.55f));
+            }
         }
 
         float OnPickupCheck(Vector2 headXZ, float headY, float speed)

@@ -3,7 +3,7 @@
 **This file drives implementation.** Read it first, work the top open loop, close it with evidence,
 then update this file. It is the only place that says what happens next.
 
-Last updated: **2026-07-27** · Open loops: **11** · Closed this cycle: **60** (49 archived)
+Last updated: **2026-07-27** · Open loops: **10** · Closed this cycle: **61** (50 archived)
 
 ---
 
@@ -127,23 +127,6 @@ steer, it clears and does not return. Session-scoped, because an existing save h
 whether its owner ever learned. Says **nothing** about the mountain remembering — that discovery is
 the game.
 
-### L-014 · Sense of speed
-**Why** — The momentum economy is the game's skill ceiling, and at 24 m/s it currently looks the
-same as 9 m/s. The player cannot feel the thing they are optimising.
-**Done when** — Speed is legible without the HUD meter: FOV kick, spray, and impact on plunges.
-**Implemented 2026-07-26, unobserved.** FOV kick (13° at 24 m/s) and the camera closing 22% toward
-the bed were already in. Spray was not: the stream now throws it above **12 m/s**, at a rate that
-climbs with how far over that it is. The threshold is not a taste number — it is roughly terminal
-speed on fresh rock on a steep face, so spray appears exactly when the water is moving faster than
-un-carved ground allows. It is the reward for having carved, shown rather than reported. Gated
-rather than proportional from zero, because spray that is always on is weather and spray that
-*starts* is information.
-**Still not done** — "impact on plunges" is unchanged: `Splash` fires on drops over 1.1 m and always
-has. Whether that reads as impact is a look-at-it question, and the loop should not close on the
-spray half alone.
-
----
-
 ---
 
 ## Later
@@ -160,6 +143,19 @@ spray half alone.
 ---
 
 ## Recently closed
+
+### L-014 · Sense of speed — closed 2026-07-27, on weaker evidence than asked
+All three legs now exist: FOV kick and camera close-in at speed (built earlier), spray above
+terminal-on-fresh-rock speed (built earlier), and now **impact on plunges** — the missing third.
+On a splash over strength 0.55 the camera takes the hit (a sharp dip-and-recover, applied before
+the terrain clamp so an impact can never push the camera into the ground it is reacting to, plus
+a momentary FOV pop), the mix gets a 72 Hz thud under the splash's hiss, and a second wider mist
+burst sells the landing. Thresholded on purpose: the patter of small drops must not shake the
+camera into soup — impact that never stops is noise.
+**Weaker evidence, said plainly:** "speed is legible without the HUD meter" is a claim about a
+person's eyes, and none have looked. What is verified: typecheck clean, full probe green with the
+impact path live in its runs (0 failed, 0 runtime errors). Legibility itself belongs to L-012's
+playtest, and this reopens by the rules if speed still cannot be felt.
 
 ### L-048 · There is one mode and it is unnamed — closed 2026-07-27
 The three modes are on the home screen, named, each explaining itself in one line: **Mountains**
@@ -304,22 +300,5 @@ wind 1.00; played mountain with a living slope is 1.00 / 1.00 / 0.25; each param
 required direction and wind never dies. **The mix itself needs ears and has had none** — the
 parameters are proven, the sound is unobserved, and that distinction is the whole reason the
 parameters live in a separate pure class.
-
-### L-066 · Nothing on the mountain has a name — closed 2026-07-27
-`Landmarks.Find(world)`: gorges cut more than 2.5 m below virgin rock and fans built more than
-1.5 m above it, clustered, footprint-floored (10+ cells so a pothole stays nameless), named
-deterministically from the seed and the feature's deepest cell — "Shale Gorge", "Dune Fan". The
-card announces a christening once ("The water has cut a name into the rock: Shale Gorge"), the
-almanac keeps it, the Almanac panel lists named places deepest-first.
-**Recomputed from terrain, never stored.** The save format stays untouched, and a name cannot
-survive the destruction of the thing it named — if the gorge silts back up the name goes with it,
-which is this game's honesty applied to sentiment. Corollary owned openly: a young feature's
-deepest point wanders before the trench establishes, so a place can be re-christened once or twice
-early, every name kept in the almanac — the place earning its final name.
-**Evidence** — headless landmarks test, 5 assertions: a virgin mountain has no names to give; 60
-runs earn 2 places, one a gorge (Shale Gorge, cut 7.4 m over 96 m²; Dune Fan, built 3.2 m over
-292 m²); the same mountain names its places identically twice; every name survives a save
-round-trip. Smoke and probe after wiring: green, 0 errors. The card headline in play is
-unobserved, as all UI here is.
 
 *Archive of older cycles: [`docs/loops/`](docs/loops/)*
